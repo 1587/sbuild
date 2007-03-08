@@ -1,3 +1,9 @@
+sbuild (0.53etch1) unstable; urgency=low
+
+  * sbuild.conf: Comment out $source_dependencies.
+
+ -- Roger Leigh <rleigh@debian.org>  Thu,  8 Mar 2007 23:51:47 +0000
+
 sbuild (0.53) unstable; urgency=low
 
   * Sbuild/Conf.pm: Add and export check_watches configuration variable.
