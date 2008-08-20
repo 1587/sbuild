@@ -3,7 +3,7 @@ sbuild (0.57.7-1) unstable; urgency=low
   * New release.
   * sbuild-checkpackages handles --list and --set options correctly
     (Closes: #495490).
-  * sbuild-createchroot: Correctly parse -arch option (Closes: #495517).
+  * sbuild-createchroot: Correctly parse --arch option (Closes: #495517).
     Thanks to Cyril Brulebois for this patch.
   * sbuild-setup.7.in: Change permissions of /build to 02775
     (Closes: #494076).  Thanks to Lucas Nussbaum for finding this missing
