@@ -44,7 +44,7 @@ use Sbuild::Sysconfig qw($version $release_date);
 use Sbuild::Conf;
 use Sbuild::LogBase qw($saved_stdout);
 use Sbuild::Sysconfig;
-use Sbuild::Utility qw(check_url download parse_file);
+use Sbuild::Utility qw(check_url download dsc_files);
 use Sbuild::AptitudeBuildDepSatisfier;
 use Sbuild::InternalBuildDepSatisfier;
 
@@ -458,7 +458,8 @@ sub fetch_source_files {
 	$file = download($self->get('DSC')) or
 	    $self->log_error("Could not download " . $self->get('DSC')) and
 	    return 0;
-	my @cwd_files = $self->dsc_files($file);
+	debug("Parsing $dsc\n");
+	my @cwd_files = dsc_files($file);
 	if (-f "$dir/$dsc") {
 	    # Copy the local source files into the build directory.
 	    $self->log_subsubsection("Local sources");
@@ -647,10 +648,6 @@ sub fetch_source_files {
     $dsctext =~ /^Source:\s*(.*)$/mi and $dscpkg = $1;
     $dsctext =~ /^Version:\s*(.*)$/mi and $dscver = $1;
     $self->set_version("${dscpkg}_${dscver}");
-
-    $dsctext =~ /^Files:\s*\n((\s+.*\s*\n)+)/mi and $files = $1;
-    @other_files = map { (split( /\s+/, $_ ))[3] } split( "\n", $files );
-    $files =~ /(\Q$pkg\E.*orig.tar.gz)/mi and $orig = $1;
 
     $self->log_subsubsection("Check arch");
     if (!$dscarchs) {
@@ -1898,26 +1895,6 @@ sub debian_files_list {
     return @list;
 }
 
-sub dsc_files {
-    my $self = shift;
-    my $dsc = shift;
-    my @files;
-
-    debug("Parsing $dsc\n");
-
-    # The parse_file() subroutine returns a ref to an array of hashrefs.
-    my $stanzas = parse_file($dsc);
-
-    # A dsc file would only ever contain one stanza, so we only deal with
-    # the first entry which is a ref to a hash of fields for the stanza.
-    my $stanza = @{$stanzas}[0];
-
-    # We're only interested in the name of the files in the Files field.
-    my $entry = ${$stanza}{'Files'};
-    @files = grep(/\.tar\.gz$|\.diff\.gz$/, split(/\s/, $entry));
-
-    return @files;
-}
 
 # Figure out chroot architecture
 sub chroot_arch {
