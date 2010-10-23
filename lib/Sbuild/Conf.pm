@@ -166,6 +166,19 @@ sub init_allowed_keys {
 	    CHECK => $validate_program,
 	    DEFAULT => $Sbuild::Sysconfig::programs{'APT_CACHE'}
 	},
+	'APTITUDE'				=> {
+	    CHECK => sub {
+		my $self = shift;
+		my $entry = shift;
+		my $key = $entry->{'NAME'};
+
+		# Only validate if needed.
+		if ($self->get('BUILD_DEP_RESOLVER') eq 'aptitude') {
+		    $validate_program->($self, $entry);
+		}
+	    },
+	    DEFAULT => $Sbuild::Sysconfig::programs{'APTITUDE'}
+	},
 	'DPKG_BUILDPACKAGE_USER_OPTIONS'	=> {
 	    DEFAULT => []
 	},
@@ -502,6 +515,7 @@ sub read_config {
     my $fakeroot = undef;
     my $apt_get = undef;
     my $apt_cache = undef;
+    my $aptitude = undef;
     my $dpkg_source = undef;
     my $dcmd = undef;
     my $md5sum = undef;
@@ -573,6 +587,8 @@ sub read_config {
 	}
     }
 
+    # Set before APT_GET or APTITUDE to allow correct validation.
+    $self->set('BUILD_DEP_RESOLVER', $build_dep_resolver);
     $self->set('ARCH', $arch);
     $self->set('DISTRIBUTION', $distribution);
     $self->set('DEBUG', $debug);
@@ -588,6 +604,7 @@ sub read_config {
     $self->set('FAKEROOT', $fakeroot);
     $self->set('APT_GET', $apt_get);
     $self->set('APT_CACHE', $apt_cache);
+    $self->set('APTITUDE', $aptitude);
     $self->set('DPKG_SOURCE', $dpkg_source);
     $self->set('DCMD', $dcmd);
     $self->set('MD5SUM', $md5sum);
@@ -661,7 +678,6 @@ sub read_config {
     $self->set('MAINTAINER_NAME', $self->get('UPLOADER_NAME')) if defined $self->get('UPLOADER_NAME');
     $self->set('MAINTAINER_NAME', $self->get('KEY_ID')) if defined $self->get('KEY_ID');
     $self->set('BUILD_DIR', $build_dir);
-    $self->set('BUILD_DEP_RESOLVER', $build_dep_resolver);
 
     if (!defined($self->get('MAINTAINER_NAME')) &&
 	$self->get('BIN_NMU')) {
