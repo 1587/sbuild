@@ -154,7 +154,7 @@ sub get_next_WANNABUILD {
 		next MAINLOOP;
 	    }
 
-	    my(@todo, $total, $nonex, @lowprio_todo);
+	    my($pkg_ver, $total, $nonex, $lowprio_pkg_ver);
 	    while( <$pipe> ) {
 		my $socket = $dist_config->get('WANNA_BUILD_SSH_SOCKET');
 		if ($socket &&
@@ -171,7 +171,7 @@ sub get_next_WANNABUILD {
 		    $nonex = 1;
 		}
 		next if $nonex;
-		next if @todo >= 1; #we only want one!
+		next if defined($pkg_ver); #we only want one!
 		my @line = (split( /\s+/, $_));
 		my $pv = $line[0];
 		my $no_build_regex = $dist_config->get('NO_BUILD_REGEX');
@@ -184,10 +184,13 @@ sub get_next_WANNABUILD {
 		next if isin( $p, @{$dist_config->get('NO_AUTO_BUILD')} );
 		next if $givenback{$pv};
 		if (isin( $p, @{$dist_config->get('WEAK_NO_AUTO_BUILD')} )) {
-		    push( @lowprio_todo, $pv );
+		    # only consider the first lowprio item if there are
+		    # multiple ones
+		    next if defined($lowprio_pkg_ver);
+		    $lowprio_pkg_ver = $pv;
 		    next;
 		}
-		push( @todo, $pv );
+		$pkg_ver = $pv;
 	    }
 	    close( $pipe );
 	    next if $nonex;
@@ -199,8 +202,8 @@ sub get_next_WANNABUILD {
 	    $self->log("${dist_name}: total $total packages to build.\n") if defined($total);
 
 	    # Build weak_no_auto packages before the next dist
-	    if (!@todo && @lowprio_todo) {
-		push @todo, $lowprio_todo[0];
+	    if (!defined($pkg_ver) && defined($lowprio_pkg_ver)) {
+		$pkg_ver = $lowprio_pkg_ver;
 	    }
 
 	    next if !@todo;
