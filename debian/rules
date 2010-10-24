@@ -13,6 +13,7 @@ debian/build/config.status: configure
 	  --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) \
 	  --prefix=/usr --sysconfdir=/etc --libexecdir=/usr/share \
 	  --localstatedir=/var --mandir=\$${prefix}/share/man \
+	  --enable-compat \
 	  DCMD=/usr/bin/dcmd \
 	  SCHROOT=/usr/bin/schroot \
 	  SSH=/usr/bin/ssh \
