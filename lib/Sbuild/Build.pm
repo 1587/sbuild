@@ -432,7 +432,7 @@ sub fetch_source_files {
     my $ver = $self->get('OVersion');
     my $arch = $self->get('Arch');
 
-    my ($files, @other_files, $dscarchs, $dscpkg, $dscver, @fetched);
+    my ($dscarchs, $dscpkg, $dscver, @fetched);
 
     my $build_depends = "";
     my $build_depends_indep = "";
@@ -688,19 +688,15 @@ sub build {
 
     my $dscfile = $self->get('DSC File');
     my $dscdir = $self->get('DSC Dir');
-    my $pkgv = $self->get('Package_Version');
+    my $pkg = $self->get('Package');
     my $build_dir = $self->get('Chroot Build Dir');
     my $arch = $self->get('Arch');
 
     my( $rv, $changes );
     local( *PIPE, *F, *F2 );
 
-    $pkgv = $self->fixup_pkgv($pkgv);
     $self->log_subsection("Build");
     $self->set('This Space', 0);
-    $pkgv =~ /^([a-zA-Z\d.+-]+)_([a-zA-Z\d:.+~-]+)/;
-    # Note, this version contains ".dsc".
-    my ($pkg, $version) = ($1,$2);
 
     my $tmpunpackdir = $dscdir;
     $tmpunpackdir =~ s/-.*$/.orig.tmp-nest/;
@@ -1767,18 +1763,6 @@ sub check_watches {
 	$self->log("  $_: @{$used{$_}}\n");
     }
     $self->log("\n");
-}
-
-
-sub fixup_pkgv {
-    my $self = shift;
-    my $pkgv = shift;
-
-    $pkgv =~ s,^.*/,,; # strip path
-    $pkgv =~ s/\.(dsc|diff\.gz|tar\.gz|deb)$//; # strip extension
-    $pkgv =~ s/_[a-zA-Z\d+~-]+\.(changes|deb)$//; # strip extension
-
-    return $pkgv;
 }
 
 sub format_deps {
