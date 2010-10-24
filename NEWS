@@ -1,11 +1,19 @@
 NEWS                                                            -*- outline -*-
 ----
 
-Welcome to sbuild 0.60.0.  Please read these release notes carefully.
+Welcome to sbuild 0.60.1.  Please read these release notes carefully.
 
 Full installation instructions are provided in the INSTALL file.  The
 README file also contains more specific notes regarding building and
 configuration.
+
+* Major changes in 0.60.1:
+
+  1) Improvements in building of dpkg-source v3 source formats.
+
+  2) sbuild includes a new option --no-source to disable building
+     of source packages.  This is the reciprocal of the existing
+     --source option.
 
 * Major changes in 0.60.0:
 
