@@ -52,7 +52,7 @@ sub install_deps {
     my $self = shift;
     my $pkg = shift;
 
-    $builder->log_subsection("Install build dependencies (aptitude-based resolver)");
+    my $builder = $self->get('Builder');
 
     $builder->log_subsection("Install $pkg build dependencies (aptitude-based resolver)");
 
