@@ -46,6 +46,7 @@ sbuild \- build debian packages from source
 .RB [ \-b \[or] \-\-batch]
 .RB [ \-n \[or] \-\-nolog ]
 .RB [ \-\-setup\-hook=\fIhook-script\fP ]
+.RB [ \-\-build\-dep\-resolver=\fIresolver\fP ]
 .BR PACKAGE1_VERSION[.dsc] " [" PACKAGE2_VERSION[.dsc] " [" PACKAGE\f[BI]n\fP_VERSION[.dsc] ]]
 .SH VERSION
 This man page documents the packaged version of sbuild.  This version
@@ -195,6 +196,10 @@ build. Possible values are \fBalways\fR, \fBnever\fR, and \fBsuccessful\fR.
 .BR \-s ", " "\-\-source"
 Also build source package, i.e. use dpkg\-buildpackage without \-B.
 .TP
+.BR "\-\-no-source"
+Don't build source package, i.e. use dpkg\-buildpackage with \-B.  This option
+is the opposite of \-\-source.
+.TP
 .BR "\-\-force\-orig\-source"
 When used with in conjunction with \-s, this option forces the inclusion of the
 orig.tar.gz file in the generated .changes file, even in cases where it would
@@ -236,6 +241,12 @@ Run the specified script inside the chroot before building.  This script may
 perform any required actions to customise or configure the chroot.  Note that
 the script will be run inside the chroot, and so the script must exist inside
 the chroot rather than the host system.
+.TP
+.BR "\-\-build\-dep\-resolver=\fIresolver\fP"
+Use the specified resolver to handle selecting the build dependencies.
+Supported resolvers are \fIinternal\fP (the default) and \fIaptitude\fP.  The
+latter tries to be smarter but is also slower.  It may be of some help when
+trying to pull build dependencies from an extra suite, like \fIexperimental\fP.
 .SH ENVIRONMENT VARIABLES
 The following environment variables are used by \fBsbuild\fR:
 .IP "DEBEMAIL"

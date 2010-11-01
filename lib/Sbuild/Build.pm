@@ -35,7 +35,7 @@ use GDBM_File;
 use File::Copy qw(); # copy is already exported from Sbuild, so don't export
 		     # anything.
 
-use Sbuild qw($devnull binNMU_version version_compare split_version copy isin send_mail debug df);
+use Sbuild qw($devnull binNMU_version version_compare split_version copy isin send_build_log debug df);
 use Sbuild::Base;
 use Sbuild::ChrootSetup qw(clean update upgrade distupgrade);
 use Sbuild::ChrootInfoSchroot;
@@ -44,7 +44,7 @@ use Sbuild::Sysconfig qw($version $release_date);
 use Sbuild::Conf;
 use Sbuild::LogBase qw($saved_stdout);
 use Sbuild::Sysconfig;
-use Sbuild::Utility qw(check_url download parse_file);
+use Sbuild::Utility qw(check_url download dsc_files);
 use Sbuild::AptitudeBuildDepSatisfier;
 use Sbuild::InternalBuildDepSatisfier;
 
@@ -273,27 +273,6 @@ sub run {
 
     $self->set('Session', $session);
 
-    # Set up debconf selections.
-    my $pipe = $session->pipe_command(
-	{ COMMAND => ['/usr/bin/debconf-set-selections'],
-	  PIPE => 'out',
-	  USER => 'root',
-	  CHROOT => 1,
-	  PRIORITY => 0,
-	  DIR => '/' });
-
-    if (!$pipe) {
-	warn "Cannot open pipe: $!\n";
-    } else {
-	foreach my $selection ('man-db man-db/auto-update boolean false') {
-	    print $pipe "$selection\n";
-	}
-	close($pipe);
-	if ($?) {
-	    $self->log('debconf-set-selections failed\n');
-	}
-    }
-
     $self->set('Additional Deps', []);
 
     # Clean APT cache.
@@ -453,7 +432,7 @@ sub fetch_source_files {
     my $ver = $self->get('OVersion');
     my $arch = $self->get('Arch');
 
-    my ($files, @other_files, $dscarchs, $dscpkg, $dscver, @fetched);
+    my ($dscarchs, $dscpkg, $dscver, @fetched);
 
     my $build_depends = "";
     my $build_depends_indep = "";
@@ -479,7 +458,8 @@ sub fetch_source_files {
 	$file = download($self->get('DSC')) or
 	    $self->log_error("Could not download " . $self->get('DSC')) and
 	    return 0;
-	my @cwd_files = $self->dsc_files($file);
+	debug("Parsing $dsc\n");
+	my @cwd_files = dsc_files($file);
 	if (-f "$dir/$dsc") {
 	    # Copy the local source files into the build directory.
 	    $self->log_subsubsection("Local sources");
@@ -669,10 +649,6 @@ sub fetch_source_files {
     $dsctext =~ /^Version:\s*(.*)$/mi and $dscver = $1;
     $self->set_version("${dscpkg}_${dscver}");
 
-    $dsctext =~ /^Files:\s*\n((\s+.*\s*\n)+)/mi and $files = $1;
-    @other_files = map { (split( /\s+/, $_ ))[3] } split( "\n", $files );
-    $files =~ /(\Q$pkg\E.*orig.tar.gz)/mi and $orig = $1;
-
     $self->log_subsubsection("Check arch");
     if (!$dscarchs) {
 	$self->log("$dsc has no Architecture: field -- skipping arch check!\n");
@@ -712,19 +688,15 @@ sub build {
 
     my $dscfile = $self->get('DSC File');
     my $dscdir = $self->get('DSC Dir');
-    my $pkgv = $self->get('Package_Version');
+    my $pkg = $self->get('Package');
     my $build_dir = $self->get('Chroot Build Dir');
     my $arch = $self->get('Arch');
 
     my( $rv, $changes );
     local( *PIPE, *F, *F2 );
 
-    $pkgv = $self->fixup_pkgv($pkgv);
     $self->log_subsection("Build");
     $self->set('This Space', 0);
-    $pkgv =~ /^([a-zA-Z\d.+-]+)_([a-zA-Z\d:.+~-]+)/;
-    # Note, this version contains ".dsc".
-    my ($pkg, $version) = ($1,$2);
 
     my $tmpunpackdir = $dscdir;
     $tmpunpackdir =~ s/-.*$/.orig.tmp-nest/;
@@ -748,7 +720,7 @@ sub build {
 	$self->set('Sub Task', "dpkg-source");
 	$self->get('Session')->run_command(
 		    { COMMAND => [$self->get_conf('DPKG_SOURCE'),
-				  '-sn', '-x', $dscfile, $dscdir],
+				  '-x', $dscfile, $dscdir],
 		      USER => $self->get_conf('USERNAME'),
 		      CHROOT => 1,
 		      PRIORITY => 0});
@@ -1793,18 +1765,6 @@ sub check_watches {
     $self->log("\n");
 }
 
-
-sub fixup_pkgv {
-    my $self = shift;
-    my $pkgv = shift;
-
-    $pkgv =~ s,^.*/,,; # strip path
-    $pkgv =~ s/\.(dsc|diff\.gz|tar\.gz|deb)$//; # strip extension
-    $pkgv =~ s/_[a-zA-Z\d+~-]+\.(changes|deb)$//; # strip extension
-
-    return $pkgv;
-}
-
 sub format_deps {
     my $self = shift;
 
@@ -1919,26 +1879,6 @@ sub debian_files_list {
     return @list;
 }
 
-sub dsc_files {
-    my $self = shift;
-    my $dsc = shift;
-    my @files;
-
-    debug("Parsing $dsc\n");
-
-    # The parse_file() subroutine returns a ref to an array of hashrefs.
-    my $stanzas = parse_file($dsc);
-
-    # A dsc file would only ever contain one stanza, so we only deal with
-    # the first entry which is a ref to a hash of fields for the stanza.
-    my $stanza = @{$stanzas}[0];
-
-    # We're only interested in the name of the files in the Files field.
-    my $entry = ${$stanza}{'Files'};
-    @files = grep(/\.tar\.gz$|\.diff\.gz$/, split(/\s/, $entry));
-
-    return @files;
-}
 
 # Figure out chroot architecture
 sub chroot_arch {
@@ -2094,7 +2034,7 @@ sub close_build_log {
     else {
 	    $subject .= " (dist=" . $self->get_conf('DISTRIBUTION') . ")";
     }
-    send_mail($self->get('Config'), $self->get_conf('MAILTO'), $subject, $filename)
+    send_build_log($self->get('Config'), $self->get_conf('MAILTO'), $subject, $filename)
 	if (defined($filename) && -f $filename &&
 	    $self->get_conf('MAILTO'));
 
