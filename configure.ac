@@ -62,7 +62,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 dnl Initialise automake stuff.
 AM_INIT_AUTOMAKE([1.10 gnu check-news tar-pax])
 m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])])
-AM_MAINTAINER_MODE
 RELEASE_DATE='sbuild_m4_esyscmd_s([sed -ne '/^Release-Date:/{s/Release-Date:[[:space:]][[:space:]]*//p;q}' VERSION])'
 RELEASE_DATE_S='sbuild_m4_esyscmd_s(date --date='sbuild_m4_esyscmd_s([sed -ne '/^Release-Date:/{s/Release-Date:[[:space:]][[:space:]]*//p;q}' VERSION])' '+%s')'
 AC_DEFINE_UNQUOTED([RELEASE_DATE], ["$RELEASE_DATE_S"], [Package release date.])
@@ -108,7 +107,6 @@ AC_PATH_PROG([DATE], [date])
 AC_PATH_PROG([DCMD], [dcmd])
 AC_PATH_PROG([DF], [df])
 AC_PATH_PROG([DPKG], [dpkg])
-AC_PATH_PROG([DPKG_ARCHITECTURE], [dpkg-architecture])
 AC_PATH_PROG([DPKG_BUILDPACKAGE], [dpkg-buildpackage])
 AC_PATH_PROG([DPKG_PARSECHANGELOG], [dpkg-parsechangelog])
 AC_PATH_PROG([DPKG_SOURCE], [dpkg-source])

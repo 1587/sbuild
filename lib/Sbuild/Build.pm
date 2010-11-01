@@ -1,7 +1,7 @@
 #
 # Build.pm: build library for sbuild
 # Copyright © 2005      Ryan Murray <rmurray@debian.org>
-# Copyright © 2005-2008 Roger Leigh <rleigh@debian.org>
+# Copyright © 2005-2010 Roger Leigh <rleigh@debian.org>
 # Copyright © 2008      Simon McVittie <smcv@debian.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -208,6 +208,16 @@ sub run {
 
     $self->set_status('building');
 
+    if ($self->get_conf('BUILD_DEP_RESOLVER') eq "aptitude") {
+	$self->set('Dependency Resolver',
+		   Sbuild::AptitudeBuildDepSatisfier->new($self));
+    } else {
+	$self->set('Dependency Resolver',
+		   Sbuild::InternalBuildDepSatisfier->new($self));
+    }
+    my $resolver = $self->get('Dependency Resolver');
+
+
     $self->set('Pkg Start Time', time);
 
     my $dist = $self->get_conf('DISTRIBUTION');
@@ -230,6 +240,7 @@ sub run {
 	$chroot_info = Sbuild::ChrootInfoSudo->new($self->get('Config'));
     }
 
+    my $end_session = 1;
     my $session = $chroot_info->create($self->get_conf('DISTRIBUTION'),
 				       $self->get_conf('CHROOT'),
 				       $self->get_conf('ARCH'));
@@ -331,6 +342,11 @@ sub run {
 	}
     }
 
+    $self->set('Pkg Fail Stage', 'install-core');
+    if (!$self->install_core()) {
+	goto cleanup_close;
+    }
+
     $self->set('Pkg Fail Stage', 'fetch-src');
     if (!$self->fetch_source_files()) {
 	goto cleanup_packages;
@@ -351,19 +367,20 @@ sub run {
 	}
     }
 
-    $self->set('Pkg Fail Stage', 'install-deps');
-    if ($self->get_conf('BUILD_DEP_RESOLVER') eq "aptitude") {
-	$self->set('Dependency Resolver', Sbuild::AptitudeBuildDepSatisfier->new($self));
-    } else {
-	$self->set('Dependency Resolver', Sbuild::InternalBuildDepSatisfier->new($self));
+    $self->set('Pkg Fail Stage', 'install-essential');
+    if (!$resolver->install_deps('ESSENTIAL')) {
+	$self->log("Essential dependencies not satisfied; skipping " .
+		   $self->get('Package') . "\n");
+	goto cleanup_packages;
     }
-    if (!$self->get('Dependency Resolver')->install_deps()) {
+    $self->set('Pkg Fail Stage', 'install-deps');
+    if (!$resolver->install_deps($self->get('Package'))) {
 	$self->log("Source-dependencies not satisfied; skipping " .
 		   $self->get('Package') . "\n");
 	goto cleanup_packages;
     }
 
-    $self->get('Dependency Resolver')->dump_build_environment();
+    $resolver->dump_build_environment();
 
     if ($self->build()) {
 	$self->set_status('successful');
@@ -372,37 +389,55 @@ sub run {
     }
 
   cleanup_packages:
-    # Purge package build directory
-    if ($self->get_conf('PURGE_BUILD_DIRECTORY') eq 'always' ||
-	($self->get_conf('PURGE_BUILD_DIRECTORY') eq 'successful' &&
-	 $self->get_status() eq 'successful')) {
-	$self->log("Purging " . $self->get('Chroot Build Dir') . "\n");
-	my $bdir = $self->get('Session')->strip_chroot_path($self->get('Chroot Build Dir'));
-	$self->get('Session')->run_command(
-	    { COMMAND => ['rm', '-rf', $bdir],
-	      USER => 'root',
-	      CHROOT => 1,
-	      PRIORITY => 0,
-	      DIR => '/' });
-    }
+    my $purge_build_directory =
+	($self->get_conf('PURGE_BUILD_DIRECTORY') eq 'always' ||
+	 ($self->get_conf('PURGE_BUILD_DIRECTORY') eq 'successful' &&
+	  $self->get_status() eq 'successful')) ? 1 : 0;
+    my $purge_build_deps =
+	($self->get_conf('PURGE_BUILD_DEPS') eq 'always' ||
+	 ($self->get_conf('PURGE_BUILD_DEPS') eq 'successful' &&
+	  $self->get_status() eq 'successful')) ? 1 : 0;
+    my $is_cloned_session = (defined ($session->get('Session Purged')) &&
+			     $session->get('Session Purged') == 1) ? 1 : 0;
 
-    # Purge installed packages
-    if (defined ($session->get('Session Purged')) &&
-	$session->get('Session Purged') == 1) {
-	$self->log("Not removing build depends: cloned chroot in use\n");
+    # Purge non-cloned session
+    if ($is_cloned_session) {
+	$self->log("Not cleaning session: cloned chroot in use\n");
+	$end_session = 0
+	    if ($purge_build_directory == 0 || $purge_build_deps == 0);
     } else {
-	if ($self->get_conf('PURGE_BUILD_DEPS') eq 'always' ||
-	    ($self->get_conf('PURGE_BUILD_DEPS') eq 'successful' &&
-	     $self->get_status() eq 'successful')) {
-	    $self->get('Dependency Resolver') && $self->get('Dependency Resolver')->uninstall_deps();
+	if ($purge_build_directory) {
+	    # Purge package build directory
+	    $self->log("Purging " . $self->get('Chroot Build Dir') . "\n");
+	    my $bdir = $self->get('Session')->strip_chroot_path($self->get('Chroot Build Dir'));
+	    $self->get('Session')->run_command(
+		{ COMMAND => ['rm', '-rf', $bdir],
+		  USER => 'root',
+		  CHROOT => 1,
+		  PRIORITY => 0,
+		  DIR => '/' });
+	}
+
+       if ($purge_build_deps) {
+           # Removing dependencies
+	   $resolver->uninstall_deps();
 	} else {
 	    $self->log("Not removing build depends: as requested\n");
 	}
     }
-    $self->get('Dependency Resolver') && $self->get('Dependency Resolver')->remove_srcdep_lock_file();
+
+    # Remove srcdep lock files (once per install_deps invocation).
+    $resolver->remove_srcdep_lock_file();
+    $resolver->remove_srcdep_lock_file();
+
   cleanup_close:
+    $resolver->remove_srcdep_lock_file();
     # End chroot session
-    $session->end_session();
+    if ($end_session == 1) {
+	$session->end_session();
+    } else {
+	$self->log("Keeping session: " . $session->get('Session ID') . "\n");
+    }
     $session = undef;
     $self->set('Session', $session);
 
@@ -422,6 +457,27 @@ sub run {
 
 #     return $self->set('Package Status', $status);
 # }
+
+sub install_core {
+    my $self = shift;
+
+    # read list of build-core packages (if not yet done) and
+    # expand their dependencies (those are implicitly core)
+    my $core_deps = join(", ", @{$self->get_conf('CORE_DEPENDS')});
+
+    if (!defined($self->get('Dependencies')->{'CORE'})) {
+	my $parsed_core_deps = $self->parse_one_srcdep('CORE', $core_deps);
+	push( @{$self->get('Dependencies')->{'CORE'}}, @$parsed_core_deps );
+    }
+
+    if (!$self->get('Dependency Resolver')->install_deps('CORE')) {
+	$self->log("Core dependencies not satisfied; skipping " .
+		   $self->get('Package') . "\n");
+	return 0;
+    }
+
+    return 1;
+}
 
 sub fetch_source_files {
     my $self = shift;
@@ -1099,7 +1155,6 @@ sub run_apt {
     @$inst_ret = ();
     @$rem_ret = ();
     return 1 if !@to_install;
-  repeat:
 
     $msgs = "";
     # redirection of stdin from /dev/null so that conffile question
@@ -1127,69 +1182,6 @@ sub run_apt {
     }
     close($pipe);
     $status = $?;
-
-    if ($status != 0 && $msgs =~ /^E: Packages file \S+ (has changed|is out of sync)/mi) {
-	my $status = update($self->get('Session'), $self->get('Config'));
-	$self->log("apt-get update failed\n") if $status;
-	goto repeat;
-    }
-
-    if ($status != 0 && $msgs =~ /^Package (\S+) is a virtual package provided by:\n((^\s.*\n)*)/mi) {
-	my $to_replace = $1;
-	my @providers;
-	foreach (split( "\n", $2 )) {
-	    s/^\s*//;
-	    push( @providers, (split( /\s+/, $_ ))[0] );
-	}
-	$self->log("$to_replace is a virtual package provided by: @providers\n");
-	my $selected;
-	if (@providers == 1) {
-	    $selected = $providers[0];
-	    $self->log("Using $selected (only possibility)\n");
-	}
-	elsif (exists $self->get_conf('ALTERNATIVES')->{$to_replace}) {
-	    $selected = $self->get_conf('ALTERNATIVES')->{$to_replace};
-	    $self->log("Using $selected (selected in sbuildrc)\n");
-	}
-	else {
-	    $selected = $providers[0];
-	    $self->log("Using $selected (no default, using first one)\n");
-	}
-
-	@to_install = grep { $_ ne $to_replace } @to_install;
-	push( @to_install, $selected );
-
-	goto repeat;
-    }
-
-    if ($status != 0 && ($msgs =~ /^E: Could( not get lock|n.t lock)/mi ||
-			 $msgs =~ /^dpkg: status database area is locked/mi)) {
-	$self->log("Another apt-get or dpkg is running -- retrying later\n");
-	sleep( 2*60 );
-	goto repeat;
-    }
-
-    # check for errors that are probably caused by something broken in
-    # the build environment, and give back the packages.
-    if ($status != 0 && $mode ne "-s" &&
-	(($msgs =~ /^E: dpkg was interrupted, you must manually run 'dpkg --configure -a' to correct the problem./mi) ||
-	 ($msgs =~ /^dpkg: parse error, in file `\/.+\/var\/lib\/dpkg\/(?:available|status)' near line/mi) ||
-	 ($msgs =~ /^E: Unmet dependencies. Try 'apt-get -f install' with no packages \(or specify a solution\)\./mi))) {
-	$self->log_error("Build environment unusable, giving back\n");
-	$self->set('Pkg Fail Stage', "install-deps-env");
-    }
-
-    if ($status != 0 && $mode ne "-s" &&
-	(($msgs =~ /^E: Unable to fetch some archives, maybe run apt-get update or try with/mi))) {
-	$self->log("Unable to fetch build-depends\n");
-	$self->set('Pkg Fail Stage', "install-deps-env");
-    }
-
-    if ($status != 0 && $mode ne "-s" &&
-	(($msgs =~ /^W: Couldn't stat source package list /mi))) {
-	$self->log("Missing a packages file (mismatch with Release.gpg?), giving back.\n");
-	$self->set('Pkg Fail Stage', "install-deps-env");
-    }
 
     $pkgs = $rpkgs = "";
     if ($msgs =~ /NEW packages will be installed:\n((^[ 	].*\n)*)/mi) {
@@ -1240,7 +1232,6 @@ sub merge_pkg_build_deps {
     my $conflictsi = shift;
     my (@l, $dep);
 
-    $self->log("** Using build dependencies supplied by package:\n");
     $self->log("Build-Depends: $depends\n") if $depends;
     $self->log("Build-Depends-Indep: $dependsi\n") if $dependsi;
     $self->log("Build-Conflicts: $conflicts\n") if $conflicts;
@@ -1982,6 +1973,7 @@ sub open_build_log {
 
     $self->log("Package: " . $self->get('Package') . "\n");
     $self->log("Version: " . $self->get('Version') . "\n");
+    $self->log("Source Version: " . $self->get('OVersion') . "\n");
     $self->log("Architecture: " . $self->get('Arch') . "\n");
     $self->log("Chroot Build Dir: " . $self->get('Chroot Build Dir') . "\n");
     $self->log("Start Time: " . strftime("%Y%m%d-%H%M", localtime($self->get('Pkg Start Time'))) . "\n");
