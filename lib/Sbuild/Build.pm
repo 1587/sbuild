@@ -229,7 +229,8 @@ sub run {
 	$chroot_info = Sbuild::ChrootInfoSudo->new($self->get('Config'));
     }
 
-    my $session = $chroot_info->create($self->get_conf('DISTRIBUTION'),
+    my $session = $chroot_info->create('chroot',
+				       $self->get_conf('DISTRIBUTION'),
 				       $self->get_conf('CHROOT'),
 				       $self->get_conf('ARCH'));
 

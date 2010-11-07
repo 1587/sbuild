@@ -108,7 +108,7 @@ foreach (@ARGV) {
 
     my $chroot = Sbuild::Utility::get_dist($_);
 
-    my $session = setup($ARGV[0], $conf) or die "Chroot setup failed";
+    my $session = setup('source', $chroot, $conf) or die "Chroot setup failed";
 
     if ($conf->get('CLEAN')) {
 	print "Performing clean.\n";

@@ -40,7 +40,7 @@ foreach (@ARGV) {
 
     my $chroot = Sbuild::Utility::get_dist($_);
 
-    my $session = setup($_, $conf) or die "Chroot setup failed for $chroot chroot";
+    my $session = setup('source', $chroot, $conf) or die "Chroot setup failed for $chroot chroot";
 
     my $status = distupgrade($session, $conf);
     $status >>= 8;
