@@ -29,7 +29,7 @@ use File::Temp qw(tempdir tempfile);
 use File::Path qw(remove_tree);
 use File::Copy;
 
-use Dpkg::Deps;
+use Sbuild::Deps;
 use Sbuild::Base;
 use Sbuild qw(isin debug debug2);
 
@@ -608,7 +608,7 @@ EOF
 
     # Filter out all but the first alternative.
     if (!$self->get_conf('RESOLVE_ALTERNATIVES')) {
-	my $positive_filtered = Dpkg::Deps::AND->new();
+	my $positive_filtered = Sbuild::Deps::AND->new();
 	foreach my $item ($positive->get_deps()) {
 	    my ($first) = $item->get_deps();
 	    $positive_filtered->add($first) if defined $first;
