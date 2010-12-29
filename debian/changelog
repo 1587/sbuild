@@ -1,3 +1,11 @@
+sbuild (0.60.0-2) unstable; urgency=low
+
+  * sbuild:
+    - disregard text after urgency field in the changelog, as further comments
+      are allowed by policy (Closes: #588550).
+
+ -- Michael Banck <mbanck@debian.org>  Sun, 18 Jul 2010 14:48:43 +0200
+
 sbuild (0.60.0-1) unstable; urgency=low
 
   * debian/control:

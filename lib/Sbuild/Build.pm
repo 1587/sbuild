@@ -827,7 +827,7 @@ sub build {
 	    $firstline = <F> while $firstline =~ /^$/;
 	    { local($/); undef $/; $text = <F>; }
 	    close( F );
-	    $firstline =~ /^(\S+)\s+\((\S+)\)\s+([^;]+)\s*;\s*urgency=(\S+)\s*$/;
+	    $firstline =~ /^(\S+)\s+\((\S+)\)\s+([^;]+)\s*;\s*urgency=(\S+).*$/;
 	    my ($name, $version, $dists, $urgent) = ($1, $2, $3, $4);
 	    my $NMUversion = $self->get('Version');
 	    chomp( my $date = `date -R` );
