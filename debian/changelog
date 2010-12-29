@@ -1,3 +1,18 @@
+sbuild (0.60.0-2squeeze1) testing-proposed-updates; urgency=low
+
+  * Backport dpkg-source v3 support from unstable.  Cherry-picked from
+    git master:
+    - ba54dd62: Sbuild::Build: Remove DSC filename assumptions breaking
+      new source formats.
+      Improve dpkg-source v3 source format handling.  Don't hard-code
+      assumptions about how the source files are named
+      (Closes: #559533).
+    - 7594a18c: Sbuild::Build: Don't use '-sn' with
+      'dpkg-buildpackage -x'.
+      '-sn' is not supported by new source formats (Closes: #583337).
+
+ -- Roger Leigh <rleigh@debian.org>  Wed, 29 Dec 2010 19:31:03 +0000
+
 sbuild (0.60.0-2) unstable; urgency=low
 
   * sbuild:
