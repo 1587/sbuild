@@ -1,17 +1,41 @@
 sbuild (0.60.0-2squeeze1) testing-proposed-updates; urgency=low
 
-  * Backport dpkg-source v3 support from unstable.  Cherry-picked from
-    git master:
+  * Backport needed changes from unstable.  All changes are
+    cherry-picked from git master.
+  * dpkg-source v3 support:
     - ba54dd62: Sbuild::Build: Remove DSC filename assumptions breaking
-      new source formats.
+                new source formats.
       Improve dpkg-source v3 source format handling.  Don't hard-code
       assumptions about how the source files are named
       (Closes: #559533).
     - 7594a18c: Sbuild::Build: Don't use '-sn' with
-      'dpkg-buildpackage -x'.
+                'dpkg-buildpackage -x'.
       '-sn' is not supported by new source formats (Closes: #583337).
+  * schroot 1.4 support:
+    - 3426a619: Sbuild::ChrootInfoSchroot: Add find function which
+                copes with chroot namespaces
+    - bf2873f3: Sbuild::ChrootInfoSchroot: Parse chroot namespaces
+    - 6daaf332: Sbuild::ChrootInfo: Add support for namespaces
+    - 88f049b8: Sbuild::ChrootInfo: Support namespaces properly with
+                sudo
+    - 3531b5f6: Fix regression when passing source:<distribution> as
+                CHROOT for sbuild-update and friends
+    These changes add support for schroot 1.4 namespaces ('chroot',
+    'source' and 'session').
+  * 25nssdatabases comment handling from unstable:
+    - 860529f8: etc/25nssdatabases: Update from schroot 20nssdatabases
+    This allows the setup scripts to work with schroot 1.4 nssdatabases
+    files containing comments.
+  * sbuild-createchroot schroot 1.4 compatibility:
+    - d61a6551: sbuild-createchroot: Fix abs_path and remove deprecated
+                keys
+    - fcfea251: sbuild-createchroot: Document need for abs_path
+                workaround
+    - e0583348: bin/sbuild-createchroot: fix the schroot template
+    These changes allow sbuild-createchroot to create schroot
+    configurations compatible with schroot 1.4.
 
- -- Roger Leigh <rleigh@debian.org>  Wed, 29 Dec 2010 19:31:03 +0000
+ -- Roger Leigh <rleigh@debian.org>  Thu, 30 Dec 2010 11:18:08 +0000
 
 sbuild (0.60.0-2) unstable; urgency=low
 
