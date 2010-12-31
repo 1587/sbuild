@@ -32,10 +32,13 @@ sbuild (0.60.0-2squeeze1) testing-proposed-updates; urgency=low
     - fcfea251: sbuild-createchroot: Document need for abs_path
                 workaround
     - e0583348: bin/sbuild-createchroot: fix the schroot template
+    - 61deae6f: sbuild-createchroot: Fix permissions of chroot and
+                configuration
     These changes allow sbuild-createchroot to create schroot
-    configurations compatible with schroot 1.4.
+    configurations compatible with schroot 1.4, and with correct
+    permissions on the chroot directory and schroot configuration.
 
- -- Roger Leigh <rleigh@debian.org>  Thu, 30 Dec 2010 11:18:08 +0000
+ -- Roger Leigh <rleigh@debian.org>  Fri, 31 Dec 2010 14:18:18 +0000
 
 sbuild (0.60.0-2) unstable; urgency=low
 
