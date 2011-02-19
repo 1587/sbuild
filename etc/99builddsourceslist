@@ -50,7 +50,6 @@ if [ "$1" = "setup-start" ] || [ "$1" = "setup-recover" ]; then
         APT_LIST="${CHROOT_PATH}/etc/apt/sources.buildd.list"
         APT_CONF="${CHROOT_PATH}/etc/apt/apt.conf.d/99buildd.conf"
         APT_KEYS=""
-        APT_KEY_PACKAGES=""
         rm -f "${APT_LIST}" "${APT_CONF}"
         if [ "${SUITE_BASE}" = 'lenny' ]; then
             APT_CONF="${CHROOT_PATH}/etc/apt/apt.conf"
@@ -74,7 +73,7 @@ if [ "$1" = "setup-start" ] || [ "$1" = "setup-recover" ]; then
             domirror "http://ftp.debian.org/debian ${SUITE_BASE} COMPONENT" ${APT_LIST}
             [ -n "${security_mirror}" ] && domirror "${security_mirror} ${SUITE_BASE} COMPONENT" ${APT_LIST}
             domirror "http://security-master.debian.org/debian-security ${SUITE_BASE}/updates COMPONENT" ${APT_LIST}
-            domirror "http://security-master.debian.org/buildd ${SUITE_BASE}/" ${APT_LIST}
+            domirror "http://security-master.debian.org/buildd-${SUITE_BASE} /" ${APT_LIST}
 
         elif [ "${SUITE_VARIANT}" = 'volatile' ]; then
             SUITES="${SUITE_BASE} ${SUITE_BASE}-proposed-updates"
@@ -105,7 +104,7 @@ if [ "$1" = "setup-start" ] || [ "$1" = "setup-recover" ]; then
             SUITES="${SUITE_BASE} ${SUITE_BASE}-test"
             [ -n "${edu_mirror}" ] && domirror "${edu_mirror} SUITE local" ${APT_LIST}
             domirror "http://ftp.skolelinux.no/skolelinux/ SUITE local" ${APT_LIST}
-            APT_KEY_PACKAGES="${APT_KEY_PACKAGES} debian-edu-archive-keyring"
+            APT_KEYS="${APT_KEYS} debian-edu"
 
         elif [ "${SUITE_BASE}" = 'sid' ]; then
             SUITES="unstable"
@@ -127,10 +126,6 @@ if [ "$1" = "setup-start" ] || [ "$1" = "setup-recover" ]; then
         echo 'APT::Install-Recommends 0;' >> ${APT_CONF}
         echo 'Dir::Etc::SourceList "sources.buildd.list";' >> ${APT_CONF}
 
-        if [ "${SUITE_VARIANT}" = 'security' ]; then
-            echo 'APT::Get::AllowUnauthenticated 1;' >> ${APT_CONF}
-        fi
-
         if [ -n "${APT_KEYS}" ]; then
             for KEY in ${APT_KEYS}; do
                 if [ -f /usr/share/buildd/${KEY}.asc ]; then
@@ -138,9 +133,6 @@ if [ "$1" = "setup-start" ] || [ "$1" = "setup-recover" ]; then
                 else
                     echo W: should add apt key ${KEY} but not found >&2
                 fi
-            done
-            for PKG in ${APT_KEY_PACKAGES}; do
-                chroot ${CHROOT_PATH} apt-get install -y $PKG
             done
         fi
     else
@@ -172,8 +164,8 @@ if [ "$1" = "setup-start" ] || [ "$1" = "setup-recover" ]; then
                     fi
                     echo deb http://security-master.debian.org/debian-security ${SUITE_BASE}/updates main contrib >> ${APT_LIST_AUTO}
                     echo deb-src http://security-master.debian.org/debian-security ${SUITE_BASE}/updates main contrib >> ${APT_LIST_AUTO}
-                    echo deb http://security-master.debian.org/buildd ${SUITE_BASE}/ >> ${APT_LIST_AUTO}
-                    echo deb-src http://security-master.debian.org/buildd ${SUITE_BASE}/ >> ${APT_LIST_AUTO}
+                    echo deb http://security-master.debian.org/buildd-${SUITE_BASE} / >> ${APT_LIST_AUTO}
+                    echo deb-src http://security-master.debian.org/buildd-${SUITE_BASE} / >> ${APT_LIST_AUTO}
                 elif [ ${SUITE_VARIANT} = 'volatile' ]; then
                     if [ "$SUITE_BASE" = "etch" ]; then
 			            cp $VERBOSE ${CHROOT_PATH}/etc/apt/sources.list ${CHROOT_PATH}/etc/apt/sources.list.backup
