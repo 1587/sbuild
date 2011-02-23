@@ -18,7 +18,8 @@ debian/build/config.status: configure
 	CFLAGS="$(CFLAGS)" ../../configure \
 	  --host=$(DEB_HOST_GNU_TYPE) --build=$(DEB_BUILD_GNU_TYPE) \
 	  --prefix=/usr --sysconfdir=/etc --libexecdir=/usr/lib \
-	  --localstatedir=/var --mandir=\$${prefix}/share/man
+	  --localstatedir=/var --mandir=\$${prefix}/share/man \
+	  --enable-compat
 
 build-indep: build
 build-arch: build
