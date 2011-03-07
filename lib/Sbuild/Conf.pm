@@ -277,6 +277,9 @@ sub setup ($) {
 	'COMPRESS_BUILD_LOG_MAILS'              => {
 	    DEFAULT => 0
 	},
+	'MIME_BUILD_LOG_MAILS'                  => {
+	    DEFAULT => 0
+	},
 	'PURGE_BUILD_DEPS'			=> {
 	    CHECK => sub {
 		my $conf = shift;
@@ -601,6 +604,7 @@ sub read ($) {
     undef %mailto;
     my $mailfrom = undef;
     my $compress_build_log_mails = undef;
+    my $mime_build_log_mails = undef;
     my $purge_build_deps = undef;
     my $purge_build_directory = undef;
     my @toolchain_regex;
@@ -707,6 +711,7 @@ sub read ($) {
 	if (%mailto);
     $conf->set('MAILFROM', $mailfrom);
     $conf->set('COMPRESS_BUILD_LOG_MAILS', $compress_build_log_mails);
+    $conf->set('MIME_BUILD_LOG_MAILS', $mime_build_log_mails);
     $conf->set('PURGE_BUILD_DEPS', $purge_build_deps);
     $conf->set('PURGE_BUILD_DIRECTORY', $purge_build_directory);
     $conf->set('TOOLCHAIN_REGEX', \@toolchain_regex)
