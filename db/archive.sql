@@ -18,10 +18,20 @@
 --- along with this program.  If not, see
 --- <http://www.gnu.org/licenses/>.
 
+CREATE TABLE keys (
+       name text CONSTRAINT keys_pkey PRIMARY KEY,
+       key bytea NOT NULL
+);
+
+COMMENT ON TABLE keys IS 'GPG keys used to sign Release files';
+COMMENT ON COLUMN keys.name IS 'Name used to reference key';
+COMMENT ON COLUMN keys.key IS 'GPG key as exported ASCII armoured text';
+
 CREATE TABLE architectures (
 	arch text
 	  CONSTRAINT arch_pkey PRIMARY KEY
 );
+
 
 COMMENT ON TABLE architectures IS 'Architectures known by this wanna-build instance';
 COMMENT ON COLUMN architectures.arch IS 'Architecture name';
