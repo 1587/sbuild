@@ -20,6 +20,7 @@
 
 use strict;
 use warnings;
+use Exception::Class::TryCatch;
 
 package Conf;
 
@@ -84,29 +85,41 @@ use Switch;
 use Sbuild qw(help_text version_text usage_error);
 use Sbuild::DB;
 
-my $conf = Sbuild::Conf::new();
-Conf::setup($conf);
-exit 1 if !defined($conf);
-my $options = Options->new($conf, "sbuild-db", "1");
-exit 1 if !defined($options);
-my $db = Sbuild::DB->new($conf);
-exit 1 if !defined($db);
+try eval {
+    my $conf = Sbuild::Conf::new();
+    Conf::setup($conf);
+    exit 1 if !defined($conf);
+    my $options = Options->new($conf, "sbuild-db", "1");
+    exit 1 if !defined($options);
+    my $db = Sbuild::DB->new($conf);
+    exit 1 if !defined($db);
 
-if (@ARGV < 1) {
-    usage_error("sbuild-db", "Incorrect number of options")
+    if (@ARGV < 1) {
+	usage_error("sbuild-db", "Incorrect number of options")
+    }
+
+    my $command = shift(@ARGV);
+
+
+    switch ($command) {
+	case "key" { do_key($db, @ARGV); }
+	else { print STDERR "sbuild-db: '$command' is not an sbuild-db command\n";
+	       exit 1; }
+    }
+};
+
+if (catch my $err) {
+    print STDERR "E: $err\n";
+    print STDERR "I: " . $err->info . "\n"
+	if ($err->info);
+    print STDERR "Usage: sbuild-db " . $err->usage . "\n"
+	if ($err->usage);
+    exit(1);
 }
-
-my $command = shift(@ARGV);
-
-
-switch ($command) {
-    case "key" { do_key(@ARGV); }
-    else { print STDERR "sbuild-db: '$command' is not an sbuild-db command\n";
-	   exit 1; }
-}
-
+exit 0;
 
 sub do_key {
+    my $db = shift;
     my @opts = @_;
 
     my $operation = shift(@opts);

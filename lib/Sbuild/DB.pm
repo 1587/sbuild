@@ -25,6 +25,7 @@ use warnings;
 use DBI;
 use DBD::Pg;
 use File::Temp qw(tempdir);
+use Sbuild::Exception;
 use Sbuild::Base;
 
 BEGIN {
@@ -48,8 +49,8 @@ sub new {
     my $dbpassword = $self->get_conf('DBPASSWORD');
     my $conn = DBI->connect("DBI:Pg:dbname=$dbname",$dbuser,$dbpassword);
     if (!$conn) {
-	print STDERR "Can't connect to database '$dbname' as user '$dbuser'";
-	$self = undef;
+	Sbuild::Exception::DB->throw
+	    (error => "Can't connect to database ‘$dbname’ as user ‘$dbuser’")
     }
     $self->set('CONN', $conn);
 
@@ -73,21 +74,21 @@ sub fetch_gpg_key {
 
     my $status = system('gpg', @keyring_opts, '--list-keys', @keys);
     if ($status) {
-	print STDERR "Error running gpg --list-keys: $?\n";
-	print STDERR "Are the specified keys present in the keyring?\n";
-	exit 1;
+	Sbuild::Exception::DB->throw
+	    (error => "Error running gpg --list-keys: $?",
+	     info => "Are the specified keys present in the keyring?");
     }
 
     open(my $fh, '-|', 'gpg', @keyring_opts, '--export', '--armor', @keys)
 	or die 'Can\'t open pipe to gpg';
     binmode($fh,":raw");
-    my $file = do { local $/; <$fh> };
+    my $gpgkey = do { local $/; <$fh> };
     if (!$fh->close()) {
-	print STDERR "Error closing gpg pipe: $?\n";
-	exit 1;
+	Sbuild::Exception::DB->throw
+	    (error => "Error closing gpg pipe: $?");
     }
 
-    return $file;
+    return $gpgkey;
 }
 
 sub key_add {
@@ -98,15 +99,15 @@ sub key_add {
     my $conn = $self->get('CONN');
 
     if (!$keyname) {
-	print STDERR "No keyname specified\n";
-	print STDERR "Usage: sbuild-db key add <keyname> <keyid1> [<keyid>]\n";
-	exit 1;
+	Sbuild::Exception::DB->throw
+	    (error => "No keyname specified",
+	     usage => "key add <keyname> <keyid1> [<keyid>]");
     }
 
     if (@keys < 1) {
-	print STDERR "No keyid specified.\n";
-	print STDERR "Usage: sbuild-db key add <keyname> <keyid1> [<keyid>]\n";
-	exit 1;
+	Sbuild::Exception::DB->throw
+	    (error => "No keyid specified",
+	     usage => "key add <keyname> <keyid1> [<keyid>]");
     }
 
     my $find = $conn->prepare("SELECT name FROM keys WHERE (name = ?)");
@@ -114,12 +115,15 @@ sub key_add {
     $find->execute();
     my $rows = $find->rows();
     if ($rows) {
-	print STDERR "Key $keyname already exists\n";
-	exit 1;
+	Sbuild::Exception::DB->throw
+	    (error => "Key ‘$keyname’ already exists");
     }
 
     my $file = $self->fetch_gpg_key(@keys);
-    die "Failed to get gpg key" if !$file;
+    if (!$file) {
+	Sbuild::Exception::DB->throw
+	    (error => "Failed to get gpg key");
+    }
 
     my $insert = $conn->prepare("INSERT INTO keys (name, key) VALUES (?, ?)");
     $insert->bind_param(1, $keyname);
@@ -134,15 +138,15 @@ sub key_update {
     my @keys = @_;
 
     if (!$keyname) {
-	print STDERR "No keyname specified\n";
-	print STDERR "Usage: sbuild-db key update <keyname> <keyid1> [<keyid>]\n";
-	exit 1;
+	Sbuild::Exception::DB->throw
+	    (error => "No keyname specified",
+	     usage => "key update <keyname> <keyid1> [<keyid>]");
     }
 
     if (@keys < 1) {
-	print STDERR "No keyid specified.\n";
-	print STDERR "Usage: sbuild-db key update <keyname> <keyid1> [<keyid>]\n";
-	exit 1;
+	Sbuild::Exception::DB->throw
+	    (error => "No keyid specified",
+	     usage => "key update <keyname> <keyid1> [<keyid>]");
     }
 
     my $conn = $self->get('CONN');
@@ -152,12 +156,15 @@ sub key_update {
     $find->execute();
     my $rows = $find->rows();
     if (!$rows) {
-	print STDERR "Key $keyname does not exist\n";
-	exit 1;
+	Sbuild::Exception::DB->throw
+	    (error => "Key ‘$keyname’ does not exist");
     }
 
     my $file = $self->fetch_gpg_key(@keys);
-    die "Failed to get gpg key" if !$file;
+    if (!$file) {
+	Sbuild::Exception::DB->throw
+	    (error => "Failed to get gpg key");
+    }
 
     my $update = $conn->prepare("UPDATE keys SET key = ? WHERE (name = ?)");
     $update->bind_param(1, $file, { pg_type=>DBD::Pg::PG_BYTEA });
@@ -171,15 +178,15 @@ sub key_remove {
     my $keyname = shift;
 
     if (!$keyname) {
-	print STDERR "No key specified\n";
-	print STDERR "Usage: sbuild-db key remove <keyname>\n";
-	exit 1;
+	Sbuild::Exception::DB->throw
+	    (error => "No key specified",
+	     usage => "key remove <keyname>");
     }
 
     if (@_) {
-	print STDERR "Only one key may be specified.\n";
-	print STDERR "Usage: sbuild-db key remove <keyname>\n";
-	exit 1;
+	Sbuild::Exception::DB->throw
+	    (error => "Only one key may be specified",
+	     usage => "key remove <keyname>");
     }
 
     my $conn = $self->get('CONN');
@@ -196,19 +203,21 @@ sub key_verify_file {
     my @filenames = shift;
 
     if (!$keyname) {
-	print STDERR "No key specified\n";
-	print STDERR "Usage: sbuild-db verify <keyname> <filename>\n";
+	Sbuild::Exception::DB->throw
+	    (error => "No key specified",
+	     usage => "key verify <keyname> <filename> [<detachedsig>]");
     }
 
     if (!@filenames) {
-	print STDERR "No file specified\n";
-	print STDERR "Usage: sbuild-db verify <keyname> <filename> [<detachedsig>]\n";
+	Sbuild::Exception::DB->throw
+	    (error => "No file specified",
+	     usage => "key verify <keyname> <filename> [<detachedsig>]");
     }
 
     my $key = $self->_find_key($keyname);
     if (!$key) {
-	print STDERR "Key $keyname not found\n";
-	exit 1;
+	Sbuild::Exception::DB->throw
+	    (error => "Key ‘$keyname’ not found");
     }
 
     # Create temporary GPG keyring with keys from database, and then
@@ -225,14 +234,14 @@ sub key_verify_file {
     print $fh $key;
     $fh->flush;
     if (!$fh->close()) {
-	print STDERR "Error closing gpg pipe: $?\n";
-	exit 1;
+	Sbuild::Exception::DB->throw
+	    (error => "Error closing gpg pipe: $?");
     }
 
     my $status = system('gpgv', '--keyring', "$tempdir/pubring.gpg", @filenames);
     if ($status) {
-	print STDERR "Error verifying signature on $filenames[0]: $?\n";
-	exit 1;
+	Sbuild::Exception::DB->throw
+	    (error => "Error verifying signature on ‘$filenames[0]’: $?");
     }
 }
 
@@ -249,8 +258,8 @@ sub _find_key {
 	$find->execute();
 	my $rows = $find->rows();
 	if (!$rows) {
-	    print STDERR "Key $keyname not found\n";
-	    exit 1;
+	    Sbuild::Exception::DB->throw
+		(error => "Key ‘$keyname’ not found");
 	}
 
 	my $ref = $find->fetchrow_hashref();
@@ -265,14 +274,15 @@ sub key_show {
     my $keyname = shift;
 
     if (!$keyname) {
-	print STDERR "No key specified\n";
-	print STDERR "Usage: sbuild-db key show <keyname>\n";
+	    Sbuild::Exception::DB->throw
+		(error => "No key specified",
+		 usage => "key show <keyname>");
     }
 
     my $key = $self->_find_key($keyname);
     if (!$key) {
-	print STDERR "Key $keyname not found\n";
-	exit 1;
+	    Sbuild::Exception::DB->throw
+		(error => "Key ‘$keyname’ not found");
     }
 
     print $key;
