@@ -64,6 +64,7 @@ CREATE TABLE build_status (
 	status text
 	  CONSTRAINT build_status_status_fkey REFERENCES package_states(name)
 	  NOT NULL,
+	log bytea,
 	ctime timestamp with time zone
 	  NOT NULL
 	  DEFAULT 'epoch'::timestamp,
@@ -111,6 +112,7 @@ CREATE TABLE build_status_history (
 	status text
 	  CONSTRAINT build_status_history_status_fkey REFERENCES package_states(name)
 	  NOT NULL,
+	log bytea,
 	ctime timestamp with time zone
 	  NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
