@@ -50,6 +50,9 @@ sbuilddata_SCRIPTS =		\
 	create-chroot		\
 	dobuildlog
 
+noinst_SCRIPTS =	\
+	sbuild-db
+
 doc_DATA = 		\
 	README.bins
 
@@ -57,6 +60,7 @@ EXTRA_DIST =			\
 	$(bin_SCRIPTS)		\
 	$(sbin_SCRIPTS) 	\
 	$(sbuilddata_SCRIPTS)	\
+	$(noinst_SCRIPTS)	\
 	$(doc_DATA)
 
 install-exec-hook:

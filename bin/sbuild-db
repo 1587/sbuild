@@ -1,0 +1,124 @@
+#!/usr/bin/perl
+#
+# Copyright © 2011 Roger Leigh <rleigh@debian.org>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+#######################################################################
+
+use strict;
+use warnings;
+
+package Conf;
+
+sub setup {
+    my $conf = shift;
+
+    my %db_keys = (
+	'DBNAME'				=> {
+	    DEFAULT => 'debbuild'
+	},
+	'DBUSER'				=> {
+	    DEFAULT => 'rleigh'
+	},
+	'DBPASSWORD'				=> {
+	    DEFAULT => ''
+	},
+	'GPG_KEYRING'				=> {
+	    DEFAULT => ''
+	}
+    );
+
+    $conf->set_allowed_keys(\%db_keys);
+}
+
+package Options;
+
+use Sbuild::OptionsBase;
+use Sbuild::Conf qw();
+
+BEGIN {
+    use Exporter ();
+    our (@ISA, @EXPORT);
+
+    @ISA = qw(Exporter Sbuild::OptionsBase);
+
+    @EXPORT = qw();
+}
+
+sub set_options {
+    my $self = shift;
+
+    $self->add_options(
+	"db-name=s" => sub {
+	    $self->set_conf('DBNAME', $_[1]);
+	},
+	"db-user=s" => sub {
+	    $self->set_conf('DBUSER', $_[1]);
+	},
+	"db-password=s" => sub {
+	    $self->set_conf('DBPASSWORD', $_[1]);
+	},
+	"gpg-keyring=s" => sub {
+	    $self->set_conf('GPG_KEYRING', $_[1]);
+	});
+}
+
+package main;
+
+use Getopt::Long;
+use Switch;
+
+use Sbuild qw(help_text version_text usage_error);
+use Sbuild::DB;
+
+my $conf = Sbuild::Conf::new();
+Conf::setup($conf);
+exit 1 if !defined($conf);
+my $options = Options->new($conf, "sbuild-db", "1");
+exit 1 if !defined($options);
+my $db = Sbuild::DB->new($conf);
+exit 1 if !defined($db);
+
+if (@ARGV < 1) {
+    usage_error("sbuild-db", "Incorrect number of options")
+}
+
+my $command = shift(@ARGV);
+
+
+switch ($command) {
+    case "key" { do_key(@ARGV); }
+    else { print STDERR "sbuild-db: '$command' is not an sbuild-db command\n";
+	   exit 1; }
+}
+
+
+sub do_key {
+    my @opts = @_;
+
+    my $operation = shift(@opts);
+    my @keys = @opts;
+
+    switch ($operation) {
+	case "add" { $db->key_add(@opts); }
+	case "update" { $db->key_update(@opts); }
+	case "remove" { $db->key_remove(@opts); }
+	case "list" { $db->key_list(@opts); }
+	case "show" { $db->key_show(@opts); }
+	case "verify" { $db->key_verify_file(@opts); }
+	else { $db->key_list(); }
+    }
+}
