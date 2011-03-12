@@ -28,9 +28,22 @@ COMMENT ON COLUMN keys.name IS 'Name used to reference a key';
 COMMENT ON COLUMN keys.key IS 'GPG key as exported ASCII armoured text';
 
 CREATE TABLE suites (
-	name text CONSTRAINT suites_pkey PRIMARY KEY,
+	suitenick text CONSTRAINT suites_pkey PRIMARY KEY,
 	uri text NOT NULL,
-	distribution text NOT NULL,
+	distribution text NOT NULL
+);
+
+COMMENT ON TABLE suites IS 'Valid suites';
+COMMENT ON COLUMN suites.suitenick IS 'Name used to reference a suite (nickname)';
+COMMENT ON COLUMN suites.uri IS 'URI to fetch from';
+COMMENT ON COLUMN suites.distribution IS 'Distribution name (used in combinatino
+ with URI)';
+
+CREATE TABLE suite_release (
+        suitenick text
+	  CONSTRAINT suite_release_suitenick_fkey
+	  REFERENCES suites(suitenick)
+	    ON DELETE CASCADE,
 	suite text NOT NULL,
 	codename text NOT NULL,
 	version debversion,
@@ -47,20 +60,18 @@ CREATE TABLE suites (
 	  DEFAULT 'f'
 );
 
-COMMENT ON TABLE suites IS 'Valid suites';
-COMMENT ON COLUMN suites.name. IS 'Name used to reference a suite';
-COMMENT ON COLUMN suites.uri IS 'URI to fetch from';
-COMMENT ON COLUMN suites.distribution IS 'Distribution name (used in combinatino with URI)';
-COMMENT ON COLUMN suites.suite IS 'Suite name';
-COMMENT ON COLUMN suites.codename IS 'Suite codename';
-COMMENT ON COLUMN suites.version IS 'Suite release version (if applicable)';
-COMMENT ON COLUMN suites.origin IS 'Suite origin';
-COMMENT ON COLUMN suites.label IS 'Suite label';
-COMMENT ON COLUMN suites.date IS 'Date on which the Release file was generated';
-COMMENT ON COLUMN suites.validuntil IS 'Date after which the data expires';
-COMMENT ON COLUMN suites.priority IS 'Sorting order (lower is higher priority)';
-COMMENT ON COLUMN suites.depwait IS 'Automatically wait on dependencies?';
-COMMENT ON COLUMN suites.hidden IS 'Hide suite from public view?  (e.g. for -security)';
+COMMENT ON TABLE suite_release IS 'Suite release details';
+COMMENT ON COLUMN suite_release.suitenick IS 'Suite name (nickname)';
+COMMENT ON COLUMN suite_release.suite IS 'Suite name';
+COMMENT ON COLUMN suite_release.codename IS 'Suite codename';
+COMMENT ON COLUMN suite_release.version IS 'Suite release version (if applicable)';
+COMMENT ON COLUMN suite_release.origin IS 'Suite origin';
+COMMENT ON COLUMN suite_release.label IS 'Suite label';
+COMMENT ON COLUMN suite_release.date IS 'Date on which the Release file was generated';
+COMMENT ON COLUMN suite_release.validuntil IS 'Date after which the data expires';
+COMMENT ON COLUMN suite_release.priority IS 'Sorting order (lower is higher priority)';
+COMMENT ON COLUMN suite_release.depwait IS 'Automatically wait on dependencies?';
+COMMENT ON COLUMN suite_release.hidden IS 'Hide suite from public view?  (e.g. for -security)';
 
 
 CREATE TABLE architectures (
@@ -80,10 +91,10 @@ COMMENT ON TABLE components IS 'Archive components in use';
 COMMENT ON COLUMN components.component IS 'Component name';
 
 CREATE TABLE suite_detail (
-	suite text
+	suitenick text
 	  NOT NULL
 	  CONSTRAINT suite_detail_suite_fkey
-	  REFERENCES suites(name)
+	  REFERENCES suites(suitenick)
 	    ON DELETE CASCADE,
 	architecture text
 	  NOT NULL
@@ -101,7 +112,7 @@ CREATE TABLE suite_detail (
 );
 
 COMMENT ON TABLE suite_detail IS 'List of architectures in each suite';
-COMMENT ON COLUMN suite_detail.suite IS 'Suite name';
+COMMENT ON COLUMN suite_detail.suitenick IS 'Suite name (nickname)';
 COMMENT ON COLUMN suite_detail.architecture IS 'Architecture name';
 COMMENT ON COLUMN suite_detail.component IS 'Component name';
 COMMENT ON COLUMN suite_detail.build IS 'Build packages from this suite/architecture/component?';
