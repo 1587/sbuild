@@ -159,11 +159,13 @@ sub suite_fetch {
     foreach my $component (split('\s+', $parserel->{'Components'})) {
 	my $sfile = "$component/source/Sources.bz2";
 	if ($files{$sfile}) {
-	    print "TODO: Download $sfile\n";
+	    print "Download $sfile ($files{$sfile}->{'SHA256'} $files{$sfile}->{'SIZE'})\n";
 	    my $source = download_cached_distfile(URI => $uri,
 						  FILE => $sfile,
 						  DIST => $distribution,
-						  CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
+						  CACHEDIR => $db->get_conf('ARCHIVE_CACHE'),
+						  SHA256 => $files{$sfile}->{'SHA256'},
+						  SIZE => $files{$sfile}->{'SIZE'});
 	}
     }
 

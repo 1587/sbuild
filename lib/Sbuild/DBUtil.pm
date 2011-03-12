@@ -29,6 +29,8 @@ use LWP::Simple;
 use Sbuild qw(isin);
 use Sbuild::Exception;
 use Exception::Class::TryCatch;
+use Digest::SHA qw();
+use File::stat;
 
 BEGIN {
     use Exporter ();
@@ -126,6 +128,35 @@ sub download {
     return $dest;
 }
 
+sub check_file_hash_size {
+    my $file = shift;
+    my $sha256 = shift;
+    my $size = shift;
+
+    my $st = stat($file);
+    if (!$st) {
+	print "Can't stat $file: $!\n";
+	return 0;
+    }
+
+    if ($size != $st->size) {
+	print "File size mismatch for $file: should be $size, but is $st->size\n";
+	return 0;
+    }
+
+    my $exsha = Digest::SHA->new('SHA256');
+    $exsha->addfile($file);
+    my $exdigest = $exsha->hexdigest();
+
+    if ($sha256 ne $exdigest) {
+	print "File SHA256 mismatch for $file: should be $sha256, but is $exdigest\n";
+	return 0;
+    }
+
+    print "Downloaded file $file size and SHA256 match, using cached copy\n";
+    return 1;
+}
+
 # This method is used to retrieve a file, usually from a location on
 # the Internet, but it can also be used for files in the local system.
 # This downloads relative to /dists/distribution, and also does SHA256/size
@@ -139,6 +170,8 @@ sub download_cached_distfile {
     my $dist = $opts{DIST};
     my $file = $opts{FILE};
     my $cdir = $opts{CACHEDIR};
+    my $sha256 = $opts{SHA256};
+    my $size = $opts{SIZE};
 
     Sbuild::Exception::DB->throw
 	(error => "download_cached_distfile: Missing arguments")
@@ -150,8 +183,22 @@ sub download_cached_distfile {
     $stripuri =~ s|.*(//){1}?||;
     my $cfile = escape_path($stripuri);
 
+    if ($sha256 && $size &&
+	check_file_hash_size("$cdir/$cfile", $sha256, $size)) {
+	    return "$cdir/$cfile";
+	    # Mismatch, so download again
+	}
+
     # If file exists locally, verify it if SHA256 sum and size are given.
-    return download(URI=>$uri, DIR=>$cdir, FILE=>$cfile);
+    my $dlfile = download(URI=>$uri, DIR=>$cdir, FILE=>$cfile);
+
+    if ($sha256 && $size &&
+	!check_file_hash_size($dlfile, $sha256, $size)) {
+	Sbuild::Exception::DB->throw
+	    (error => "$dlfile: SHA256 or size mismatch")
+	}
+
+    return $dlfile;
 }
 
 sub valid_changes {
