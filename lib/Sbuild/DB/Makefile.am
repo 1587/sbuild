@@ -21,40 +21,14 @@
 
 include $(top_srcdir)/scripts/global.mk
 
-SUBDIRS = DB
-
-perlmodsbuilddir = $(perlmoddir)/Sbuild
+perlmodsbuilddbdir = $(perlmoddir)/Sbuild/DB
 
 MODULES =			\
-	Base.pm			\
-	Build.pm		\
-	Chroot.pm		\
-	ChrootPlain.pm		\
-	ChrootRoot.pm		\
-	ChrootSchroot.pm	\
-	ChrootSudo.pm		\
-	ChrootSetup.pm		\
-	ChrootInfo.pm		\
-	ChrootInfoSchroot.pm	\
-	ChrootInfoSudo.pm	\
-	DB.pm			\
-	DBUtil.pm		\
-	Exception.pm		\
-	ResolverBase.pm		\
-	AptitudeResolver.pm	\
-	AptResolver.pm		\
-	XaptResolver.pm		\
-	Resolver.pm		\
-	Conf.pm			\
-	ConfBase.pm		\
-	LogBase.pm		\
-	Options.pm		\
-	OptionsBase.pm		\
-	Utility.pm
+	Key.pm			\
+	Suite.pm
 
-perlmodsbuild_DATA =	\
-	$(MODULES)	\
-	Sysconfig.pm
+perlmodsbuilddb_DATA =	\
+	$(MODULES)
 
 EXTRA_DIST =		\
 	$(MODULES)

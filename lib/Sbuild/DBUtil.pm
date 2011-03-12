@@ -35,8 +35,42 @@ BEGIN {
 
     @ISA = qw(Exporter);
 
-    @EXPORT = qw(escape_path download valid_changes);
+    @EXPORT = qw(fetch_gpg_key escape_path download valid_changes);
 
+}
+
+sub fetch_gpg_key {
+    my $self = shift;
+    my @keys = @_;
+
+    if (@keys < 1) {
+	return undef;
+    }
+
+    print "Fetching " .  join(", ", @keys) . "\n";
+
+    my @keyring_opts = ();
+    if ($self->get_conf('GPG_KEYRING')) {
+	@keyring_opts = ('--no-default-keyring', '--keyring', $self->get_conf('GPG_KEYRING'));
+    }
+
+    my $status = system('gpg', @keyring_opts, '--list-keys', @keys);
+    if ($status) {
+	Sbuild::Exception::DB->throw
+	    (error => "Error running gpg --list-keys: $?",
+	     info => "Are the specified keys present in the keyring?");
+    }
+
+    open(my $fh, '-|', 'gpg', @keyring_opts, '--export', '--armor', @keys)
+	or die 'Can\'t open pipe to gpg';
+    binmode($fh,":raw");
+    my $gpgkey = do { local $/; <$fh> };
+    if (!$fh->close()) {
+	Sbuild::Exception::DB->throw
+	    (error => "Error closing gpg pipe: $?");
+    }
+
+    return $gpgkey;
 }
 
 sub escape_path {

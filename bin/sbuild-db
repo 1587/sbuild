@@ -87,6 +87,8 @@ use Switch;
 
 use Sbuild qw(help_text version_text usage_error);
 use Sbuild::DB;
+use Sbuild::DB::Key;
+use Sbuild::DB::Suite;
 
 try eval {
     my $conf = Sbuild::Conf::new();
@@ -128,16 +130,15 @@ sub do_key {
     my @opts = @_;
 
     my $operation = shift(@opts);
-    my @keys = @opts;
 
     switch ($operation) {
-	case "add" { $db->key_add(@opts); }
-	case "update" { $db->key_update(@opts); }
-	case "remove" { $db->key_remove(@opts); }
-	case "list" { $db->key_list(@opts); }
-	case "show" { $db->key_show(@opts); }
-	case "verify" { $db->key_verify_file(@opts); }
-	else { $db->key_list(); }
+	case "add" { key_add($db, @opts); }
+	case "update" { key_update($db, @opts); }
+	case "remove" { key_remove($db, @opts); }
+	case "list" { key_list($db, @opts); }
+	case "show" { key_show($db, @opts); }
+	case "verify" { key_verify_file($db, @opts); }
+	else { key_list(); }
     }
 }
 
@@ -146,14 +147,13 @@ sub do_suite {
     my @opts = @_;
 
     my $operation = shift(@opts);
-    my @suites = @opts;
 
     switch ($operation) {
-	case "add" { $db->suite_add(@opts); }
-	case "update" { $db->suite_update(@opts); }
-	case "remove" { $db->suite_remove(@opts); }
-	case "list" { $db->suite_list(@opts); }
-	case "show" { $db->suite_show(@opts); }
-	else { $db->suite_list(); }
+	case "add" { suite_add($db, @opts); }
+	case "update" { suite_update($db, @opts); }
+	case "remove" { suite_remove($db, @opts); }
+	case "list" { suite_list($db, @opts); }
+	case "show" { suite_show($db, @opts); }
+	else { suite_list(); }
     }
 }
