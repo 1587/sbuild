@@ -39,6 +39,9 @@ sub setup {
 	},
 	'GPG_KEYRING'				=> {
 	    DEFAULT => ''
+	},
+	'ARCHIVE_CACHE'				=> {
+	    DEFAULT => '/var/lib/sbuild/archive-cache'
 	}
     );
 
@@ -98,11 +101,13 @@ try eval {
 	usage_error("sbuild-db", "Incorrect number of options")
     }
 
-    my $command = shift(@ARGV);
 
+
+    my $command = shift(@ARGV);
 
     switch ($command) {
 	case "key" { do_key($db, @ARGV); }
+	case "suite" { do_suite($db, @ARGV); }
 	else { print STDERR "sbuild-db: '$command' is not an sbuild-db command\n";
 	       exit 1; }
     }
@@ -133,5 +138,22 @@ sub do_key {
 	case "show" { $db->key_show(@opts); }
 	case "verify" { $db->key_verify_file(@opts); }
 	else { $db->key_list(); }
+    }
+}
+
+sub do_suite {
+    my $db = shift;
+    my @opts = @_;
+
+    my $operation = shift(@opts);
+    my @suites = @opts;
+
+    switch ($operation) {
+	case "add" { $db->suite_add(@opts); }
+	case "update" { $db->suite_update(@opts); }
+	case "remove" { $db->suite_remove(@opts); }
+	case "list" { $db->suite_list(@opts); }
+	case "show" { $db->suite_show(@opts); }
+	else { $db->suite_list(); }
     }
 }
