@@ -36,7 +36,7 @@ BEGIN {
 
     @ISA = qw(Exporter);
 
-    @EXPORT = qw(escape_path download valid_changes);
+    @EXPORT = qw(escape_path download download_cached_distfile valid_changes);
 
 }
 
@@ -73,6 +73,7 @@ sub download {
     my $uri = $opts{URI};
     my $file = $opts{FILE};
     my $dir = $opts{DIR};
+    my $dest = $dir . "/" . $file;
 
     # print "URI: $uri\n";
     # print "FILE: $file\n";
@@ -109,20 +110,48 @@ sub download {
 	# use bytes;
 	# print bytes::length($content) . "\n";
 
-	if (!rename($fh->filename, $dir . '/' . $file)) {
+	if (!rename($fh->filename, $dest)) {
 	    Sbuild::Exception::DB->throw
 		(error => "Can't rename temporary file ‘" .
-		 $fh->filename . "’ to ‘" . $dir . '/' . $file . "’");
+		 $fh->filename . "’ to ‘" . $dest . "’");
 	}
 
-	print "Downloaded $uri to " . $dir . '/' . $file . "\n";
+	print "Downloaded $uri to $dest\n";
     };
     if (catch my $err) {
 	    unlink $fh->filename;
 	    $err->rethrow();
     }
 
-    return $file;
+    return $dest;
+}
+
+# This method is used to retrieve a file, usually from a location on
+# the Internet, but it can also be used for files in the local system.
+# This downloads relative to /dists/distribution, and also does SHA256/size
+# checking (optional).
+# $url is location of file, $file is path to write $url into.
+sub download_cached_distfile {
+    my %opts = @_;
+
+    # The parameters will be any URI and a location to save the file to.
+    my $uri = $opts{URI};
+    my $dist = $opts{DIST};
+    my $file = $opts{FILE};
+    my $cdir = $opts{CACHEDIR};
+
+    Sbuild::Exception::DB->throw
+	(error => "download_cached_distfile: Missing arguments")
+	if (!$uri || !$dist || !$file || !$cdir);
+
+    $uri = "$uri/dists/$dist/$file";
+
+    my $stripuri = $uri;
+    $stripuri =~ s|.*(//){1}?||;
+    my $cfile = escape_path($stripuri);
+
+    # If file exists locally, verify it if SHA256 sum and size are given.
+    return download(URI=>$uri, DIR=>$cdir, FILE=>$cfile);
 }
 
 sub valid_changes {

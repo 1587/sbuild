@@ -24,10 +24,11 @@ use warnings;
 
 use DBI;
 use DBD::Pg;
+use Dpkg::Control::Hash;
 use File::Temp qw(tempdir);
 use Sbuild::Exception;
 use Sbuild::Base;
-use Sbuild::DBUtil qw(escape_path download valid_changes);
+use Sbuild::DBUtil qw(escape_path download download_cached_distfile valid_changes);
 use Exception::Class::TryCatch;
 use Sbuild::DB::Key qw(key_verify_file);
 
@@ -45,6 +46,12 @@ sub suite_fetch {
     my $db = shift;
     my $suitename = shift;
 
+    if (!$suitename) {
+	Sbuild::Exception::DB->throw
+	    (error => "No suite specified",
+	     usage => "suite remove <suitename>");
+    }
+
     my $conn = $db->get('CONN');
 
     # Try to get InRelease, then fall back to Release and Release.gpg
@@ -61,49 +68,106 @@ sub suite_fetch {
     my $ref = $find->fetchrow_hashref();
 
     my $key = $ref->{'key'};
-    my $uribase = $ref->{'uri'} . "/dists/" . $ref->{'distribution'};
-    my $uri;
-    my $stripuri;
+    my $distribution = $ref->{'distribution'};
+    my $uri = $ref->{'uri'};
 
     my $release;
     my $releasegpg;
 
     try eval {
-	my $uri = $uribase . "/InRelease";
-	# Remove protocol.
-	my $stripuri = $uri;
-	$stripuri =~ s|.*(//){1}?||;
-	$release = download(URI => $uri,
-			    FILE => escape_path($stripuri),
-			    DIR => $db->get_conf('ARCHIVE_CACHE'));
-	print "Downloaded $uri as " . escape_path($stripuri) . "\n";
-
-	key_verify_file($db, $key,
-			$db->get_conf('ARCHIVE_CACHE') . '/' . $release);
+	$release = download_cached_distfile(URI => $uri,
+					    FILE => "InRelease",
+					    DIST => $distribution,
+					    CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
+	key_verify_file($db, $key, $release);
     };
     if (catch my $err) {
-	print "InRelease not found; falling back to Release\n";
-	$uri = $uribase . "/Release";
-	$stripuri = $uri;
-	$stripuri =~ s|.*(//){1}?||;
-	$release = download(URI => $uri,
-			    FILE => escape_path($stripuri),
-			    DIR => $db->get_conf('ARCHIVE_CACHE'));
-
-	$uri = $uribase . "/Release.gpg";
-	$stripuri = $uri;
-	$stripuri =~ s|.*(//){1}?||;
-	$releasegpg = download(URI => $uri,
-			       FILE => escape_path($stripuri),
-			       DIR => $db->get_conf('ARCHIVE_CACHE'));
-
-	key_verify_file($db, $key,
-			$db->get_conf('ARCHIVE_CACHE') . '/' . $releasegpg,
-			$db->get_conf('ARCHIVE_CACHE') . '/' . $release);
+	print "InRelease not found; falling back to Release: $err\n";
+	$release = download_cached_distfile(URI => $uri,
+					    FILE => "Release",
+					    DIST => $distribution,
+					    CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
+	$releasegpg = download_cached_distfile(URI => $uri,
+					       FILE => "Release.gpg",
+					       DIST => $distribution,
+					       CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
+	key_verify_file($db, $key, $releasegpg, $release);
     }
 
     # Release file successfully downloaded and validated.  Now import
     # details.
+    my $parserel = Dpkg::Control::Hash->new(allow_pgp=>1);
+    $parserel->load($release);
+
+    my $insert = $conn->prepare("SELECT merge_release(?, ?, ?, ?, ?, ?, ?, ?)");
+    $insert->bind_param(1, $suitename);
+    $insert->bind_param(2, $parserel->{'Suite'});
+    $insert->bind_param(3, $parserel->{'Codename'});
+    $insert->bind_param(4, $parserel->{'Version'});
+    $insert->bind_param(5, $parserel->{'Origin'});
+    $insert->bind_param(6, $parserel->{'Label'});
+    $insert->bind_param(7, $parserel->{'Date'});
+    $insert->bind_param(8, $parserel->{'Valid-Until'});
+    $insert->execute();
+
+    # Check validity
+    my $valid = $conn->prepare("SELECT validuntil > now() AS valid FROM suite_release WHERE (suitenick = ?)");
+    $valid->bind_param(1, $suitename);
+    $valid->execute();
+    my $vref = $valid->fetchrow_hashref();
+    if (!$vref->{'valid'}) {
+	Sbuild::Exception::DB->throw
+	    (error => "Invalid archive (out of date)");
+    }
+
+    # Add architectures
+    foreach my $arch (split('\s+', $parserel->{'Architectures'})) {
+	my $archq = $conn->prepare("SELECT merge_architecture(?)");
+	$archq->bind_param(1, $arch);
+	$archq->execute();
+    }
+
+    # Add components
+    foreach my $component (split('\s+', $parserel->{'Components'})) {
+	my $componentq = $conn->prepare("SELECT merge_component(?)");
+	$componentq->bind_param(1, $component);
+	$componentq->execute();
+    }
+
+    # Update arch-component mappings
+    foreach my $arch (split('\s+', $parserel->{'Architectures'})) {
+	foreach my $component (split('\s+', $parserel->{'Components'})) {
+	    my $detail = $conn->prepare("SELECT merge_suite_detail(?,?,?)");
+	    $detail->bind_param(1, $suitename);
+	    $detail->bind_param(2, $arch);
+	    $detail->bind_param(3, $component);
+	    $detail->execute();
+	}
+    }
+
+    # Sort out files
+    my %files = ();
+    {
+	foreach my $line (split("\n", $parserel->{'SHA256'})) {
+	    next if (!$line); # Skip blank line from split
+	    my ($hash, $size, $file) = split(/\s+/, $line);
+	    $files{$file} = { SHA256=>$hash, SIZE=>$size };
+	}
+    }
+
+    # Update Sources using Sources.bz2
+    foreach my $component (split('\s+', $parserel->{'Components'})) {
+	my $sfile = "$component/source/Sources.bz2";
+	if ($files{$sfile}) {
+	    print "TODO: Download $sfile\n";
+	    my $source = download_cached_distfile(URI => $uri,
+						  FILE => $sfile,
+						  DIST => $distribution,
+						  CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
+	}
+    }
+
+    # Update Packages
 }
 
 sub suite_add {

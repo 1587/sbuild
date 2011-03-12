@@ -44,9 +44,12 @@ COMMENT ON COLUMN suites.distribution IS 'Distribution name (used in combinatino
 
 CREATE TABLE suite_release (
         suitenick text
+          UNIQUE NOT NULL
 	  CONSTRAINT suite_release_suitenick_fkey
 	  REFERENCES suites(suitenick)
 	    ON DELETE CASCADE,
+	fetched timestamp with time zone
+	  NOT NULL,
 	suite text NOT NULL,
 	codename text NOT NULL,
 	version debversion,
@@ -56,15 +59,19 @@ CREATE TABLE suite_release (
 	validuntil timestamp with time zone NOT NULL,
 -- Old wanna-build options
 	priority integer
+	  NOT NULL
 	  DEFAULT 10,
 	depwait boolean
+	  NOT NULL
 	  DEFAULT 't',
 	hidden boolean
+	  NOT NULL
 	  DEFAULT 'f'
 );
 
 COMMENT ON TABLE suite_release IS 'Suite release details';
 COMMENT ON COLUMN suite_release.suitenick IS 'Suite name (nickname)';
+COMMENT ON COLUMN suite_release.fetched IS 'Date on which the Release file was fetched from the archive';
 COMMENT ON COLUMN suite_release.suite IS 'Suite name';
 COMMENT ON COLUMN suite_release.codename IS 'Suite codename';
 COMMENT ON COLUMN suite_release.version IS 'Suite release version (if applicable)';
@@ -76,6 +83,37 @@ COMMENT ON COLUMN suite_release.priority IS 'Sorting order (lower is higher prio
 COMMENT ON COLUMN suite_release.depwait IS 'Automatically wait on dependencies?';
 COMMENT ON COLUMN suite_release.hidden IS 'Hide suite from public view?  (e.g. for -security)';
 
+CREATE OR REPLACE FUNCTION merge_release(nsuitenick text,
+                    	   		 nsuite text,
+			      		 ncodename text,
+	  		      		 nversion debversion,
+	  		      		 norigin text,
+	    		      		 nlabel text,
+	     		      		 ndate timestamp with time zone,
+	      		      		 nvaliduntil timestamp with time zone)
+RETURNS VOID AS
+$$
+BEGIN
+    LOOP
+        -- first try to update the key
+        UPDATE suite_release SET fetched=now(), suite=nsuite, codename=ncodename, version=nversion, origin=norigin, label=nlabel, date=ndate, validuntil=nvaliduntil WHERE suitenick = nsuitenick;
+        IF found THEN
+            RETURN;
+        END IF;
+        -- not there, so try to insert the key
+        -- if someone else inserts the same key concurrently,
+        -- we could get a unique-key failure
+        BEGIN
+	    INSERT INTO suite_release (suitenick, fetched, suite, codename, version, origin, label, date, validuntil) VALUES (nsuitenick, now(), nsuite, ncodename, nversion, norigin, nlabel, ndate, nvaliduntil);
+            RETURN;
+        EXCEPTION WHEN unique_violation THEN
+            -- do nothing, and loop to try the UPDATE again
+        END;
+    END LOOP;
+END;
+$$
+LANGUAGE plpgsql;
+
 
 CREATE TABLE architectures (
 	architecture text
@@ -85,6 +123,31 @@ CREATE TABLE architectures (
 COMMENT ON TABLE architectures IS 'Architectures in use';
 COMMENT ON COLUMN architectures.architecture IS 'Architecture name';
 
+CREATE OR REPLACE FUNCTION merge_architecture(narchitecture text)
+RETURNS VOID AS
+$$
+BEGIN
+    LOOP
+        -- first try to update the key
+        PERFORM architecture FROM architectures WHERE architecture = narchitecture;
+        IF found THEN
+            RETURN;
+        END IF;
+        -- not there, so try to insert the key
+        -- if someone else inserts the same key concurrently,
+        -- we could get a unique-key failure
+        BEGIN
+	    INSERT INTO architectures (architecture) VALUES (narchitecture);
+            RETURN;
+        EXCEPTION WHEN unique_violation THEN
+            -- do nothing, and loop to try the UPDATE again
+        END;
+    END LOOP;
+END;
+$$
+LANGUAGE plpgsql;
+
+
 CREATE TABLE components (
 	component text
 	  CONSTRAINT components_pkey PRIMARY KEY
@@ -92,6 +155,30 @@ CREATE TABLE components (
 
 COMMENT ON TABLE components IS 'Archive components in use';
 COMMENT ON COLUMN components.component IS 'Component name';
+
+CREATE OR REPLACE FUNCTION merge_component(ncomponent text)
+RETURNS VOID AS
+$$
+BEGIN
+    LOOP
+        -- first try to update the key
+        PERFORM component FROM components WHERE component = ncomponent;
+        IF found THEN
+            RETURN;
+        END IF;
+        -- not there, so try to insert the key
+        -- if someone else inserts the same key concurrently,
+        -- we could get a unique-key failure
+        BEGIN
+	    INSERT INTO components (component) VALUES (ncomponent);
+            RETURN;
+        EXCEPTION WHEN unique_violation THEN
+            -- do nothing, and loop to try the UPDATE again
+        END;
+    END LOOP;
+END;
+$$
+LANGUAGE plpgsql;
 
 CREATE TABLE suite_detail (
 	suitenick text
@@ -107,11 +194,11 @@ CREATE TABLE suite_detail (
 	  NOT NULL
 	  CONSTRAINT suite_detail_component_fkey
 	    REFERENCES components(component),
-	CONSTRAINT suite_detail_pkey
-	  PRIMARY KEY (suite, architecture, component),
 	build bool
 	  NOT NULL
-	  DEFAULT false
+	  DEFAULT false,
+	CONSTRAINT suite_detail_pkey
+	  PRIMARY KEY (suitenick, architecture, component)
 );
 
 COMMENT ON TABLE suite_detail IS 'List of architectures in each suite';
@@ -119,6 +206,32 @@ COMMENT ON COLUMN suite_detail.suitenick IS 'Suite name (nickname)';
 COMMENT ON COLUMN suite_detail.architecture IS 'Architecture name';
 COMMENT ON COLUMN suite_detail.component IS 'Component name';
 COMMENT ON COLUMN suite_detail.build IS 'Build packages from this suite/architecture/component?';
+
+CREATE OR REPLACE FUNCTION merge_suite_detail(nsuitenick text,
+                                              narchitecture text,
+					      ncomponent text)
+RETURNS VOID AS
+$$
+BEGIN
+    LOOP
+        -- first try to update the key
+        PERFORM suitenick, architecture, component FROM suite_detail WHERE suitenick = nsuitenick AND architecture = narchitecture AND component = ncomponent;
+        IF found THEN
+            RETURN;
+        END IF;
+        -- not there, so try to insert the key
+        -- if someone else inserts the same key concurrently,
+        -- we could get a unique-key failure
+        BEGIN
+	    INSERT INTO suite_detail (suitenick, architecture, component) VALUES (nsuitenick, narchitecture, ncomponent);
+            RETURN;
+        EXCEPTION WHEN unique_violation THEN
+            -- do nothing, and loop to try the UPDATE again
+        END;
+    END LOOP;
+END;
+$$
+LANGUAGE plpgsql;
 
 CREATE TABLE package_types (
 	type text

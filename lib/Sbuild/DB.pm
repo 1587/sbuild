@@ -48,7 +48,8 @@ sub new {
     my $dbname = $self->get_conf('DBNAME');
     my $dbuser = $self->get_conf('DBUSER');
     my $dbpassword = $self->get_conf('DBPASSWORD');
-    my $conn = DBI->connect("DBI:Pg:dbname=$dbname",$dbuser,$dbpassword);
+    my $conn = DBI->connect("DBI:Pg:dbname=$dbname",$dbuser,$dbpassword,
+	{RaiseError => 1});
     if (!$conn) {
 	Sbuild::Exception::DB->throw
 	    (error => "Can't connect to database ‘$dbname’ as user ‘$dbuser’")
