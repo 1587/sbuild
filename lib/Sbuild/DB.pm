@@ -279,6 +279,12 @@ sub key_show {
 		 usage => "key show <keyname>");
     }
 
+    if (@_) {
+	Sbuild::Exception::DB->throw
+	    (error => "Only one key may be specified",
+	     usage => "key show <keyname>");
+    }
+
     my $key = $self->_find_key($keyname);
     if (!$key) {
 	    Sbuild::Exception::DB->throw
