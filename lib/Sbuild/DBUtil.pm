@@ -28,6 +28,7 @@ use File::Temp;
 use LWP::Simple;
 use Sbuild qw(isin);
 use Sbuild::Exception;
+use Exception::Class::TryCatch;
 
 BEGIN {
     use Exporter ();
@@ -35,42 +36,8 @@ BEGIN {
 
     @ISA = qw(Exporter);
 
-    @EXPORT = qw(fetch_gpg_key escape_path download valid_changes);
+    @EXPORT = qw(escape_path download valid_changes);
 
-}
-
-sub fetch_gpg_key {
-    my $self = shift;
-    my @keys = @_;
-
-    if (@keys < 1) {
-	return undef;
-    }
-
-    print "Fetching " .  join(", ", @keys) . "\n";
-
-    my @keyring_opts = ();
-    if ($self->get_conf('GPG_KEYRING')) {
-	@keyring_opts = ('--no-default-keyring', '--keyring', $self->get_conf('GPG_KEYRING'));
-    }
-
-    my $status = system('gpg', @keyring_opts, '--list-keys', @keys);
-    if ($status) {
-	Sbuild::Exception::DB->throw
-	    (error => "Error running gpg --list-keys: $?",
-	     info => "Are the specified keys present in the keyring?");
-    }
-
-    open(my $fh, '-|', 'gpg', @keyring_opts, '--export', '--armor', @keys)
-	or die 'Can\'t open pipe to gpg';
-    binmode($fh,":raw");
-    my $gpgkey = do { local $/; <$fh> };
-    if (!$fh->close()) {
-	Sbuild::Exception::DB->throw
-	    (error => "Error closing gpg pipe: $?");
-    }
-
-    return $gpgkey;
 }
 
 sub escape_path {
@@ -107,13 +74,14 @@ sub download {
     my $file = $opts{FILE};
     my $dir = $opts{DIR};
 
+    # print "URI: $uri\n";
+    # print "FILE: $file\n";
+    # print "DIR: $dir\n";
+
     Sbuild::Exception::DB->throw
 	(error => "download: Missing arguments")
 	if (!$uri || !$file || !$dir);
 
-#    print "URI: $uri\n";
-#    print "FILE: $file\n";
-#    print "DIR: $dir\n";
 
     # If $uri is a readable plain file on the local system, just return the
     # $uri.
@@ -122,27 +90,36 @@ sub download {
 
     # Filehandle we'll be writing to.
     my $fh = File::Temp->new(DIR=>$dir, TEMPLATE=>$file . "XXXXXX",UNLINK=>0)
-	or die "Can't create temporary file";
+	or Sbuild::Exception::DB->throw
+	(error => "Can't create temporary file");
 
-    my $content = get($uri)
-	or die "Can't get $uri";
+    try eval {
+	my $content = get($uri)
+	    or Sbuild::Exception::DB->throw
+	    (error => "Can't fetch URI ‘$uri’");
 
-    print $fh $content;
-    $fh->flush();
-    $fh->close; # Close the destination file
+	print $fh $content;
+	$fh->flush();
+	$fh->close; # Close the destination file
 
-    # Print out amount of content received before returning the path of the
-    # file.
-    print "Download of $uri sucessful.\n";
-    print "Size of content downloaded: ";
-    use bytes;
-    print bytes::length($content) . "\n";
+	# Print out amount of content received before returning the path of the
+	# file.
+	# print "Download of $uri sucessful.\n";
+	# print "Size of content downloaded: ";
+	# use bytes;
+	# print bytes::length($content) . "\n";
 
-    if (!rename($fh->filename, $dir . '/' . $file)) {
-	unlink $fh->filename;
-	Sbuild::Exception::DB->throw
-	    (error => "Can't rename temporary file ‘" .
-	     $fh->filename . "’ to ‘" . $dir . '/' . $file . "’");
+	if (!rename($fh->filename, $dir . '/' . $file)) {
+	    Sbuild::Exception::DB->throw
+		(error => "Can't rename temporary file ‘" .
+		 $fh->filename . "’ to ‘" . $dir . '/' . $file . "’");
+	}
+
+	print "Downloaded $uri to " . $dir . '/' . $file . "\n";
+    };
+    if (catch my $err) {
+	    unlink $fh->filename;
+	    $err->rethrow();
     }
 
     return $file;

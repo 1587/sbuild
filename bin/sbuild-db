@@ -154,6 +154,7 @@ sub do_suite {
 	case "remove" { suite_remove($db, @opts); }
 	case "list" { suite_list($db, @opts); }
 	case "show" { suite_show($db, @opts); }
+	case "fetch" { suite_fetch($db, @opts); }
 	else { suite_list(); }
     }
 }

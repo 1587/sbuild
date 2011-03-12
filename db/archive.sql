@@ -29,12 +29,15 @@ COMMENT ON COLUMN keys.key IS 'GPG key as exported ASCII armoured text';
 
 CREATE TABLE suites (
 	suitenick text CONSTRAINT suites_pkey PRIMARY KEY,
+	key text NOT NULL
+	  CONSTRAINT suites_key_fkey REFERENCES keys(name),
 	uri text NOT NULL,
 	distribution text NOT NULL
 );
 
 COMMENT ON TABLE suites IS 'Valid suites';
 COMMENT ON COLUMN suites.suitenick IS 'Name used to reference a suite (nickname)';
+COMMENT ON COLUMN suites.key IS 'GPG key name for validation';
 COMMENT ON COLUMN suites.uri IS 'URI to fetch from';
 COMMENT ON COLUMN suites.distribution IS 'Distribution name (used in combinatino
  with URI)';

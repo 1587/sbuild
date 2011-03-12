@@ -26,7 +26,7 @@ use DBI;
 use DBD::Pg;
 use File::Temp qw(tempdir);
 use Sbuild::Exception;
-use Sbuild::DBUtil qw(fetch_gpg_key);
+use Sbuild::DBUtil qw();
 use Exception::Class::TryCatch;
 
 BEGIN {
@@ -39,6 +39,40 @@ BEGIN {
                  key_show key_list);
 }
 
+sub fetch_gpg_key {
+    my $self = shift;
+    my @keys = @_;
+
+    if (@keys < 1) {
+	return undef;
+    }
+
+    print "Fetching " .  join(", ", @keys) . "\n";
+
+    my @keyring_opts = ();
+    if ($self->get_conf('GPG_KEYRING')) {
+	@keyring_opts = ('--no-default-keyring', '--keyring', $self->get_conf('GPG_KEYRING'));
+    }
+
+    my $status = system('gpg', @keyring_opts, '--list-keys', @keys);
+    if ($status) {
+	Sbuild::Exception::DB->throw
+	    (error => "Error running gpg --list-keys: $?",
+	     info => "Are the specified keys present in the keyring?");
+    }
+
+    open(my $fh, '-|', 'gpg', @keyring_opts, '--export', '--armor', @keys)
+	or Sbuild::Exception::DB->throw
+	(error => "Can't open pipe to gpg");
+    binmode($fh,":raw");
+    my $gpgkey = do { local $/; <$fh> };
+    if (!$fh->close()) {
+	Sbuild::Exception::DB->throw
+	    (error => "Error closing gpg pipe: $?");
+    }
+
+    return $gpgkey;
+}
 
 sub key_add {
     my $db = shift;
@@ -68,7 +102,7 @@ sub key_add {
 	    (error => "Key ‘$keyname’ already exists");
     }
 
-    my $file = $db->fetch_gpg_key(@keys);
+    my $file = fetch_gpg_key($db, @keys);
     if (!$file) {
 	Sbuild::Exception::DB->throw
 	    (error => "Failed to get gpg key");
@@ -109,7 +143,7 @@ sub key_update {
 	    (error => "Key ‘$keyname’ does not exist");
     }
 
-    my $file = $db->fetch_gpg_key(@keys);
+    my $file = fetch_gpg_key($db, @keys);
     if (!$file) {
 	Sbuild::Exception::DB->throw
 	    (error => "Failed to get gpg key");
@@ -163,7 +197,7 @@ sub key_verify_file {
 	     usage => "key verify <keyname> <filename> [<detachedsig>]");
     }
 
-    my $key = $db->_find_key($keyname);
+    my $key = _find_key($db, $keyname);
     if (!$key) {
 	Sbuild::Exception::DB->throw
 	    (error => "Key ‘$keyname’ not found");
@@ -234,7 +268,7 @@ sub key_show {
 	     usage => "key show <keyname>");
     }
 
-    my $key = $db->_find_key($keyname);
+    my $key = _find_key($db, $keyname);
     if (!$key) {
 	    Sbuild::Exception::DB->throw
 		(error => "Key ‘$keyname’ not found");
