@@ -24,22 +24,23 @@ CREATE TABLE keys (
 );
 
 COMMENT ON TABLE keys IS 'GPG keys used to sign Release files';
-COMMENT ON COLUMN keys.name IS 'Name used to reference key';
+COMMENT ON COLUMN keys.name IS 'Name used to reference a key';
 COMMENT ON COLUMN keys.key IS 'GPG key as exported ASCII armoured text';
 
-CREATE TABLE architectures (
-	arch text
-	  CONSTRAINT arch_pkey PRIMARY KEY
-);
-
-
-COMMENT ON TABLE architectures IS 'Architectures known by this wanna-build instance';
-COMMENT ON COLUMN architectures.arch IS 'Architecture name';
-
 CREATE TABLE suites (
-	suite text
-	  CONSTRAINT suite_pkey PRIMARY KEY,
-	priority integer,
+	name text CONSTRAINT suites_pkey PRIMARY KEY,
+	uri text NOT NULL,
+	distribution text NOT NULL,
+	suite text NOT NULL,
+	codename text NOT NULL,
+	version debversion,
+	origin text NOT NULL,
+	label text NOT NULL,
+	date timestamp with time zone NOT NULL,
+	validuntil timestamp with time zone NOT NULL,
+-- Old wanna-build options
+	priority integer
+	  DEFAULT 10,
 	depwait boolean
 	  DEFAULT 't',
 	hidden boolean
@@ -47,32 +48,63 @@ CREATE TABLE suites (
 );
 
 COMMENT ON TABLE suites IS 'Valid suites';
+COMMENT ON COLUMN suites.name. IS 'Name used to reference a suite';
+COMMENT ON COLUMN suites.uri IS 'URI to fetch from';
+COMMENT ON COLUMN suites.distribution IS 'Distribution name (used in combinatino with URI)';
 COMMENT ON COLUMN suites.suite IS 'Suite name';
+COMMENT ON COLUMN suites.codename IS 'Suite codename';
+COMMENT ON COLUMN suites.version IS 'Suite release version (if applicable)';
+COMMENT ON COLUMN suites.origin IS 'Suite origin';
+COMMENT ON COLUMN suites.label IS 'Suite label';
+COMMENT ON COLUMN suites.date IS 'Date on which the Release file was generated';
+COMMENT ON COLUMN suites.validuntil IS 'Date after which the data expires';
 COMMENT ON COLUMN suites.priority IS 'Sorting order (lower is higher priority)';
 COMMENT ON COLUMN suites.depwait IS 'Automatically wait on dependencies?';
-COMMENT ON COLUMN suites.hidden IS 'Hide suite from public view (e.g. for -security)?';
+COMMENT ON COLUMN suites.hidden IS 'Hide suite from public view?  (e.g. for -security)';
 
-CREATE TABLE suite_arches (
-	suite text
-	  NOT NULL
-	  CONSTRAINT suite_arches_suite_fkey REFERENCES suites(suite),
-	arch text
-	  NOT NULL
-	  CONSTRAINT suite_arches_arch_fkey REFERENCES architectures(arch),
-	CONSTRAINT suite_arches_pkey PRIMARY KEY (suite, arch)
+
+CREATE TABLE architectures (
+	architecture text
+	  CONSTRAINT arch_pkey PRIMARY KEY
 );
 
-COMMENT ON TABLE suite_arches IS 'List of architectures in each suite';
-COMMENT ON COLUMN suite_arches.suite IS 'Suite name';
-COMMENT ON COLUMN suite_arches.arch IS 'Architecture name';
+COMMENT ON TABLE architectures IS 'Architectures in use';
+COMMENT ON COLUMN architectures.architecture IS 'Architecture name';
 
 CREATE TABLE components (
 	component text
-	  CONSTRAINT component_pkey PRIMARY KEY
+	  CONSTRAINT components_pkey PRIMARY KEY
 );
 
-COMMENT ON TABLE components IS 'Valid archive components';
+COMMENT ON TABLE components IS 'Archive components in use';
 COMMENT ON COLUMN components.component IS 'Component name';
+
+CREATE TABLE suite_detail (
+	suite text
+	  NOT NULL
+	  CONSTRAINT suite_detail_suite_fkey
+	  REFERENCES suites(name)
+	    ON DELETE CASCADE,
+	architecture text
+	  NOT NULL
+	  CONSTRAINT suite_detail_architecture_fkey
+	    REFERENCES architectures(architecture),
+	component text
+	  NOT NULL
+	  CONSTRAINT suite_detail_component_fkey
+	    REFERENCES components(component),
+	CONSTRAINT suite_detail_pkey
+	  PRIMARY KEY (suite, architecture, component),
+	build bool
+	  NOT NULL
+	  DEFAULT false
+);
+
+COMMENT ON TABLE suite_detail IS 'List of architectures in each suite';
+COMMENT ON COLUMN suite_detail.suite IS 'Suite name';
+COMMENT ON COLUMN suite_detail.architecture IS 'Architecture name';
+COMMENT ON COLUMN suite_detail.component IS 'Component name';
+COMMENT ON COLUMN suite_detail.build IS 'Build packages from this suite/architecture/component?';
 
 CREATE TABLE package_types (
 	type text
