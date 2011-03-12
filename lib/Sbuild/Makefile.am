@@ -36,6 +36,7 @@ MODULES =			\
 	ChrootInfoSchroot.pm	\
 	ChrootInfoSudo.pm	\
 	DB.pm			\
+	DBUtil.pm		\
 	Exception.pm		\
 	ResolverBase.pm		\
 	AptitudeResolver.pm	\
