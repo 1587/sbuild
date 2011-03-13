@@ -31,6 +31,7 @@ use Sbuild::Exception;
 use Exception::Class::TryCatch;
 use Digest::SHA qw();
 use File::stat;
+use IO::Uncompress::AnyUncompress qw(anyuncompress $AnyUncompressError);
 
 BEGIN {
     use Exporter ();
@@ -38,8 +39,21 @@ BEGIN {
 
     @ISA = qw(Exporter);
 
-    @EXPORT = qw(escape_path download download_cached_distfile valid_changes);
+    @EXPORT = qw(uncompress escape_path check_file_hash_size download download_cached_distfile valid_changes);
 
+}
+
+sub uncompress {
+    my $file = shift;
+
+    my $buffer;
+
+    if (!anyuncompress($file,\$buffer)) {
+ 	Sbuild::Exception::DB->throw
+	    (error => "Failed to decompress %file: $AnyUncompressError")
+    }
+
+    return $buffer;
 }
 
 sub escape_path {
@@ -140,7 +154,7 @@ sub check_file_hash_size {
     }
 
     if ($size != $st->size) {
-	print "File size mismatch for $file: should be $size, but is $st->size\n";
+	print "File size mismatch for $file: should be $size, but is " . $st->size . "\n";
 	return 0;
     }
 
@@ -153,7 +167,7 @@ sub check_file_hash_size {
 	return 0;
     }
 
-    print "Downloaded file $file size and SHA256 match, using cached copy\n";
+#    print "Downloaded file $file size and SHA256 match, using cached copy\n";
     return 1;
 }
 

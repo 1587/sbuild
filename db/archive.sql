@@ -250,15 +250,39 @@ COMMENT ON TABLE package_architectures IS 'Possible values for the Architecture 
 COMMENT ON COLUMN package_architectures.arch IS 'Architecture name';
 
 CREATE TABLE package_priorities (
-	pkg_prio text
+	priority text
 	  CONSTRAINT pkg_pri_pkey PRIMARY KEY,
-	prio_val integer
+	priority_value integer
 	  DEFAULT 0
 );
 
 COMMENT ON TABLE package_priorities IS 'Valid package priorities';
-COMMENT ON COLUMN package_priorities.pkg_prio IS 'Priority name';
-COMMENT ON COLUMN package_priorities.prio_val IS 'Integer value for sorting priorities';
+COMMENT ON COLUMN package_priorities.priority IS 'Priority name';
+COMMENT ON COLUMN package_priorities.priority_value IS 'Integer value for sorting priorities';
+
+CREATE OR REPLACE FUNCTION merge_package_priority(npriority text)
+RETURNS VOID AS
+$$
+BEGIN
+    LOOP
+        -- first try to update the key
+        PERFORM priority FROM package_priorities WHERE priority = npriority;
+        IF found THEN
+            RETURN;
+        END IF;
+        -- not there, so try to insert the key
+        -- if someone else inserts the same key concurrently,
+        -- we could get a unique-key failure
+        BEGIN
+	    INSERT INTO package_priorities (priority) VALUES (npriority);
+            RETURN;
+        EXCEPTION WHEN unique_violation THEN
+            -- do nothing, and loop to try the UPDATE again
+        END;
+    END LOOP;
+END;
+$$
+LANGUAGE plpgsql;
 
 CREATE TABLE package_sections (
         section text
@@ -268,6 +292,30 @@ CREATE TABLE package_sections (
 COMMENT ON TABLE package_sections IS 'Valid package sections';
 COMMENT ON COLUMN package_sections.section IS 'Section name';
 
+CREATE OR REPLACE FUNCTION merge_package_section(nsection text)
+RETURNS VOID AS
+$$
+BEGIN
+    LOOP
+        -- first try to update the key
+        PERFORM section FROM package_sections WHERE section = nsection;
+        IF found THEN
+            RETURN;
+        END IF;
+        -- not there, so try to insert the key
+        -- if someone else inserts the same key concurrently,
+        -- we could get a unique-key failure
+        BEGIN
+	    INSERT INTO package_sections (section) VALUES (nsection);
+            RETURN;
+        EXCEPTION WHEN unique_violation THEN
+            -- do nothing, and loop to try the UPDATE again
+        END;
+    END LOOP;
+END;
+$$
+LANGUAGE plpgsql;
+
 CREATE TABLE sources (
 	source text
 	  NOT NULL,
@@ -275,14 +323,12 @@ CREATE TABLE sources (
 	  NOT NULL,
 	component text
 	  CONSTRAINT source_comp_fkey REFERENCES components(component)
-	  ON DELETE CASCADE
 	  NOT NULL,
 	section text
 	  CONSTRAINT source_section_fkey REFERENCES package_sections(section)
 	  NOT NULL,
 	pkg_prio text
-	  CONSTRAINT source_pkg_prio_fkey REFERENCES package_priorities(pkg_prio)
-	  NOT NULL,
+	  CONSTRAINT source_pkg_prio_fkey REFERENCES package_priorities(priority),
 	maintainer text NOT NULL,
 	build_dep text,
 	build_dep_indep text,
@@ -306,6 +352,46 @@ COMMENT ON COLUMN sources.build_dep_indep IS 'Package build dependencies (archit
 COMMENT ON COLUMN sources.build_confl IS 'Package build conflicts (architecture dependent)';
 COMMENT ON COLUMN sources.build_confl_indep IS 'Package build conflicts (architecture independent)';
 COMMENT ON COLUMN sources.stdver IS 'Debian Standards (policy) version number';
+
+CREATE OR REPLACE FUNCTION merge_source(nsource text,
+                                        nsource_version debversion,
+					ncomponent	text,
+					nsection text,
+					npriority text,
+					nmaintainer text,
+					nbuild_dep text,
+					nbuild_dep_indep text,
+					nbuild_confl text,
+					nbuild_confl_indep text,
+					nstdver text)
+RETURNS VOID AS
+$$
+BEGIN
+    LOOP
+        IF npriority IS NOT NULL THEN
+            PERFORM merge_package_priority(npriority);
+	END IF;
+        PERFORM merge_package_section(nsection);
+
+        -- first try to update the key
+        UPDATE sources SET component=ncomponent, section=nsection, pkg_prio=npriority, maintainer=nmaintainer, build_dep=nbuild_dep, build_dep_indep=nbuild_dep_indep, build_confl=nbuild_confl, build_confl_indep=nbuild_confl_indep, stdver=nstdver WHERE source=nsource AND source_version=nsource_version;
+
+        IF found THEN
+            RETURN;
+        END IF;
+        -- not there, so try to insert the key
+        -- if someone else inserts the same key concurrently,
+        -- we could get a unique-key failure
+        BEGIN
+	    INSERT INTO sources (source, source_version, component, section, pkg_prio, maintainer, build_dep, build_dep_indep, build_confl, build_confl_indep, stdver) VALUES (nsource, nsource_version, ncomponent, nsection, npriority, nmaintainer, nbuild_dep, nbuild_dep_indep, nbuild_confl, nbuild_confl_indep, nstdver);
+            RETURN;
+        EXCEPTION WHEN unique_violation THEN
+            -- do nothing, and loop to try the UPDATE again
+        END;
+    END LOOP;
+END;
+$$
+LANGUAGE plpgsql;
 
 CREATE TABLE source_architectures (
 	source text
