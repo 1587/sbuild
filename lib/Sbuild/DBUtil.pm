@@ -132,7 +132,7 @@ sub download {
 		 $fh->filename . "’ to ‘" . $dest . "’");
 	}
 
-	print "Downloaded $uri to $dest\n";
+#	print "Downloaded $uri to $dest\n";
     };
     if (catch my $err) {
 	    unlink $fh->filename;
@@ -149,12 +149,12 @@ sub check_file_hash_size {
 
     my $st = stat($file);
     if (!$st) {
-	print "Can't stat $file: $!\n";
+#	print "Can't stat $file: $!\n";
 	return 0;
     }
 
     if ($size != $st->size) {
-	print "File size mismatch for $file: should be $size, but is " . $st->size . "\n";
+#	print "File size mismatch for $file: should be $size, but is " . $st->size . "\n";
 	return 0;
     }
 

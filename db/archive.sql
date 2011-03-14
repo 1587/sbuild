@@ -39,8 +39,7 @@ COMMENT ON TABLE suites IS 'Valid suites';
 COMMENT ON COLUMN suites.suitenick IS 'Name used to reference a suite (nickname)';
 COMMENT ON COLUMN suites.key IS 'GPG key name for validation';
 COMMENT ON COLUMN suites.uri IS 'URI to fetch from';
-COMMENT ON COLUMN suites.distribution IS 'Distribution name (used in combinatino
- with URI)';
+COMMENT ON COLUMN suites.distribution IS 'Distribution name (used in combination with URI)';
 
 CREATE TABLE suite_release (
         suitenick text
@@ -214,6 +213,9 @@ RETURNS VOID AS
 $$
 BEGIN
     LOOP
+        PERFORM merge_architecture(narchitecture);
+	PERFORM merge_component(ncomponent);
+
         -- first try to update the key
         PERFORM suitenick, architecture, component FROM suite_detail WHERE suitenick = nsuitenick AND architecture = narchitecture AND component = ncomponent;
         IF found THEN
@@ -240,6 +242,32 @@ CREATE TABLE package_types (
 
 COMMENT ON TABLE package_types IS 'Valid types for binary packages';
 COMMENT ON COLUMN package_types.type IS 'Type name';
+
+
+CREATE OR REPLACE FUNCTION merge_package_type(ntype text)
+RETURNS VOID AS
+$$
+BEGIN
+    LOOP
+        -- first try to update the key
+        PERFORM type FROM package_types WHERE type = ntype;
+        IF found THEN
+            RETURN;
+        END IF;
+        -- not there, so try to insert the key
+        -- if someone else inserts the same key concurrently,
+        -- we could get a unique-key failure
+        BEGIN
+	    INSERT INTO package_types (type) VALUES (ntype);
+            RETURN;
+        EXCEPTION WHEN unique_violation THEN
+            -- do nothing, and loop to try the UPDATE again
+        END;
+    END LOOP;
+END;
+$$
+LANGUAGE plpgsql;
+
 
 CREATE TABLE package_architectures (
 	arch text
@@ -368,10 +396,11 @@ RETURNS VOID AS
 $$
 BEGIN
     LOOP
+	PERFORM merge_component(ncomponent);
+        PERFORM merge_package_section(nsection);
         IF npriority IS NOT NULL THEN
             PERFORM merge_package_priority(npriority);
 	END IF;
-        PERFORM merge_package_section(nsection);
 
         -- first try to update the key
         UPDATE sources SET component=ncomponent, section=nsection, pkg_prio=npriority, maintainer=nmaintainer, build_dep=nbuild_dep, build_dep_indep=nbuild_dep_indep, build_confl=nbuild_confl, build_confl_indep=nbuild_confl_indep, stdver=nstdver WHERE source=nsource AND source_version=nsource_version;
@@ -384,6 +413,38 @@ BEGIN
         -- we could get a unique-key failure
         BEGIN
 	    INSERT INTO sources (source, source_version, component, section, pkg_prio, maintainer, build_dep, build_dep_indep, build_confl, build_confl_indep, stdver) VALUES (nsource, nsource_version, ncomponent, nsection, npriority, nmaintainer, nbuild_dep, nbuild_dep_indep, nbuild_confl, nbuild_confl_indep, nstdver);
+            RETURN;
+        EXCEPTION WHEN unique_violation THEN
+            -- do nothing, and loop to try the UPDATE again
+        END;
+    END LOOP;
+END;
+$$
+LANGUAGE plpgsql;
+
+-- Add dummy source package for binaries lacking sources.
+CREATE OR REPLACE FUNCTION merge_dummy_source(nsource text,
+                                              nsource_version debversion)
+RETURNS VOID AS
+$$
+BEGIN
+    LOOP
+	PERFORM merge_component('INVALID');
+        PERFORM merge_package_priority('INVALID');
+        PERFORM merge_package_section('INVALID');
+
+        -- first try to update the key
+        PERFORM source, source_version FROM sources
+	WHERE source=nsource AND source_version=nsource_version;
+
+        IF found THEN
+            RETURN;
+        END IF;
+        -- not there, so try to insert the key
+        -- if someone else inserts the same key concurrently,
+        -- we could get a unique-key failure
+        BEGIN
+	    INSERT INTO sources (source, source_version, component, section, pkg_prio, maintainer) VALUES (nsource, nsource_version, 'INVALID', 'INVALID', 'INVALID', 'INVALID');
             RETURN;
         EXCEPTION WHEN unique_violation THEN
             -- do nothing, and loop to try the UPDATE again
@@ -437,24 +498,35 @@ CREATE TABLE binaries (
 	package text NOT NULL,
 	version debversion NOT NULL,
 	arch text
-	  CONSTRAINT bin_arch_fkey REFERENCES package_architectures(arch)
-	  ON DELETE CASCADE
+	  CONSTRAINT bin_arch_fkey REFERENCES architectures(architecture)
 	  NOT NULL,
 	source text
 	  NOT NULL,
 	source_version debversion
 	  NOT NULL,
 	section text
-	  CONSTRAINT bin_section_fkey REFERENCES package_sections(section)
-	  NOT NULL,
+	  CONSTRAINT bin_section_fkey REFERENCES package_sections(section),
 	type text
 	  CONSTRAINT bin_pkg_type_fkey REFERENCES package_types(type)
 	  NOT NULL,
-	pkg_prio text
-	  CONSTRAINT bin_pkg_prio_fkey REFERENCES package_priorities(pkg_prio)
+	priority text
+	  CONSTRAINT bin_pkg_prio_fkey REFERENCES package_priorities(priority),
+	installed_size integer
 	  NOT NULL,
-	CONSTRAINT bin_pkey PRIMARY KEY (package, version, arch),
-	CONSTRAINT bin_src_fkey FOREIGN KEY (source, source_version)
+	multi_arch text,
+	essential boolean,
+	build_essential boolean,
+	pre_depends text,
+	depends text,
+	recommends text,
+	suggests text,
+	conflicts text,
+	breaks text,
+	enhances text,
+	replaces text,
+	provides text,
+	CONSTRAINT binaries_pkey PRIMARY KEY (package, version, arch),
+	CONSTRAINT binaries_source_fkey FOREIGN KEY (source, source_version)
 	  REFERENCES sources (source, source_version)
 	  ON DELETE CASCADE
 );
@@ -466,7 +538,137 @@ COMMENT ON COLUMN binaries.arch IS 'Architecture name';
 COMMENT ON COLUMN binaries.source IS 'Source package name';
 COMMENT ON COLUMN binaries.source_version IS 'Source package version number';
 COMMENT ON COLUMN binaries.section IS 'Package section';
-COMMENT ON COLUMN binaries.pkg_prio IS 'Package priority';
+COMMENT ON COLUMN binaries.type IS 'Package type (e.g. deb, udeb)';
+COMMENT ON COLUMN binaries.priority IS 'Package priority';
+COMMENT ON COLUMN binaries.installed_size IS 'Size of installed package (KiB, rounded up)';
+COMMENT ON COLUMN binaries.multi_arch IS 'Multiple architecture co-installation behaviour';
+COMMENT ON COLUMN binaries.essential IS 'Package is essential';
+COMMENT ON COLUMN binaries.build_essential IS 'Package is essential for building';
+COMMENT ON COLUMN binaries.pre_depends IS 'Package pre-dependencies';
+COMMENT ON COLUMN binaries.depends IS 'Package dependencies';
+COMMENT ON COLUMN binaries.recommends IS 'Package recommendations';
+COMMENT ON COLUMN binaries.suggests IS 'Package suggestions';
+COMMENT ON COLUMN binaries.conflicts IS 'Package conflicts with other packages';
+COMMENT ON COLUMN binaries.breaks IS 'Package breaks other packages';
+COMMENT ON COLUMN binaries.enhances IS 'Package enhances other packages';
+COMMENT ON COLUMN binaries.replaces IS 'Package replaces other packages';
+COMMENT ON COLUMN binaries.provides IS 'Package provides other packages';
+
+CREATE OR REPLACE FUNCTION merge_binary(npackage text,
+                                        nversion debversion,
+					narchitecture text,
+					nsource text,
+					nsource_version debversion,
+					nsection text,
+					ntype text,
+					npriority text,
+					ninstalled_size integer,
+					nmulti_arch text,
+					nessential boolean,
+					nbuild_essential boolean,
+					npre_depends text,
+					ndepends text,
+					nrecommends text,
+					nsuggests text,
+					nconflicts text,
+					nbreaks text,
+					nenhances text,
+					nreplaces text,
+					nprovides text)
+RETURNS VOID AS
+$$
+BEGIN
+    LOOP
+        PERFORM merge_dummy_source(nsource, nsource_version);
+        PERFORM merge_architecture(narchitecture);
+        PERFORM merge_package_section(nsection);
+        PERFORM merge_package_type(ntype);
+        IF npriority IS NOT NULL THEN
+            PERFORM merge_package_priority(npriority);
+	END IF;
+
+        -- first try to update the key
+        UPDATE binaries
+	SET arch=narchitecture,
+	    source=nsource,
+	    source_version=nsource_version,
+	    section=nsection,
+	    type=ntype,
+	    priority=npriority,
+	    installed_size=ninstalled_size,
+	    multi_arch=nmulti_arch,
+	    essential=nessential,
+	    build_essential=nbuild_essential,
+	    pre_depends=npre_depends,
+	    depends=ndepends,
+	    recommends=nrecommends,
+	    suggests=nsuggests,
+	    conflicts=nconflicts,
+	    breaks=nbreaks,
+	    enhances=nenhances,
+	    replaces=nreplaces,
+	    provides=nprovides
+	WHERE package=npackage AND version=version;
+
+        IF found THEN
+            RETURN;
+        END IF;
+        -- not there, so try to insert the key
+        -- if someone else inserts the same key concurrently,
+        -- we could get a unique-key failure
+        BEGIN
+	    INSERT INTO binaries (
+	        package,
+		version,
+		arch,
+	    	source,
+	    	source_version,
+	    	section,
+	    	type,
+	    	priority,
+	    	installed_size,
+	    	multi_arch,
+	    	essential,
+	    	build_essential,
+	    	pre_depends,
+	    	depends,
+	    	recommends,
+	    	suggests,
+	    	conflicts,
+	    	breaks,
+	    	enhances,
+	    	replaces,
+	    	provides)
+	    VALUES (
+	        npackage,
+		nversion,
+	        narchitecture,
+		nsource,
+		nsource_version,
+		nsection,
+		ntype,
+		npriority,
+		ninstalled_size,
+		nmulti_arch,
+		nessential,
+		nbuild_essential,
+		npre_depends,
+		ndepends,
+		nrecommends,
+		nsuggests,
+		nconflicts,
+		nbreaks,
+		nenhances,
+		nreplaces,
+		nprovides);
+            RETURN;
+        EXCEPTION WHEN unique_violation THEN
+            -- do nothing, and loop to try the UPDATE again
+        END;
+    END LOOP;
+END;
+$$
+LANGUAGE plpgsql;
 
 CREATE TABLE suite_sources (
 	source text

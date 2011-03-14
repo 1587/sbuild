@@ -125,20 +125,6 @@ sub suite_fetch {
 		(error => "Invalid archive (out of date)");
 	}
 
-	# Add architectures
-	foreach my $arch (split('\s+', $parserel->{'Architectures'})) {
-	    my $archq = $conn->prepare("SELECT merge_architecture(?)");
-	    $archq->bind_param(1, $arch);
-	    $archq->execute();
-	}
-
-	# Add components
-	foreach my $component (split('\s+', $parserel->{'Components'})) {
-	    my $componentq = $conn->prepare("SELECT merge_component(?)");
-	    $componentq->bind_param(1, $component);
-	    $componentq->execute();
-	}
-
 	# Update arch-component mappings
 	foreach my $arch (split('\s+', $parserel->{'Architectures'})) {
 	    foreach my $component (split('\s+', $parserel->{'Components'})) {
@@ -208,6 +194,88 @@ sub suite_fetch {
 		STDOUT->flush;
 	    }
 	}
+
+	# Update Packages
+	print "Updating $suitename packages:\n";
+	my $pkg_detail = $conn->prepare("SELECT architecture,component FROM suite_detail WHERE suitenick = ? AND build = true");
+	$pkg_detail->bind_param(1, $suitename);
+	$pkg_detail->execute();
+	while (my $pkgref = $pkg_detail->fetchrow_hashref()) {
+	    my $component = $pkgref->{'component'};
+	    my $architecture = $pkgref->{'architecture'};
+	    print "  $component/$architecture:";
+	    my $sfile = "$component/binary-$architecture/Packages.bz2";
+	    if ($files{$sfile}) {
+		print " download";
+		STDOUT->flush;
+		my $packages = download_cached_distfile(URI => $uri,
+							FILE => $sfile,
+							DIST => $distribution,
+							CACHEDIR => $db->get_conf('ARCHIVE_CACHE'),
+							SHA256 => $files{$sfile}->{'SHA256'},
+							SIZE => $files{$sfile}->{'SIZE'});
+
+		print " decompress";
+		STDOUT->flush;
+		my $z = new IO::Uncompress::AnyUncompress($packages);
+		if (!$z) {
+		    Sbuild::Exception::DB->throw
+			(error => "Can't open $packages for decompression: $!");
+		}
+		my $packages_info = Dpkg::Index->new(type=>CTRL_INDEX_PKG);
+		$packages_info->parse($z, $packages);
+
+		print " import";
+		STDOUT->flush;
+		foreach my $pkgname ($packages_info->get_keys()) {
+		    my $pkg = $packages_info->get_by_key($pkgname);
+
+		    my $source = $pkg->{'Package'};
+		    my $source_version = $pkg->{'Version'};
+		    my $source_detail = $pkg->{'Source'};
+		    if ($source_detail) {
+			my $match = ($source_detail =~ m/(\S+)\s?(?:\((\S+\)))?/);
+			if (!$match) {
+			    Sbuild::Exception::DB->throw
+				(error => "Can't parse Source field ‘$source_detail’");
+			}
+			$source = $1;
+			if ($2) {
+			    $source_version = $2;
+			}
+		    }
+
+		    my $mpackages = $conn->prepare("SELECT merge_binary(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+		    $mpackages->bind_param(1, $pkg->{'Package'});
+		    $mpackages->bind_param(2, $pkg->{'Version'});
+		    $mpackages->bind_param(3, $pkg->{'Architecture'});
+		    $mpackages->bind_param(4, $source);
+		    $mpackages->bind_param(5, $source_version);
+		    $mpackages->bind_param(6, $pkg->{'Section'});
+		    $mpackages->bind_param(7, 'deb');
+		    $mpackages->bind_param(8, $pkg->{'Priority'});
+		    $mpackages->bind_param(9, $pkg->{'Installed-Size'});
+		    $mpackages->bind_param(10, $pkg->{'Multi-Arch'});
+		    $mpackages->bind_param(11, $pkg->{'Essential'});
+		    $mpackages->bind_param(12, $pkg->{'Build-Essential'});
+		    $mpackages->bind_param(13, $pkg->{'Pre-Depends'});
+		    $mpackages->bind_param(14, $pkg->{'Depends'});
+		    $mpackages->bind_param(15, $pkg->{'Recommends'});
+		    $mpackages->bind_param(16, $pkg->{'Suggests'});
+		    $mpackages->bind_param(17, $pkg->{'Conflicts'});
+		    $mpackages->bind_param(18, $pkg->{'Breaks'});
+		    $mpackages->bind_param(19, $pkg->{'Enhances'});
+		    $mpackages->bind_param(20, $pkg->{'Replaces'});
+		    $mpackages->bind_param(21, $pkg->{'Provides'});
+		    $mpackages->execute();
+		}
+		print ".\n";
+		STDOUT->flush;
+	    }
+
+
+	}
+
 
 	$conn->commit();
     };
