@@ -274,8 +274,32 @@ CREATE TABLE package_architectures (
 	  CONSTRAINT pkg_arch_pkey PRIMARY KEY
 );
 
-COMMENT ON TABLE package_architectures IS 'Possible values for the Architecture field';
+COMMENT ON TABLE package_architectures IS 'Possible values for the Architecture field in binary packages';
 COMMENT ON COLUMN package_architectures.arch IS 'Architecture name';
+
+CREATE OR REPLACE FUNCTION merge_package_architecture(narchitecture text)
+RETURNS VOID AS
+$$
+BEGIN
+    LOOP
+        -- first try to update the key
+        PERFORM architecture FROM package_architectures WHERE architecture = narchitecture;
+        IF found THEN
+            RETURN;
+        END IF;
+        -- not there, so try to insert the key
+        -- if someone else inserts the same key concurrently,
+        -- we could get a unique-key failure
+        BEGIN
+	    INSERT INTO package_architectures (architecture) VALUES (narchitecture);
+            RETURN;
+        EXCEPTION WHEN unique_violation THEN
+            -- do nothing, and loop to try the UPDATE again
+        END;
+    END LOOP;
+END;
+$$
+LANGUAGE plpgsql;
 
 CREATE TABLE package_priorities (
 	priority text
@@ -396,12 +420,6 @@ RETURNS VOID AS
 $$
 BEGIN
     LOOP
-	PERFORM merge_component(ncomponent);
-        PERFORM merge_package_section(nsection);
-        IF npriority IS NOT NULL THEN
-            PERFORM merge_package_priority(npriority);
-	END IF;
-
         -- first try to update the key
         UPDATE sources SET component=ncomponent, section=nsection, pkg_prio=npriority, maintainer=nmaintainer, build_dep=nbuild_dep, build_dep_indep=nbuild_dep_indep, build_confl=nbuild_confl, build_confl_indep=nbuild_confl_indep, stdver=nstdver WHERE source=nsource AND source_version=nsource_version;
 
@@ -429,10 +447,6 @@ RETURNS VOID AS
 $$
 BEGIN
     LOOP
-	PERFORM merge_component('INVALID');
-        PERFORM merge_package_priority('INVALID');
-        PERFORM merge_package_section('INVALID');
-
         -- first try to update the key
         PERFORM source, source_version FROM sources
 	WHERE source=nsource AND source_version=nsource_version;
@@ -498,7 +512,7 @@ CREATE TABLE binaries (
 	package text NOT NULL,
 	version debversion NOT NULL,
 	arch text
-	  CONSTRAINT bin_arch_fkey REFERENCES architectures(architecture)
+	  CONSTRAINT bin_arch_fkey REFERENCES package_architectures(architecture)
 	  NOT NULL,
 	source text
 	  NOT NULL,

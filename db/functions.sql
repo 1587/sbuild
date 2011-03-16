@@ -22,31 +22,44 @@
 -- Triggers to insert missing sections and priorities
 --
 
-CREATE OR REPLACE FUNCTION package_checkrel() RETURNS trigger AS $package_checkrel$
+CREATE OR REPLACE FUNCTION source_fkey_deps () RETURNS trigger AS $fkey_deps$
 BEGIN
-  PERFORM section FROM package_sections WHERE (section = NEW.section);
-  IF FOUND = 'f' THEN
-    INSERT INTO package_sections (section) VALUES (NEW.section);
-  END IF;
-  PERFORM pkg_prio FROM package_priorities WHERE (pkg_prio = NEW.pkg_prio);
-  IF FOUND = 'f' THEN
-    INSERT INTO package_priorities (pkg_prio) VALUES (NEW.pkg_prio);
-  END IF;
-  RETURN NEW;
+    PERFORM merge_component(NEW.component);
+    PERFORM merge_package_section(NEW.section);
+    IF NEW.priority IS NOT NULL THEN
+        PERFORM merge_package_priority(NEW.priority);
+    END IF;
 END;
-$package_checkrel$ LANGUAGE plpgsql;
-COMMENT ON FUNCTION package_checkrel ()
-  IS 'Check foreign key references (package sections and priorities) exist';
+$fkey_deps$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION source_fkey_deps ()
+  IS 'Check foreign key references exist';
 
-CREATE TRIGGER checkrel BEFORE INSERT OR UPDATE ON sources
-  FOR EACH ROW EXECUTE PROCEDURE package_checkrel();
-COMMENT ON TRIGGER checkrel ON sources
-  IS 'Check foreign key references (package sections and priorities) exist';
+CREATE TRIGGER source_fkey_deps BEFORE INSERT OR UPDATE ON sources
+  FOR EACH ROW EXECUTE PROCEDURE source_fkey_deps();
+COMMENT ON TRIGGER source_fkey_deps ON sources
+  IS 'Check foreign key references exist';
 
-CREATE TRIGGER checkrel BEFORE INSERT OR UPDATE ON binaries
-  FOR EACH ROW EXECUTE PROCEDURE package_checkrel();
-COMMENT ON TRIGGER checkrel ON binaries
-  IS 'Check foreign key references (package sections and priorities) exist';
+CREATE OR REPLACE FUNCTION binary_fkey_deps () RETURNS trigger AS $fkey_deps$
+BEGIN
+    PERFORM merge_dummy_source(NEW.source, NEW.source_version);
+    PERFORM merge_package_architecture(NEW.architecture);
+    PERFORM merge_package_section(NEW.section);
+    PERFORM merge_package_type(NEW.type);
+    IF npriority IS NOT NULL THEN
+        PERFORM merge_package_priority(NEW.priority);
+    END IF;
+END;
+$fkey_deps$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION binary_fkey_deps ()
+  IS 'Check foreign key references exist';
+
+CREATE TRIGGER binary_fkey_deps BEFORE INSERT OR UPDATE ON binaries
+  FOR EACH ROW EXECUTE PROCEDURE binary_fkey_deps();
+COMMENT ON TRIGGER binary_fkey_deps ON binaries
+  IS 'Check foreign key references exist';
+
+
+
 
 --
 -- Triggers to insert missing package architectures
