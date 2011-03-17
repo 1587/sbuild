@@ -29,6 +29,7 @@ BEGIN
     IF NEW.priority IS NOT NULL THEN
         PERFORM merge_package_priority(NEW.priority);
     END IF;
+    RETURN;
 END;
 $fkey_deps$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION source_fkey_deps ()
@@ -42,12 +43,13 @@ COMMENT ON TRIGGER source_fkey_deps ON sources
 CREATE OR REPLACE FUNCTION binary_fkey_deps () RETURNS trigger AS $fkey_deps$
 BEGIN
     PERFORM merge_dummy_source(NEW.source, NEW.source_version);
-    PERFORM merge_package_architecture(NEW.architecture);
+    PERFORM merge_binary_architecture(NEW.architecture);
     PERFORM merge_package_section(NEW.section);
     PERFORM merge_package_type(NEW.type);
     IF npriority IS NOT NULL THEN
         PERFORM merge_package_priority(NEW.priority);
     END IF;
+    RETURN;
 END;
 $fkey_deps$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION binary_fkey_deps ()

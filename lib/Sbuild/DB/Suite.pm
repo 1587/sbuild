@@ -176,18 +176,19 @@ sub suite_fetch {
 		foreach my $pkgname ($source_info->get_keys()) {
 		    my $pkg = $source_info->get_by_key($pkgname);
 
-		    my $msource = $conn->prepare("SELECT merge_source(?,?,?,?,?,?,?,?,?,?,?)");
+		    my $msource = $conn->prepare("SELECT merge_source(?,?,?,?,?,?,?,?,?,?,?,?)");
 		    $msource->bind_param(1, $pkg->{'Package'});
 		    $msource->bind_param(2, $pkg->{'Version'});
 		    $msource->bind_param(3, $component);
 		    $msource->bind_param(4, $pkg->{'Section'});
 		    $msource->bind_param(5, $pkg->{'Priority'});
 		    $msource->bind_param(6, $pkg->{'Maintainer'});
-		    $msource->bind_param(7, $pkg->{'Build-Depends'});
-		    $msource->bind_param(8, $pkg->{'Build-Depends-Indep'});
-		    $msource->bind_param(9, $pkg->{'Build-Conflicts'});
-		    $msource->bind_param(10, $pkg->{'Build-Conflicts-Indep'});
-		    $msource->bind_param(11, $pkg->{'Standards-Version'});
+		    $msource->bind_param(7, $pkg->{'Uploaders'});
+		    $msource->bind_param(8, $pkg->{'Build-Depends'});
+		    $msource->bind_param(9, $pkg->{'Build-Depends-Indep'});
+		    $msource->bind_param(10, $pkg->{'Build-Conflicts'});
+		    $msource->bind_param(11, $pkg->{'Build-Conflicts-Indep'});
+		    $msource->bind_param(12, $pkg->{'Standards-Version'});
 		    $msource->execute();
 		}
 		print ".\n";

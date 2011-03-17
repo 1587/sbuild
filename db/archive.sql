@@ -1,6 +1,6 @@
 --- Debian Source Builder: Database Schema for PostgreSQL            -*- sql -*-
 ---
---- Copyright © 2008-2009 Roger Leigh <rleigh@debian.org>
+--- Copyright © 2008-2011 Roger Leigh <rleigh@debian.org>
 --- Copyright © 2008-2009 Marc 'HE' Brockschmidt <he@debian.org>
 --- Copyright © 2008-2009 Adeodato Simó <adeodato@debian.org>
 ---
@@ -179,6 +179,10 @@ END;
 $$
 LANGUAGE plpgsql;
 
+-- suite_architectures
+
+-- suite_components
+
 CREATE TABLE suite_detail (
 	suitenick text
 	  NOT NULL
@@ -269,21 +273,21 @@ $$
 LANGUAGE plpgsql;
 
 
-CREATE TABLE package_architectures (
-	arch text
-	  CONSTRAINT pkg_arch_pkey PRIMARY KEY
+CREATE TABLE binary_architectures (
+	architecture text
+	  CONSTRAINT binary_arch_pkey PRIMARY KEY
 );
 
-COMMENT ON TABLE package_architectures IS 'Possible values for the Architecture field in binary packages';
-COMMENT ON COLUMN package_architectures.arch IS 'Architecture name';
+COMMENT ON TABLE binary_architectures IS 'Possible values for the Architecture field in binary packages';
+COMMENT ON COLUMN binary_architectures.arch IS 'Architecture name';
 
-CREATE OR REPLACE FUNCTION merge_package_architecture(narchitecture text)
+CREATE OR REPLACE FUNCTION merge_binary_architecture(narchitecture text)
 RETURNS VOID AS
 $$
 BEGIN
     LOOP
         -- first try to update the key
-        PERFORM architecture FROM package_architectures WHERE architecture = narchitecture;
+        PERFORM architecture FROM binary_architectures WHERE architecture = narchitecture;
         IF found THEN
             RETURN;
         END IF;
@@ -291,7 +295,7 @@ BEGIN
         -- if someone else inserts the same key concurrently,
         -- we could get a unique-key failure
         BEGIN
-	    INSERT INTO package_architectures (architecture) VALUES (narchitecture);
+	    INSERT INTO binary_architectures (architecture) VALUES (narchitecture);
             RETURN;
         EXCEPTION WHEN unique_violation THEN
             -- do nothing, and loop to try the UPDATE again
@@ -303,7 +307,7 @@ LANGUAGE plpgsql;
 
 CREATE TABLE package_priorities (
 	priority text
-	  CONSTRAINT pkg_pri_pkey PRIMARY KEY,
+	  CONSTRAINT pkg_priority_pkey PRIMARY KEY,
 	priority_value integer
 	  DEFAULT 0
 );
@@ -379,9 +383,10 @@ CREATE TABLE sources (
 	section text
 	  CONSTRAINT source_section_fkey REFERENCES package_sections(section)
 	  NOT NULL,
-	pkg_prio text
-	  CONSTRAINT source_pkg_prio_fkey REFERENCES package_priorities(priority),
+	priority text
+	  CONSTRAINT source_priority_fkey REFERENCES package_priorities(priority),
 	maintainer text NOT NULL,
+	uploaders text,
 	build_dep text,
 	build_dep_indep text,
 	build_confl text,
@@ -397,8 +402,9 @@ COMMENT ON COLUMN sources.source IS 'Package name';
 COMMENT ON COLUMN sources.source_version IS 'Package version number';
 COMMENT ON COLUMN sources.component IS 'Archive component';
 COMMENT ON COLUMN sources.section IS 'Package section';
-COMMENT ON COLUMN sources.pkg_prio IS 'Package priority';
-COMMENT ON COLUMN sources.maintainer IS 'Package maintainer name';
+COMMENT ON COLUMN sources.priority IS 'Package priority';
+COMMENT ON COLUMN sources.maintainer IS 'Package maintainer';
+COMMENT ON COLUMN sources.maintainer IS 'Package uploaders';
 COMMENT ON COLUMN sources.build_dep IS 'Package build dependencies (architecture dependent)';
 COMMENT ON COLUMN sources.build_dep_indep IS 'Package build dependencies (architecture independent)';
 COMMENT ON COLUMN sources.build_confl IS 'Package build conflicts (architecture dependent)';
@@ -411,6 +417,7 @@ CREATE OR REPLACE FUNCTION merge_source(nsource text,
 					nsection text,
 					npriority text,
 					nmaintainer text,
+					nuploaders text,
 					nbuild_dep text,
 					nbuild_dep_indep text,
 					nbuild_confl text,
@@ -421,7 +428,7 @@ $$
 BEGIN
     LOOP
         -- first try to update the key
-        UPDATE sources SET component=ncomponent, section=nsection, pkg_prio=npriority, maintainer=nmaintainer, build_dep=nbuild_dep, build_dep_indep=nbuild_dep_indep, build_confl=nbuild_confl, build_confl_indep=nbuild_confl_indep, stdver=nstdver WHERE source=nsource AND source_version=nsource_version;
+        UPDATE sources SET component=ncomponent, section=nsection, priority=npriority, maintainer=nmaintainer, uploaders=nuploaders, build_dep=nbuild_dep, build_dep_indep=nbuild_dep_indep, build_confl=nbuild_confl, build_confl_indep=nbuild_confl_indep, stdver=nstdver WHERE source=nsource AND source_version=nsource_version;
 
         IF found THEN
             RETURN;
@@ -430,7 +437,7 @@ BEGIN
         -- if someone else inserts the same key concurrently,
         -- we could get a unique-key failure
         BEGIN
-	    INSERT INTO sources (source, source_version, component, section, pkg_prio, maintainer, build_dep, build_dep_indep, build_confl, build_confl_indep, stdver) VALUES (nsource, nsource_version, ncomponent, nsection, npriority, nmaintainer, nbuild_dep, nbuild_dep_indep, nbuild_confl, nbuild_confl_indep, nstdver);
+	    INSERT INTO sources (source, source_version, component, section, priority, maintainer, uploaders, build_dep, build_dep_indep, build_confl, build_confl_indep, stdver) VALUES (nsource, nsource_version, ncomponent, nsection, npriority, nmaintainer, nuploaders, nbuild_dep, nbuild_dep_indep, nbuild_confl, nbuild_confl_indep, nstdver);
             RETURN;
         EXCEPTION WHEN unique_violation THEN
             -- do nothing, and loop to try the UPDATE again
@@ -458,7 +465,7 @@ BEGIN
         -- if someone else inserts the same key concurrently,
         -- we could get a unique-key failure
         BEGIN
-	    INSERT INTO sources (source, source_version, component, section, pkg_prio, maintainer) VALUES (nsource, nsource_version, 'INVALID', 'INVALID', 'INVALID', 'INVALID');
+	    INSERT INTO sources (source, source_version, component, section, priority, maintainer) VALUES (nsource, nsource_version, 'INVALID', 'INVALID', 'INVALID', 'INVALID');
             RETURN;
         EXCEPTION WHEN unique_violation THEN
             -- do nothing, and loop to try the UPDATE again
@@ -469,14 +476,45 @@ $$
 LANGUAGE plpgsql;
 
 CREATE TABLE source_architectures (
-	source text
+	arch text
+	  CONSTRAINT source_arch_pkey PRIMARY KEY
+);
+
+COMMENT ON TABLE source_architectures IS 'Possible values for the Architecture field in sources';
+COMMENT ON COLUMN source_architectures.arch IS 'Architecture name';
+
+CREATE OR REPLACE FUNCTION merge_source_architecture(narchitecture text)
+RETURNS VOID AS
+$$
+BEGIN
+    LOOP
+        -- first try to update the key
+        PERFORM architecture FROM source_architectures WHERE architecture = narchitecture;
+        IF found THEN
+            RETURN;
+        END IF;
+        -- not there, so try to insert the key
+        -- if someone else inserts the same key concurrently,
+        -- we could get a unique-key failure
+        BEGIN
+	    INSERT INTO source_architectures (architecture) VALUES (narchitecture);
+            RETURN;
+        EXCEPTION WHEN unique_violation THEN
+            -- do nothing, and loop to try the UPDATE again
+        END;
+    END LOOP;
+END;
+$$
+LANGUAGE plpgsql;
+
+CREATE TABLE source_package_architectures (
+       	source text
 	  NOT NULL,
 	source_version debversion
 	  NOT NULL,
 	arch text
 	  CONSTRAINT source_arch_arch_fkey
-	  REFERENCES package_architectures(arch)
-	  ON DELETE CASCADE
+	  REFERENCES source_architectures(arch)
 	  NOT NULL,
 	UNIQUE (source, source_version, arch),
 	CONSTRAINT source_arch_source_fkey FOREIGN KEY (source, source_version)
@@ -484,35 +522,17 @@ CREATE TABLE source_architectures (
 	  ON DELETE CASCADE
 );
 
-COMMENT ON TABLE source_architectures IS 'Source package architectures (from Sources)';
-COMMENT ON COLUMN source_architectures.source IS 'Package name';
-COMMENT ON COLUMN source_architectures.source_version IS 'Package version number';
-COMMENT ON COLUMN source_architectures.arch IS 'Architecture name';
-
-CREATE TABLE uploaders (
-	source text
-	  NOT NULL,
-	source_version debversion
-	  NOT NULL,
-	uploader text
-	  NOT NULL,
-	UNIQUE (source, source_version, uploader),
-	CONSTRAINT uploader_source_fkey FOREIGN KEY (source, source_version)
-	  REFERENCES sources (source, source_version)
-	  ON DELETE CASCADE
-);
-
-COMMENT ON TABLE uploaders IS 'Uploader names for source packages';
-COMMENT ON COLUMN uploaders.source IS 'Package name';
-COMMENT ON COLUMN uploaders.source_version IS 'Package version number';
-COMMENT ON COLUMN uploaders.uploader IS 'Uploader name and address';
+COMMENT ON TABLE source_package_architectures IS 'Source package architectures (from Sources)';
+COMMENT ON COLUMN source_package_architectures.source IS 'Package name';
+COMMENT ON COLUMN source_package_architectures.source_version IS 'Package version number';
+COMMENT ON COLUMN source_package_architectures.arch IS 'Architecture name';
 
 CREATE TABLE binaries (
 	-- PostgreSQL won't allow "binary" as column name
 	package text NOT NULL,
 	version debversion NOT NULL,
 	arch text
-	  CONSTRAINT bin_arch_fkey REFERENCES package_architectures(architecture)
+	  CONSTRAINT bin_arch_fkey REFERENCES binary_architectures(architecture)
 	  NOT NULL,
 	source text
 	  NOT NULL,
@@ -524,7 +544,7 @@ CREATE TABLE binaries (
 	  CONSTRAINT bin_pkg_type_fkey REFERENCES package_types(type)
 	  NOT NULL,
 	priority text
-	  CONSTRAINT bin_pkg_prio_fkey REFERENCES package_priorities(priority),
+	  CONSTRAINT bin_priority_fkey REFERENCES package_priorities(priority),
 	installed_size integer
 	  NOT NULL,
 	multi_arch text,
@@ -690,7 +710,11 @@ CREATE TABLE suite_sources (
 	source_version debversion
 	  NOT NULL,
 	suite text
-	  CONSTRAINT suite_sources_suite_fkey REFERENCES suites(suite)
+	  CONSTRAINT suite_sources_suite_fkey REFERENCES suites(suitenick)
+	  ON DELETE CASCADE
+	  NOT NULL,
+	component text
+	  CONSTRAINT suite_sources_component_fkey REFERENCES components(component)
 	  ON DELETE CASCADE
 	  NOT NULL,
 	CONSTRAINT suite_sources_pkey PRIMARY KEY (source, suite),
@@ -705,26 +729,34 @@ COMMENT ON TABLE suite_sources IS 'Source packages contained within a suite';
 COMMENT ON COLUMN suite_sources.source IS 'Source package name';
 COMMENT ON COLUMN suite_sources.source_version IS 'Source package version number';
 COMMENT ON COLUMN suite_sources.suite IS 'Suite name';
+COMMENT ON COLUMN suite_sources.component IS 'Suite component';
 
 CREATE TABLE suite_binaries (
 	package text
 	  NOT NULL,
 	version debversion
 	  NOT NULL,
-	arch text
-	  CONSTRAINT suite_bin_arch_fkey REFERENCES package_architectures(arch)
-          ON DELETE CASCADE
+	architecture text
+	  CONSTRAINT suite_bin_arch_fkey
+	    REFERENCES binary_architectures(architecture)
+            ON DELETE CASCADE
 	  NOT NULL,
 	suite text
-	  CONSTRAINT suite_bin_suite_fkey REFERENCES suites(suite)
-          ON DELETE CASCADE
+	  CONSTRAINT suite_bin_suite_fkey
+	    REFERENCES suites(suitenick)
+            ON DELETE CASCADE
 	  NOT NULL,
-	CONSTRAINT suite_bin_pkey PRIMARY KEY (package, arch, suite),
-	CONSTRAINT suite_bin_bin_fkey FOREIGN KEY (package, version, arch)
-	  REFERENCES binaries (package, version, arch)
+	component text
+	  CONSTRAINT suite_sources_component_fkey
+	    REFERENCES components(component)
+	    ON DELETE CASCADE
+	  NOT NULL,
+	CONSTRAINT suite_bin_pkey PRIMARY KEY (package, architecture, suite),
+	CONSTRAINT suite_bin_bin_fkey FOREIGN KEY (package, version, architecture)
+	  REFERENCES binaries (package, version, architecture)
 	  ON DELETE CASCADE,
-	CONSTRAINT suite_bin_suite_arch_fkey FOREIGN KEY (suite, arch)
-	  REFERENCES suite_arches (suite, arch)
+	CONSTRAINT suite_bin_suite_arch_fkey FOREIGN KEY (suite, architecture)
+	  REFERENCES suite_arches (suite, architecture)
 	  ON DELETE CASCADE
 );
 
@@ -733,5 +765,6 @@ CREATE INDEX suite_binaries_pkg_ver_idx ON suite_binaries (package, version);
 COMMENT ON TABLE suite_binaries IS 'Binary packages contained within a suite';
 COMMENT ON COLUMN suite_binaries.package IS 'Binary package name';
 COMMENT ON COLUMN suite_binaries.version IS 'Binary package version number';
-COMMENT ON COLUMN suite_binaries.arch IS 'Architecture name';
+COMMENT ON COLUMN suite_binaries.architecture IS 'Architecture name';
 COMMENT ON COLUMN suite_binaries.suite IS 'Suite name';
+COMMENT ON COLUMN suite_binaries.component IS 'Suite component';
