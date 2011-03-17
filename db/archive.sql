@@ -179,29 +179,113 @@ END;
 $$
 LANGUAGE plpgsql;
 
--- suite_architectures
-
--- suite_components
-
-CREATE TABLE suite_detail (
+CREATE TABLE suite_architectures (
 	suitenick text
 	  NOT NULL
-	  CONSTRAINT suite_detail_suite_fkey
+	  CONSTRAINT suite_arch_suite_fkey
 	  REFERENCES suites(suitenick)
 	    ON DELETE CASCADE,
 	architecture text
 	  NOT NULL
-	  CONSTRAINT suite_detail_architecture_fkey
+	  CONSTRAINT suite_arch_architecture_fkey
 	    REFERENCES architectures(architecture),
+	CONSTRAINT suite_arch_pkey
+	  PRIMARY KEY (suitenick, architecture)
+);
+
+COMMENT ON TABLE suite_architectures IS 'Archive components in use by suite';
+COMMENT ON COLUMN suite_architectures.suitenick IS 'Suite name (nickname)';
+COMMENT ON COLUMN suite_architectures.architecture IS 'Architecture name';
+
+CREATE OR REPLACE FUNCTION merge_suite_architecture(nsuitenick text,
+                                                    narchitecture text)
+RETURNS VOID AS
+$$
+BEGIN
+    PERFORM merge_architecture(narchitecture);
+
+    LOOP
+        -- first try to update the key
+        PERFORM suitenick, architecture FROM suite_architectures WHERE suitenick=nsuitenick AND architecture = narchitecture;
+        IF found THEN
+            RETURN;
+        END IF;
+        -- not there, so try to insert the key
+        -- if someone else inserts the same key concurrently,
+        -- we could get a unique-key failure
+        BEGIN
+	    INSERT INTO suite_architectures (suitenick, architecture) VALUES (nsuitenick, narchitecture);
+            RETURN;
+        EXCEPTION WHEN unique_violation THEN
+            -- do nothing, and loop to try the UPDATE again
+        END;
+    END LOOP;
+END;
+$$
+LANGUAGE plpgsql;
+
+CREATE TABLE suite_components (
+	suitenick text
+	  NOT NULL
+	  CONSTRAINT suite_components_suite_fkey
+	  REFERENCES suites(suitenick)
+	    ON DELETE CASCADE,
 	component text
 	  NOT NULL
-	  CONSTRAINT suite_detail_component_fkey
+	  CONSTRAINT suite_components_component_fkey
 	    REFERENCES components(component),
+	CONSTRAINT suite_components_pkey
+	  PRIMARY KEY (suitenick, component)
+);
+
+COMMENT ON TABLE suite_components IS 'Archive components in use by suite';
+COMMENT ON COLUMN suite_components.suitenick IS 'Suite name (nickname)';
+COMMENT ON COLUMN suite_components.component IS 'Component name';
+
+CREATE OR REPLACE FUNCTION merge_suite_component(nsuitenick text,
+                                                    ncomponent text)
+RETURNS VOID AS
+$$
+BEGIN
+    PERFORM merge_component(ncomponent);
+
+    LOOP
+        -- first try to update the key
+        PERFORM suitenick, component FROM suite_components WHERE suitenick=nsuitenick AND component = ncomponent;
+        IF found THEN
+            RETURN;
+        END IF;
+        -- not there, so try to insert the key
+        -- if someone else inserts the same key concurrently,
+        -- we could get a unique-key failure
+        BEGIN
+	    INSERT INTO suite_components (suitenick, component) VALUES (nsuitenick, ncomponent);
+            RETURN;
+        EXCEPTION WHEN unique_violation THEN
+            -- do nothing, and loop to try the UPDATE again
+        END;
+    END LOOP;
+END;
+$$
+LANGUAGE plpgsql;
+
+
+CREATE TABLE suite_detail (
+	suitenick text
+	  NOT NULL,
+	architecture text
+	  NOT NULL,
+	component text
+	  NOT NULL,
 	build bool
 	  NOT NULL
 	  DEFAULT false,
 	CONSTRAINT suite_detail_pkey
-	  PRIMARY KEY (suitenick, architecture, component)
+	  PRIMARY KEY (suitenick, architecture, component),
+	CONSTRAINT suite_detail_arch_fkey FOREIGN KEY (suitenick, architecture)
+	  REFERENCES suite_architectures (suitenick, architecture),
+	CONSTRAINT suite_detail_component_fkey FOREIGN KEY (suitenick, component)
+	  REFERENCES suite_components (suitenick, component)
 );
 
 COMMENT ON TABLE suite_detail IS 'List of architectures in each suite';
@@ -217,8 +301,8 @@ RETURNS VOID AS
 $$
 BEGIN
     LOOP
-        PERFORM merge_architecture(narchitecture);
-	PERFORM merge_component(ncomponent);
+        PERFORM merge_suite_architecture(nsuitenick, narchitecture);
+	PERFORM merge_suite_component(nsuitenick, ncomponent);
 
         -- first try to update the key
         PERFORM suitenick, architecture, component FROM suite_detail WHERE suitenick = nsuitenick AND architecture = narchitecture AND component = ncomponent;
