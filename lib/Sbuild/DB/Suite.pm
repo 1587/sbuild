@@ -196,23 +196,10 @@ sub suite_fetch {
 		}
 
 		# Move into main table.
-		my $sinsert = $conn->do("INSERT INTO sources SELECT * FROM new_sources WHERE (source,source_version) IN (SELECT source, source_version FROM new_sources AS s EXCEPT SELECT source, source_version FROM sources AS s)");
-
-		# Remove old suite-source mappings.
-		my $scdel = $conn->prepare("DELETE FROM suite_sources WHERE suite = ? and component = ?");
-		$scdel->bind_param(1, $suitename);
-		$scdel->bind_param(2, $component);
-		$scdel->execute();
-
-		# Create new suite-source mappings.
-		my $scnew = $conn->prepare("INSERT INTO suite_sources (source, source_version, suite, component) SELECT s.source, s.source_version, ? AS suite, ? AS component FROM new_sources AS s");
-		$scnew->bind_param(1, $suitename);
-		$scnew->bind_param(2, $component);
-		$scnew->execute();
-
-		my $sdelete = $conn->do("DELETE FROM new_sources WHERE (source, source_version) IN (SELECT source, source_version FROM new_sources AS s EXCEPT SELECT source, source_version FROM sources AS s)");
-
-		my $supdate = $conn->prepare("UPDATE sources SET component=n.component, section=n.section, priority=n.priority, maintainer=n.maintainer, uploaders=n.uploaders, build_dep=n.build_dep, build_dep_indep=n.build_dep_indep, build_confl=n.build_confl, build_confl_indep=n.build_confl_indep, stdver=n.stdver FROM new_sources AS n WHERE source=n.source AND source_version=n.source_version");
+		my $smerge = $conn->prepare("SELECT merge_sources(?,?)");
+		$smerge->bind_param(1, $suitename);
+		$smerge->bind_param(2, $component);
+		$smerge->execute();
 
 		$conn->do("DROP TABLE new_sources");
 		$conn->do("DROP TABLE changed_sources");

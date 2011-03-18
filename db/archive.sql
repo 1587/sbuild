@@ -495,38 +495,57 @@ COMMENT ON COLUMN sources.build_confl IS 'Package build conflicts (architecture 
 COMMENT ON COLUMN sources.build_confl_indep IS 'Package build conflicts (architecture independent)';
 COMMENT ON COLUMN sources.stdver IS 'Debian Standards (policy) version number';
 
-CREATE OR REPLACE FUNCTION merge_source(nsource text,
-                                        nsource_version debversion,
-					ncomponent	text,
-					nsection text,
-					npriority text,
-					nmaintainer text,
-					nuploaders text,
-					nbuild_dep text,
-					nbuild_dep_indep text,
-					nbuild_confl text,
-					nbuild_confl_indep text,
-					nstdver text)
+CREATE OR REPLACE FUNCTION merge_sources(nsuite text,
+					 ncomponent text)
 RETURNS VOID AS
 $$
 BEGIN
-    LOOP
-        -- first try to update the key
-        UPDATE sources SET component=ncomponent, section=nsection, priority=npriority, maintainer=nmaintainer, uploaders=nuploaders, build_dep=nbuild_dep, build_dep_indep=nbuild_dep_indep, build_confl=nbuild_confl, build_confl_indep=nbuild_confl_indep, stdver=nstdver WHERE source=nsource AND source_version=nsource_version;
+    CREATE TEMPORARY TABLE tmp_sources (LIKE sources);
 
-        IF found THEN
-            RETURN;
-        END IF;
-        -- not there, so try to insert the key
-        -- if someone else inserts the same key concurrently,
-        -- we could get a unique-key failure
-        BEGIN
-	    INSERT INTO sources (source, source_version, component, section, priority, maintainer, uploaders, build_dep, build_dep_indep, build_confl, build_confl_indep, stdver) VALUES (nsource, nsource_version, ncomponent, nsection, npriority, nmaintainer, nuploaders, nbuild_dep, nbuild_dep_indep, nbuild_confl, nbuild_confl_indep, nstdver);
-            RETURN;
-        EXCEPTION WHEN unique_violation THEN
-            -- do nothing, and loop to try the UPDATE again
-        END;
-    END LOOP;
+    INSERT INTO tmp_sources
+    SELECT * FROM new_sources;
+
+    -- Move into main table.
+    INSERT INTO sources
+    SELECT * FROM tmp_sources
+    WHERE (source,source_version) IN
+      (SELECT source, source_version FROM tmp_sources AS s
+       EXCEPT
+       SELECT source, source_version FROM sources AS s);
+
+    --  Remove old suite-source mappings.
+    DELETE FROM suite_sources AS s
+    WHERE s.suite = nsuite and s.component = ncomponent;
+
+    -- Create new suite-source mappings.
+    INSERT INTO suite_sources (source, source_version, suite, component)
+    SELECT s.source, s.source_version, nsuite AS suite, ncomponent AS component
+    FROM tmp_sources AS s;
+
+    DELETE FROM tmp_sources
+    WHERE (source, source_version) IN
+      (SELECT source, source_version FROM tmp_sources AS s
+       EXCEPT
+       SELECT source, source_version FROM sources AS s);
+
+    UPDATE sources AS s
+    SET
+      component=n.component,
+      section=n.section,
+      priority=n.priority,
+      maintainer=n.maintainer,
+      uploaders=n.uploaders,
+      build_dep=n.build_dep,
+      build_dep_indep=n.build_dep_indep,
+      build_confl=n.build_confl,
+      build_confl_indep=n.build_confl_indep,
+      stdver=n.stdver
+    FROM tmp_sources AS n
+    WHERE s.source=n.source AND s.source_version=n.source_version;
+
+    DROP TABLE tmp_sources;
+EXCEPTION
+    DROP TABLE tmp_sources;
 END;
 $$
 LANGUAGE plpgsql;
