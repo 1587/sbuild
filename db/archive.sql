@@ -243,7 +243,7 @@ COMMENT ON COLUMN suite_components.suitenick IS 'Suite name (nickname)';
 COMMENT ON COLUMN suite_components.component IS 'Component name';
 
 CREATE OR REPLACE FUNCTION merge_suite_component(nsuitenick text,
-                                                    ncomponent text)
+                                                 ncomponent text)
 RETURNS VOID AS
 $$
 BEGIN
@@ -799,11 +799,13 @@ CREATE TABLE suite_sources (
 	  NOT NULL,
 	component text
 	  CONSTRAINT suite_sources_component_fkey REFERENCES components(component)
-	  ON DELETE CASCADE
 	  NOT NULL,
-	CONSTRAINT suite_sources_pkey PRIMARY KEY (source, suite),
+	CONSTRAINT suite_sources_pkey PRIMARY KEY (source, suite, component),
 	CONSTRAINT suite_sources_src_fkey FOREIGN KEY (source, source_version)
 	  REFERENCES sources (source, source_version)
+	  ON DELETE CASCADE,
+	CONSTRAINT suite_sources_suitecomp_fkey FOREIGN KEY (suite, component)
+	  REFERENCES suite_components (suitenick, component)
 	  ON DELETE CASCADE
 );
 

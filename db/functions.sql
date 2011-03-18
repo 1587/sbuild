@@ -24,12 +24,16 @@
 
 CREATE OR REPLACE FUNCTION source_fkey_deps () RETURNS trigger AS $fkey_deps$
 BEGIN
-    PERFORM merge_component(NEW.component);
-    PERFORM merge_package_section(NEW.section);
+    IF NEW.component IS NOT NULL THEN
+        PERFORM merge_component(NEW.component);
+    END IF;
+    IF NEW.priority IS NOT NULL THEN
+        PERFORM merge_package_section(NEW.section);
+    END IF;
     IF NEW.priority IS NOT NULL THEN
         PERFORM merge_package_priority(NEW.priority);
     END IF;
-    RETURN;
+    RETURN NEW;
 END;
 $fkey_deps$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION source_fkey_deps ()
@@ -49,7 +53,7 @@ BEGIN
     IF npriority IS NOT NULL THEN
         PERFORM merge_package_priority(NEW.priority);
     END IF;
-    RETURN;
+    RETURN NEW;
 END;
 $fkey_deps$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION binary_fkey_deps ()

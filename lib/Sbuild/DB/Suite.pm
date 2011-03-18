@@ -173,10 +173,13 @@ sub suite_fetch {
 
 		print " import";
 		STDOUT->flush;
+		$conn->do("CREATE TEMPORARY TABLE new_sources (LIKE sources)");
+		$conn->do("CREATE TEMPORARY TABLE changed_sources (LIKE sources)");
+
 		foreach my $pkgname ($source_info->get_keys()) {
 		    my $pkg = $source_info->get_by_key($pkgname);
 
-		    my $msource = $conn->prepare("SELECT merge_source(?,?,?,?,?,?,?,?,?,?,?,?)");
+		    my $msource = $conn->prepare("INSERT INTO new_sources (source, source_version, component, section, priority, maintainer, uploaders, build_dep, build_dep_indep, build_confl, build_confl_indep, stdver) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)");
 		    $msource->bind_param(1, $pkg->{'Package'});
 		    $msource->bind_param(2, $pkg->{'Version'});
 		    $msource->bind_param(3, $component);
@@ -191,6 +194,28 @@ sub suite_fetch {
 		    $msource->bind_param(12, $pkg->{'Standards-Version'});
 		    $msource->execute();
 		}
+
+		# Move into main table.
+		my $sinsert = $conn->do("INSERT INTO sources SELECT * FROM new_sources WHERE (source,source_version) IN (SELECT source, source_version FROM new_sources AS s EXCEPT SELECT source, source_version FROM sources AS s)");
+
+		# Remove old suite-source mappings.
+		my $scdel = $conn->prepare("DELETE FROM suite_sources WHERE suite = ? and component = ?");
+		$scdel->bind_param(1, $suitename);
+		$scdel->bind_param(2, $component);
+		$scdel->execute();
+
+		# Create new suite-source mappings.
+		my $scnew = $conn->prepare("INSERT INTO suite_sources (source, source_version, suite, component) SELECT s.source, s.source_version, ? AS suite, ? AS component FROM new_sources AS s");
+		$scnew->bind_param(1, $suitename);
+		$scnew->bind_param(2, $component);
+		$scnew->execute();
+
+		my $sdelete = $conn->do("DELETE FROM new_sources WHERE (source, source_version) IN (SELECT source, source_version FROM new_sources AS s EXCEPT SELECT source, source_version FROM sources AS s)");
+
+		my $supdate = $conn->prepare("UPDATE sources SET component=n.component, section=n.section, priority=n.priority, maintainer=n.maintainer, uploaders=n.uploaders, build_dep=n.build_dep, build_dep_indep=n.build_dep_indep, build_confl=n.build_confl, build_confl_indep=n.build_confl_indep, stdver=n.stdver FROM new_sources AS n WHERE source=n.source AND source_version=n.source_version");
+
+		$conn->do("DROP TABLE new_sources");
+		$conn->do("DROP TABLE changed_sources");
 		print ".\n";
 		STDOUT->flush;
 	    }
