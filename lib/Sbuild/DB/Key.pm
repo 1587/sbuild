@@ -211,7 +211,7 @@ sub key_verify_file {
 	TMPDIR=>1, CLEANUP=>1);
     local $ENV{'GNUPGHOME'} = $tempdir;
     $SIG{PIPE} = 'IGNORE';
-    open(my $fh, '|-', 'gpg', '--import')
+    open(my $fh, '|-', 'gpg', '--quiet', '--import')
 	or die 'Can\'t open pipe to gpg';
     binmode($fh,":raw");
     print $fh $key;
