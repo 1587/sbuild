@@ -544,7 +544,8 @@ BEGIN
     WHERE s.source=n.source AND s.source_version=n.source_version;
 
     DROP TABLE tmp_sources;
-EXCEPTION
+
+EXCEPTION WHEN OTHERS THEN
     DROP TABLE tmp_sources;
 END;
 $$
@@ -634,7 +635,7 @@ CREATE TABLE binaries (
 	-- PostgreSQL won't allow "binary" as column name
 	package text NOT NULL,
 	version debversion NOT NULL,
-	arch text
+	architecture text
 	  CONSTRAINT bin_arch_fkey REFERENCES binary_architectures(architecture)
 	  NOT NULL,
 	source text
@@ -662,7 +663,7 @@ CREATE TABLE binaries (
 	enhances text,
 	replaces text,
 	provides text,
-	CONSTRAINT binaries_pkey PRIMARY KEY (package, version, arch),
+	CONSTRAINT binaries_pkey PRIMARY KEY (package, version, architecture),
 	CONSTRAINT binaries_source_fkey FOREIGN KEY (source, source_version)
 	  REFERENCES sources (source, source_version)
 	  ON DELETE CASCADE
@@ -671,7 +672,7 @@ CREATE TABLE binaries (
 COMMENT ON TABLE binaries IS 'Binary packages specific to single architectures (from Packages)';
 COMMENT ON COLUMN binaries.package IS 'Binary package name';
 COMMENT ON COLUMN binaries.version IS 'Binary package version number';
-COMMENT ON COLUMN binaries.arch IS 'Architecture name';
+COMMENT ON COLUMN binaries.architecture IS 'Architecture name';
 COMMENT ON COLUMN binaries.source IS 'Source package name';
 COMMENT ON COLUMN binaries.source_version IS 'Source package version number';
 COMMENT ON COLUMN binaries.section IS 'Package section';
@@ -726,7 +727,7 @@ BEGIN
 
         -- first try to update the key
         UPDATE binaries
-	SET arch=narchitecture,
+	SET architecture=narchitecture,
 	    source=nsource,
 	    source_version=nsource_version,
 	    section=nsection,
@@ -757,7 +758,7 @@ BEGIN
 	    INSERT INTO binaries (
 	        package,
 		version,
-		arch,
+		architecture,
 	    	source,
 	    	source_version,
 	    	section,

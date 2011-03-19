@@ -27,7 +27,7 @@ BEGIN
     IF NEW.component IS NOT NULL THEN
         PERFORM merge_component(NEW.component);
     END IF;
-    IF NEW.priority IS NOT NULL THEN
+    IF NEW.section IS NOT NULL THEN
         PERFORM merge_package_section(NEW.section);
     END IF;
     IF NEW.priority IS NOT NULL THEN
@@ -46,11 +46,19 @@ COMMENT ON TRIGGER source_fkey_deps ON sources
 
 CREATE OR REPLACE FUNCTION binary_fkey_deps () RETURNS trigger AS $fkey_deps$
 BEGIN
-    PERFORM merge_dummy_source(NEW.source, NEW.source_version);
-    PERFORM merge_binary_architecture(NEW.architecture);
+    IF NEW.source IS NOT NULL AND NEW.source_version IS NOT NULL THEN
+        PERFORM merge_dummy_source(NEW.source, NEW.source_version);
+    END IF;
+    IF NEW.architecture IS NOT NULL THEN
+        PERFORM merge_binary_architecture(NEW.architecture);
+    END IF;
+    IF NEW.section IS NOT NULL THEN
     PERFORM merge_package_section(NEW.section);
-    PERFORM merge_package_type(NEW.type);
-    IF npriority IS NOT NULL THEN
+    END IF;
+    IF NEW.type IS NOT NULL THEN
+        PERFORM merge_package_type(NEW.type);
+    END IF;
+    IF NEW.priority IS NOT NULL THEN
         PERFORM merge_package_priority(NEW.priority);
     END IF;
     RETURN NEW;
