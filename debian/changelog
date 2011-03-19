@@ -1,3 +1,9 @@
+sbuild (0.61.0-1+buildd20110319.1) squeeze; urgency=low
+
+  * Built from git revision d6c599e73426d1039c3396cd87b8ba667b7a515a.
+
+ -- Philipp Kern <pkern@debian.org>  Sat, 19 Mar 2011 14:28:20 +0100
+
 sbuild (0.61.0-1buildd0) unstable; urgency=low
 
   * Buildd-specific modifications:
