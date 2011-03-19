@@ -155,7 +155,13 @@ sub suite_fetch {
 
 	# Update Sources using Sources.bz2
 	print "Updating $suitename sources:\n";
-	foreach my $component (split('\s+', $parserel->{'Components'})) {
+	my $src_detail = $conn->prepare("SELECT component, sha256 FROM suite_source_detail WHERE suitenick = ? AND build = true");
+	$src_detail->bind_param(1, $suitename);
+	$src_detail->execute();
+	while (my $srcref = $src_detail->fetchrow_hashref()) {
+	    my $component = $srcref->{'component'};
+	    my $oldsha256 = $srcref->{'sha256'};
+
 	    print "  $component:";
 	    my $sfile = "$component/source/Sources.bz2";
 	    if ($files{$sfile}) {
@@ -167,6 +173,12 @@ sub suite_fetch {
 						      CACHEDIR => $db->get_conf('ARCHIVE_CACHE'),
 						      SHA256 => $files{$sfile}->{'SHA256'},
 						      SIZE => $files{$sfile}->{'SIZE'});
+
+		if ($files{$sfile}->{'SHA256'} eq $oldsha256) {
+		    print " (already merged, skipping)\n";
+		    STDOUT->flush;
+		    next;
+		}
 
 		print " decompress";
 		STDOUT->flush;
