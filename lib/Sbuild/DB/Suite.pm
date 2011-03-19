@@ -228,12 +228,14 @@ sub suite_fetch {
 
 	# Update Packages
 	print "Updating $suitename packages:\n";
-	my $pkg_detail = $conn->prepare("SELECT architecture,component FROM suite_binary_detail WHERE suitenick = ? AND build = true");
+	my $pkg_detail = $conn->prepare("SELECT architecture,component,sha256 FROM suite_binary_detail WHERE suitenick = ? AND build = true");
 	$pkg_detail->bind_param(1, $suitename);
 	$pkg_detail->execute();
 	while (my $pkgref = $pkg_detail->fetchrow_hashref()) {
 	    my $component = $pkgref->{'component'};
 	    my $architecture = $pkgref->{'architecture'};
+	    my $oldsha256 = $pkgref->{'sha256'};
+
 	    print "  $component/$architecture:";
 	    my $sfile = "$component/binary-$architecture/Packages.bz2";
 	    if ($files{$sfile}) {
@@ -246,6 +248,12 @@ sub suite_fetch {
 							SHA256 => $files{$sfile}->{'SHA256'},
 							SIZE => $files{$sfile}->{'SIZE'});
 
+		if ($files{$sfile}->{'SHA256'} eq $oldsha256) {
+		    print " (already merged, skipping)\n";
+		    STDOUT->flush;
+		    next;
+		}
+
 		print " decompress";
 		STDOUT->flush;
 		my $z = new IO::Uncompress::AnyUncompress($packages);
@@ -253,13 +261,17 @@ sub suite_fetch {
 		    Sbuild::Exception::DB->throw
 			(error => "Can't open $packages for decompression: $!");
 		}
-		my $packages_info = Dpkg::Index->new(type=>CTRL_INDEX_PKG);
-		$packages_info->parse($z, $packages);
+		my $binary_info = Dpkg::Index->new(type=>CTRL_INDEX_PKG);
+		$binary_info->parse($z, $packages);
 
 		print " import";
 		STDOUT->flush;
-		foreach my $pkgname ($packages_info->get_keys()) {
-		    my $pkg = $packages_info->get_by_key($pkgname);
+
+
+		$conn->do("CREATE TEMPORARY TABLE new_binaries (LIKE binaries)");
+
+		foreach my $pkgname ($binary_info->get_keys()) {
+		    my $pkg = $binary_info->get_by_key($pkgname);
 
 		    my $source = $pkg->{'Package'};
 		    my $source_version = $pkg->{'Version'};
@@ -276,34 +288,44 @@ sub suite_fetch {
 			}
 		    }
 
-		    my $mpackages = $conn->prepare("SELECT merge_binary(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-		    $mpackages->bind_param(1, $pkg->{'Package'});
-		    $mpackages->bind_param(2, $pkg->{'Version'});
-		    $mpackages->bind_param(3, $pkg->{'Architecture'});
-		    $mpackages->bind_param(4, $source);
-		    $mpackages->bind_param(5, $source_version);
-		    $mpackages->bind_param(6, $pkg->{'Section'});
-		    $mpackages->bind_param(7, 'deb');
-		    $mpackages->bind_param(8, $pkg->{'Priority'});
-		    $mpackages->bind_param(9, $pkg->{'Installed-Size'});
-		    $mpackages->bind_param(10, $pkg->{'Multi-Arch'});
-		    $mpackages->bind_param(11, $pkg->{'Essential'});
-		    $mpackages->bind_param(12, $pkg->{'Build-Essential'});
-		    $mpackages->bind_param(13, $pkg->{'Pre-Depends'});
-		    $mpackages->bind_param(14, $pkg->{'Depends'});
-		    $mpackages->bind_param(15, $pkg->{'Recommends'});
-		    $mpackages->bind_param(16, $pkg->{'Suggests'});
-		    $mpackages->bind_param(17, $pkg->{'Conflicts'});
-		    $mpackages->bind_param(18, $pkg->{'Breaks'});
-		    $mpackages->bind_param(19, $pkg->{'Enhances'});
-		    $mpackages->bind_param(20, $pkg->{'Replaces'});
-		    $mpackages->bind_param(21, $pkg->{'Provides'});
-		    $mpackages->execute();
+		    my $mbinary = $conn->prepare("INSERT INTO new_binaries (package, version, architecture, source, source_version, section, type, priority, installed_size, multi_arch, essential, build_essential, pre_depends, depends, recommends, suggests, conflicts, breaks, enhances, replaces, provides) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+		    $mbinary->bind_param(1, $pkg->{'Package'});
+		    $mbinary->bind_param(2, $pkg->{'Version'});
+		    $mbinary->bind_param(3, $pkg->{'Architecture'});
+		    $mbinary->bind_param(4, $source);
+		    $mbinary->bind_param(5, $source_version);
+		    $mbinary->bind_param(6, $pkg->{'Section'});
+		    $mbinary->bind_param(7, 'deb');
+		    $mbinary->bind_param(8, $pkg->{'Priority'});
+		    $mbinary->bind_param(9, $pkg->{'Installed-Size'});
+		    $mbinary->bind_param(10, $pkg->{'Multi-Arch'});
+		    $mbinary->bind_param(11, $pkg->{'Essential'});
+		    $mbinary->bind_param(12, $pkg->{'Build-Essential'});
+		    $mbinary->bind_param(13, $pkg->{'Pre-Depends'});
+		    $mbinary->bind_param(14, $pkg->{'Depends'});
+		    $mbinary->bind_param(15, $pkg->{'Recommends'});
+		    $mbinary->bind_param(16, $pkg->{'Suggests'});
+		    $mbinary->bind_param(17, $pkg->{'Conflicts'});
+		    $mbinary->bind_param(18, $pkg->{'Breaks'});
+		    $mbinary->bind_param(19, $pkg->{'Enhances'});
+		    $mbinary->bind_param(20, $pkg->{'Replaces'});
+		    $mbinary->bind_param(21, $pkg->{'Provides'});
+		    $mbinary->execute();
 		}
+
+		# Move into main table.
+		my $smerge = $conn->prepare("SELECT merge_binaries(?,?,?,?)");
+		$smerge->bind_param(1, $suitename);
+		$smerge->bind_param(2, $component);
+		$smerge->bind_param(3, $architecture);
+		$smerge->bind_param(4, $files{$sfile}->{'SHA256'});
+		$smerge->execute();
+
+		$conn->do("DROP TABLE new_binaries");
+
 		print ".\n";
 		STDOUT->flush;
 	    }
-
 
 	}
 

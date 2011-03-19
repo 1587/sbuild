@@ -334,6 +334,7 @@ CREATE TABLE suite_binary_detail (
 	build bool
 	  NOT NULL
 	  DEFAULT false,
+	sha256 text,
 	CONSTRAINT suite_binary_detail_pkey
 	  PRIMARY KEY (suitenick, architecture, component),
 	CONSTRAINT suite_binary_detail_arch_fkey FOREIGN KEY (suitenick, architecture)
@@ -347,6 +348,7 @@ COMMENT ON COLUMN suite_binary_detail.suitenick IS 'Suite name (nickname)';
 COMMENT ON COLUMN suite_binary_detail.architecture IS 'Architecture name';
 COMMENT ON COLUMN suite_binary_detail.component IS 'Component name';
 COMMENT ON COLUMN suite_binary_detail.build IS 'Build packages from this suite/architecture/component?';
+COMMENT ON COLUMN suite_binary_detail.sha256 IS 'SHA256 of latest Packages merge';
 
 CREATE OR REPLACE FUNCTION merge_suite_binary_detail(nsuitenick text,
                                                      narchitecture text,
@@ -355,6 +357,7 @@ RETURNS VOID AS
 $$
 BEGIN
     LOOP
+        PERFORM merge_suite_architecture(nsuitenick, 'all');
         PERFORM merge_suite_architecture(nsuitenick, narchitecture);
 	PERFORM merge_suite_component(nsuitenick, ncomponent);
 
@@ -607,6 +610,7 @@ BEGIN
 
 EXCEPTION WHEN OTHERS THEN
     DROP TABLE IF EXISTS tmp_sources;
+    RAISE;
 END;
 $$
 LANGUAGE plpgsql;
@@ -752,118 +756,77 @@ COMMENT ON COLUMN binaries.enhances IS 'Package enhances other packages';
 COMMENT ON COLUMN binaries.replaces IS 'Package replaces other packages';
 COMMENT ON COLUMN binaries.provides IS 'Package provides other packages';
 
-CREATE OR REPLACE FUNCTION merge_binary(npackage text,
-                                        nversion debversion,
-					narchitecture text,
-					nsource text,
-					nsource_version debversion,
-					nsection text,
-					ntype text,
-					npriority text,
-					ninstalled_size integer,
-					nmulti_arch text,
-					nessential boolean,
-					nbuild_essential boolean,
-					npre_depends text,
-					ndepends text,
-					nrecommends text,
-					nsuggests text,
-					nconflicts text,
-					nbreaks text,
-					nenhances text,
-					nreplaces text,
-					nprovides text)
+CREATE OR REPLACE FUNCTION merge_binaries(nsuite text,
+					  ncomponent text,
+					  narchitecture text,
+					  nsha256 text)
 RETURNS VOID AS
 $$
 BEGIN
-    LOOP
-        PERFORM merge_dummy_source(nsource, nsource_version);
-        PERFORM merge_architecture(narchitecture);
-        PERFORM merge_package_section(nsection);
-        PERFORM merge_package_type(ntype);
-        IF npriority IS NOT NULL THEN
-            PERFORM merge_package_priority(npriority);
-	END IF;
+    CREATE TEMPORARY TABLE tmp_binaries (LIKE binaries);
 
-        -- first try to update the key
-        UPDATE binaries
-	SET architecture=narchitecture,
-	    source=nsource,
-	    source_version=nsource_version,
-	    section=nsection,
-	    type=ntype,
-	    priority=npriority,
-	    installed_size=ninstalled_size,
-	    multi_arch=nmulti_arch,
-	    essential=nessential,
-	    build_essential=nbuild_essential,
-	    pre_depends=npre_depends,
-	    depends=ndepends,
-	    recommends=nrecommends,
-	    suggests=nsuggests,
-	    conflicts=nconflicts,
-	    breaks=nbreaks,
-	    enhances=nenhances,
-	    replaces=nreplaces,
-	    provides=nprovides
-	WHERE package=npackage AND version=version;
+    INSERT INTO tmp_binaries
+    SELECT * FROM new_binaries;
 
-        IF found THEN
-            RETURN;
-        END IF;
-        -- not there, so try to insert the key
-        -- if someone else inserts the same key concurrently,
-        -- we could get a unique-key failure
-        BEGIN
-	    INSERT INTO binaries (
-	        package,
-		version,
-		architecture,
-	    	source,
-	    	source_version,
-	    	section,
-	    	type,
-	    	priority,
-	    	installed_size,
-	    	multi_arch,
-	    	essential,
-	    	build_essential,
-	    	pre_depends,
-	    	depends,
-	    	recommends,
-	    	suggests,
-	    	conflicts,
-	    	breaks,
-	    	enhances,
-	    	replaces,
-	    	provides)
-	    VALUES (
-	        npackage,
-		nversion,
-	        narchitecture,
-		nsource,
-		nsource_version,
-		nsection,
-		ntype,
-		npriority,
-		ninstalled_size,
-		nmulti_arch,
-		nessential,
-		nbuild_essential,
-		npre_depends,
-		ndepends,
-		nrecommends,
-		nsuggests,
-		nconflicts,
-		nbreaks,
-		nenhances,
-		nreplaces,
-		nprovides);
-            RETURN;
-        EXCEPTION WHEN unique_violation THEN
-            -- do nothing, and loop to try the UPDATE again
-        END;
-    END LOOP;
+    -- Move into main table.
+    INSERT INTO binaries
+    SELECT * FROM tmp_binaries
+    WHERE (package, version) IN
+      (SELECT package, version FROM tmp_binaries AS s
+       EXCEPT
+       SELECT package, version FROM binaries AS s);
+
+    --  Remove old suite-binary mappings.
+    DELETE FROM suite_binaries AS s
+    WHERE s.suite = nsuite AND s.component = ncomponent AND (s.architecture = narchitecture OR s.architecture = 'all');
+
+    -- Create new suite-binary mappings.
+    INSERT INTO suite_binaries (package, version, suite, component, architecture)
+    SELECT s.package AS package, s.version AS version, nsuite AS suite, ncomponent AS component, s.architecture AS architecture
+    FROM tmp_binaries AS s;
+
+    DELETE FROM tmp_binaries
+    WHERE (package, version) IN
+      (SELECT package, version FROM tmp_binaries AS s
+       EXCEPT
+       SELECT package, version FROM binaries AS s);
+
+    UPDATE binaries AS s
+    SET
+      source=n.source,
+      source_version=n.source_version,
+      section=n.section,
+      type=n.type,
+      priority=n.priority,
+      installed_size=n.installed_size,
+      multi_arch=n.multi_arch,
+      essential=n.essential,
+      build_essential=n.build_essential,
+      pre_depends=n.pre_depends,
+      depends=n.depends,
+      recommends=n.recommends,
+      suggests=n.suggests,
+      conflicts=n.conflicts,
+      breaks=n.breaks,
+      enhances=n.enhances,
+      replaces=n.replaces,
+      provides=n.provides
+    FROM tmp_binaries AS n
+    WHERE s.package=n.package AND s.version=n.version AND s.architecture=n.architecture;
+
+    UPDATE suite_binary_detail AS d
+    SET
+      sha256 = nsha256
+    WHERE
+      d.suitenick = nsuite AND
+      d.component = ncomponent AND
+      d.architecture = narchitecture;
+
+    DROP TABLE tmp_binaries;
+
+EXCEPTION WHEN OTHERS THEN
+    DROP TABLE IF EXISTS tmp_binaries;
+    RAISE;
 END;
 $$
 LANGUAGE plpgsql;
@@ -917,12 +880,14 @@ CREATE TABLE suite_binaries (
 	    REFERENCES components(component)
 	    ON DELETE CASCADE
 	  NOT NULL,
-	CONSTRAINT suite_bin_pkey PRIMARY KEY (package, architecture, suite),
-	CONSTRAINT suite_bin_bin_fkey FOREIGN KEY (package, version, architecture)
+	CONSTRAINT suite_bin_pkey
+	  PRIMARY KEY (package, architecture, suite),
+	CONSTRAINT suite_bin_bin_fkey
+          FOREIGN KEY (package, version, architecture)
 	  REFERENCES binaries (package, version, architecture)
 	  ON DELETE CASCADE,
 	CONSTRAINT suite_bin_suite_arch_fkey FOREIGN KEY (suite, architecture)
-	  REFERENCES suite_arches (suite, architecture)
+	  REFERENCES suite_architectures (suitenick, architecture)
 	  ON DELETE CASCADE
 );
 
