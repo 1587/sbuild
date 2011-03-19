@@ -125,10 +125,17 @@ sub suite_fetch {
 		(error => "Invalid archive (out of date)");
 	}
 
-	# Update arch-component mappings
+	# Update source component mappings
+	foreach my $component (split('\s+', $parserel->{'Components'})) {
+	    my $detail = $conn->prepare("SELECT merge_suite_source_detail(?,?)");
+	    $detail->bind_param(1, $suitename);
+	    $detail->bind_param(2, $component);
+	    $detail->execute();
+	}
+	# Update binary arch-component mappings
 	foreach my $arch (split('\s+', $parserel->{'Architectures'})) {
 	    foreach my $component (split('\s+', $parserel->{'Components'})) {
-		my $detail = $conn->prepare("SELECT merge_suite_detail(?,?,?)");
+		my $detail = $conn->prepare("SELECT merge_suite_binary_detail(?,?,?)");
 		$detail->bind_param(1, $suitename);
 		$detail->bind_param(2, $arch);
 		$detail->bind_param(3, $component);
@@ -174,7 +181,6 @@ sub suite_fetch {
 		print " import";
 		STDOUT->flush;
 		$conn->do("CREATE TEMPORARY TABLE new_sources (LIKE sources)");
-		$conn->do("CREATE TEMPORARY TABLE changed_sources (LIKE sources)");
 
 		foreach my $pkgname ($source_info->get_keys()) {
 		    my $pkg = $source_info->get_by_key($pkgname);
@@ -196,13 +202,13 @@ sub suite_fetch {
 		}
 
 		# Move into main table.
-		my $smerge = $conn->prepare("SELECT merge_sources(?,?)");
+		my $smerge = $conn->prepare("SELECT merge_sources(?,?,?)");
 		$smerge->bind_param(1, $suitename);
 		$smerge->bind_param(2, $component);
+		$smerge->bind_param(3, $files{$sfile}->{'SHA256'});
 		$smerge->execute();
 
 		$conn->do("DROP TABLE new_sources");
-		$conn->do("DROP TABLE changed_sources");
 		print ".\n";
 		STDOUT->flush;
 	    }
@@ -210,7 +216,7 @@ sub suite_fetch {
 
 	# Update Packages
 	print "Updating $suitename packages:\n";
-	my $pkg_detail = $conn->prepare("SELECT architecture,component FROM suite_detail WHERE suitenick = ? AND build = true");
+	my $pkg_detail = $conn->prepare("SELECT architecture,component FROM suite_binary_detail WHERE suitenick = ? AND build = true");
 	$pkg_detail->bind_param(1, $suitename);
 	$pkg_detail->execute();
 	while (my $pkgref = $pkg_detail->fetchrow_hashref()) {

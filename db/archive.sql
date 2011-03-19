@@ -270,7 +270,61 @@ $$
 LANGUAGE plpgsql;
 
 
-CREATE TABLE suite_detail (
+CREATE TABLE suite_source_detail (
+	suitenick text
+	  NOT NULL,
+	component text
+	  NOT NULL,
+	build bool
+	  NOT NULL
+	  DEFAULT true,
+	sha256 text,
+	CONSTRAINT suite_source_detail_pkey
+	  PRIMARY KEY (suitenick, component),
+	CONSTRAINT suite_source_detail_suitecomponent_fkey
+          FOREIGN KEY (suitenick, component)
+	  REFERENCES suite_components (suitenick, component)
+);
+
+COMMENT ON TABLE suite_source_detail IS 'List of architectures in each suite';
+COMMENT ON COLUMN suite_source_detail.suitenick IS 'Suite name (nickname)';
+COMMENT ON COLUMN suite_source_detail.component IS 'Component name';
+COMMENT ON COLUMN suite_source_detail.build IS 'Fetch sources from this suite/component?';
+COMMENT ON COLUMN suite_source_detail.sha256 IS 'SHA256 of latest Sources merge';
+
+CREATE OR REPLACE FUNCTION merge_suite_source_detail(nsuitenick text,
+					             ncomponent text)
+RETURNS VOID AS
+$$
+BEGIN
+    LOOP
+	PERFORM merge_suite_component(nsuitenick, ncomponent);
+
+        -- first try to update the key
+        PERFORM suitenick, component FROM suite_source_detail WHERE suitenick = nsuitenick AND component = ncomponent;
+        IF found THEN
+            RETURN;
+        END IF;
+        -- not there, so try to insert the key
+        -- if someone else inserts the same key concurrently,
+        -- we could get a unique-key failure
+        BEGIN
+	    INSERT INTO suite_source_detail (suitenick, component) VALUES (nsuitenick, ncomponent);
+            RETURN;
+        EXCEPTION WHEN unique_violation THEN
+            -- do nothing, and loop to try the UPDATE again
+        END;
+    END LOOP;
+END;
+$$
+LANGUAGE plpgsql;
+
+CREATE TABLE package_types (
+	type text
+	  CONSTRAINT pkg_tpe_pkey PRIMARY KEY
+);
+
+CREATE TABLE suite_binary_detail (
 	suitenick text
 	  NOT NULL,
 	architecture text
@@ -280,23 +334,23 @@ CREATE TABLE suite_detail (
 	build bool
 	  NOT NULL
 	  DEFAULT false,
-	CONSTRAINT suite_detail_pkey
+	CONSTRAINT suite_binary_detail_pkey
 	  PRIMARY KEY (suitenick, architecture, component),
-	CONSTRAINT suite_detail_arch_fkey FOREIGN KEY (suitenick, architecture)
+	CONSTRAINT suite_binary_detail_arch_fkey FOREIGN KEY (suitenick, architecture)
 	  REFERENCES suite_architectures (suitenick, architecture),
-	CONSTRAINT suite_detail_component_fkey FOREIGN KEY (suitenick, component)
+	CONSTRAINT suite_binary_detail_component_fkey FOREIGN KEY (suitenick, component)
 	  REFERENCES suite_components (suitenick, component)
 );
 
-COMMENT ON TABLE suite_detail IS 'List of architectures in each suite';
-COMMENT ON COLUMN suite_detail.suitenick IS 'Suite name (nickname)';
-COMMENT ON COLUMN suite_detail.architecture IS 'Architecture name';
-COMMENT ON COLUMN suite_detail.component IS 'Component name';
-COMMENT ON COLUMN suite_detail.build IS 'Build packages from this suite/architecture/component?';
+COMMENT ON TABLE suite_binary_detail IS 'List of architectures in each suite';
+COMMENT ON COLUMN suite_binary_detail.suitenick IS 'Suite name (nickname)';
+COMMENT ON COLUMN suite_binary_detail.architecture IS 'Architecture name';
+COMMENT ON COLUMN suite_binary_detail.component IS 'Component name';
+COMMENT ON COLUMN suite_binary_detail.build IS 'Build packages from this suite/architecture/component?';
 
-CREATE OR REPLACE FUNCTION merge_suite_detail(nsuitenick text,
-                                              narchitecture text,
-					      ncomponent text)
+CREATE OR REPLACE FUNCTION merge_suite_binary_detail(nsuitenick text,
+                                                     narchitecture text,
+					             ncomponent text)
 RETURNS VOID AS
 $$
 BEGIN
@@ -305,7 +359,7 @@ BEGIN
 	PERFORM merge_suite_component(nsuitenick, ncomponent);
 
         -- first try to update the key
-        PERFORM suitenick, architecture, component FROM suite_detail WHERE suitenick = nsuitenick AND architecture = narchitecture AND component = ncomponent;
+        PERFORM suitenick, architecture, component FROM suite_binary_detail WHERE suitenick = nsuitenick AND architecture = narchitecture AND component = ncomponent;
         IF found THEN
             RETURN;
         END IF;
@@ -313,7 +367,7 @@ BEGIN
         -- if someone else inserts the same key concurrently,
         -- we could get a unique-key failure
         BEGIN
-	    INSERT INTO suite_detail (suitenick, architecture, component) VALUES (nsuitenick, narchitecture, ncomponent);
+	    INSERT INTO suite_binary_detail (suitenick, architecture, component) VALUES (nsuitenick, narchitecture, ncomponent);
             RETURN;
         EXCEPTION WHEN unique_violation THEN
             -- do nothing, and loop to try the UPDATE again
@@ -496,7 +550,8 @@ COMMENT ON COLUMN sources.build_confl_indep IS 'Package build conflicts (archite
 COMMENT ON COLUMN sources.stdver IS 'Debian Standards (policy) version number';
 
 CREATE OR REPLACE FUNCTION merge_sources(nsuite text,
-					 ncomponent text)
+					 ncomponent text,
+					 nsha256 text)
 RETURNS VOID AS
 $$
 BEGIN
@@ -508,7 +563,7 @@ BEGIN
     -- Move into main table.
     INSERT INTO sources
     SELECT * FROM tmp_sources
-    WHERE (source,source_version) IN
+    WHERE (source, source_version) IN
       (SELECT source, source_version FROM tmp_sources AS s
        EXCEPT
        SELECT source, source_version FROM sources AS s);
@@ -543,10 +598,15 @@ BEGIN
     FROM tmp_sources AS n
     WHERE s.source=n.source AND s.source_version=n.source_version;
 
+    UPDATE suite_source_detail AS d
+    SET
+      sha256 = nsha256
+    WHERE d.suitenick = nsuite AND d.component = ncomponent;
+
     DROP TABLE tmp_sources;
 
 EXCEPTION WHEN OTHERS THEN
-    DROP TABLE tmp_sources;
+    DROP TABLE IF EXISTS tmp_sources;
 END;
 $$
 LANGUAGE plpgsql;
