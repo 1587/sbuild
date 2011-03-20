@@ -1,3 +1,9 @@
+sbuild (0.61.0-1+buildd20110320.1) squeeze; urgency=low
+
+  * Built from git revision 09c90c332f7d7312312041fb3923de7fd34cbeb1.
+
+ -- Philipp Kern <pkern@debian.org>  Sun, 20 Mar 2011 14:15:17 +0100
+
 sbuild (0.61.0-1+buildd20110320.0) squeeze; urgency=low
 
   * Built from git revision f97a8a7b668c16a2b8281110a91730c7ca349930.
