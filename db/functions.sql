@@ -445,12 +445,12 @@ BEGIN
     -- Move into main table.
     INSERT INTO binaries
     SELECT * FROM tmp_binaries
-    WHERE (package, version) IN
-      (SELECT package, version FROM tmp_binaries AS s
+    WHERE (binary_package, binary_version) IN
+      (SELECT binary_package, binary_version FROM tmp_binaries AS s
          WHERE (s.architecture = narchitecture OR
 	        s.architecture = 'all')
        EXCEPT
-       SELECT package, version FROM binaries AS s
+       SELECT binary_package, binary_version FROM binaries AS s
          WHERE (s.architecture = narchitecture OR
 	        s.architecture = 'all'));
 
@@ -459,15 +459,15 @@ BEGIN
     WHERE s.suite = nsuite AND s.component = ncomponent AND (s.architecture = narchitecture OR s.architecture = 'all');
 
     -- Create new suite-binary mappings.
-    INSERT INTO suite_binaries (package, version, suite, component, architecture)
-    SELECT s.package AS package, s.version AS version, nsuite AS suite, ncomponent AS component, s.architecture AS architecture
+    INSERT INTO suite_binaries (binary_package, binary_version, suite, component, architecture)
+    SELECT s.binary_package AS binary_package, s.binary_version AS binary_version, nsuite AS suite, ncomponent AS component, s.architecture AS architecture
     FROM tmp_binaries AS s;
 
     DELETE FROM tmp_binaries
-    WHERE (package, version) IN
-      (SELECT package, version FROM tmp_binaries AS s
+    WHERE (binary_package, binary_version) IN
+      (SELECT binary_package, binary_version FROM tmp_binaries AS s
        EXCEPT
-       SELECT package, version FROM binaries AS s);
+       SELECT binary_package, binary_version FROM binaries AS s);
 
     UPDATE binaries AS s
     SET
@@ -490,7 +490,7 @@ BEGIN
       replaces=n.replaces,
       provides=n.provides
     FROM tmp_binaries AS n
-    WHERE s.package=n.package AND s.version=n.version AND s.architecture=n.architecture;
+    WHERE s.binary_package=n.binary_package AND s.binary_version=n.binary_version AND s.architecture=n.architecture;
 
     UPDATE suite_binary_detail AS d
     SET
@@ -517,16 +517,16 @@ DECLARE
 BEGIN
 
     DELETE FROM binaries
-    WHERE (package, version, architecture) IN
-    (SELECT b.package AS package,
-            b.version AS version,
+    WHERE (binary_package, binary_version, architecture) IN
+    (SELECT b.binary_package AS binary_package,
+            b.binary_version AS binary_version,
  	    b.architecture AS architecture
      FROM binaries AS b
      LEFT OUTER join suite_binaries AS s
-     ON (s.package = b.package AND
-         s.version = b.version AND
+     ON (s.binary_package = b.binary_package AND
+         s.binary_version = b.binary_version AND
  	 s.architecture = b.architecture)
-     WHERE s.package IS NULL);
+     WHERE s.binary_package IS NULL);
 
      IF found THEN
         GET DIAGNOSTICS deleted = ROW_COUNT;

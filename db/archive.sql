@@ -306,8 +306,8 @@ COMMENT ON COLUMN source_package_architectures.arch IS 'Architecture name';
 
 CREATE TABLE binaries (
 	-- PostgreSQL won't allow "binary" as column name
-	package text NOT NULL,
-	version debversion NOT NULL,
+	binary_package text NOT NULL,
+	binary_version debversion NOT NULL,
 	architecture text
 	  CONSTRAINT bin_arch_fkey REFERENCES binary_architectures(architecture)
 	  NOT NULL,
@@ -336,15 +336,15 @@ CREATE TABLE binaries (
 	enhances text,
 	replaces text,
 	provides text,
-	CONSTRAINT binaries_pkey PRIMARY KEY (package, version, architecture),
+	CONSTRAINT binaries_pkey PRIMARY KEY (binary_package, binary_version, architecture),
 	CONSTRAINT binaries_source_fkey FOREIGN KEY (source, source_version)
 	  REFERENCES sources (source, source_version)
 	  ON DELETE CASCADE
 );
 
 COMMENT ON TABLE binaries IS 'Binary packages specific to single architectures (from Packages)';
-COMMENT ON COLUMN binaries.package IS 'Binary package name';
-COMMENT ON COLUMN binaries.version IS 'Binary package version number';
+COMMENT ON COLUMN binaries.binary_package IS 'Binary package name';
+COMMENT ON COLUMN binaries.binary_version IS 'Binary package version number';
 COMMENT ON COLUMN binaries.architecture IS 'Architecture name';
 COMMENT ON COLUMN binaries.source IS 'Source package name';
 COMMENT ON COLUMN binaries.source_version IS 'Source package version number';
@@ -397,9 +397,9 @@ COMMENT ON COLUMN suite_sources.component IS 'Suite component';
 
 
 CREATE TABLE suite_binaries (
-	package text
+	binary_package text
 	  NOT NULL,
-	version debversion
+	binary_version debversion
 	  NOT NULL,
 	architecture text
 	  CONSTRAINT suite_bin_arch_fkey
@@ -417,21 +417,21 @@ CREATE TABLE suite_binaries (
 	    ON DELETE CASCADE
 	  NOT NULL,
 	CONSTRAINT suite_bin_pkey
-	  PRIMARY KEY (package, architecture, suite),
+	  PRIMARY KEY (binary_package, architecture, suite),
 	CONSTRAINT suite_bin_bin_fkey
-          FOREIGN KEY (package, version, architecture)
-	  REFERENCES binaries (package, version, architecture)
+          FOREIGN KEY (binary_package, binary_version, architecture)
+	  REFERENCES binaries (binary_package, binary_version, architecture)
 	  ON DELETE CASCADE,
 	CONSTRAINT suite_bin_suite_arch_fkey FOREIGN KEY (suite, architecture)
 	  REFERENCES suite_architectures (suitenick, architecture)
 	  ON DELETE CASCADE
 );
 
-CREATE INDEX suite_binaries_pkg_ver_idx ON suite_binaries (package, version);
+CREATE INDEX suite_binaries_pkg_ver_idx ON suite_binaries (binary_package, binary_version);
 
 COMMENT ON TABLE suite_binaries IS 'Binary packages contained within a suite';
-COMMENT ON COLUMN suite_binaries.package IS 'Binary package name';
-COMMENT ON COLUMN suite_binaries.version IS 'Binary package version number';
+COMMENT ON COLUMN suite_binaries.binary_package IS 'Binary package name';
+COMMENT ON COLUMN suite_binaries.binary_version IS 'Binary package version number';
 COMMENT ON COLUMN suite_binaries.architecture IS 'Architecture name';
 COMMENT ON COLUMN suite_binaries.suite IS 'Suite name';
 COMMENT ON COLUMN suite_binaries.component IS 'Suite component';

@@ -278,7 +278,7 @@ sub suite_fetch {
 			}
 		    }
 
-		    my $mbinary = $conn->prepare("INSERT INTO new_binaries (package, version, architecture, source, source_version, section, type, priority, installed_size, multi_arch, essential, build_essential, pre_depends, depends, recommends, suggests, conflicts, breaks, enhances, replaces, provides) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+		    my $mbinary = $conn->prepare("INSERT INTO new_binaries (binary_package, binary_version, architecture, source, source_version, section, type, priority, installed_size, multi_arch, essential, build_essential, pre_depends, depends, recommends, suggests, conflicts, breaks, enhances, replaces, provides) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
 		    $mbinary->bind_param(1, $pkg->{'Package'});
 		    $mbinary->bind_param(2, $pkg->{'Version'});
 		    $mbinary->bind_param(3, $pkg->{'Architecture'});

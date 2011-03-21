@@ -29,7 +29,7 @@ sub setup {
 
     my %db_keys = (
 	'DBNAME'				=> {
-	    DEFAULT => 'debbuild'
+	    DEFAULT => 'sbuild'
 	},
 	'DBUSER'				=> {
 	    DEFAULT => 'rleigh'
