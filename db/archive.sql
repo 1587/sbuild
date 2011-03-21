@@ -55,7 +55,7 @@ CREATE TABLE suite_release (
 	origin text NOT NULL,
 	label text NOT NULL,
 	date timestamp with time zone NOT NULL,
-	validuntil timestamp with time zone NOT NULL,
+	validuntil timestamp with time zone, -- old suites don't support it
 -- Old wanna-build options
 	priority integer
 	  NOT NULL

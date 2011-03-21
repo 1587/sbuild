@@ -115,14 +115,16 @@ sub suite_fetch {
 	$insert->bind_param(8, $parserel->{'Valid-Until'});
 	$insert->execute();
 
-	# Check validity
-	my $valid = $conn->prepare("SELECT validuntil > now() AS valid FROM suite_release WHERE (suitenick = ?)");
-	$valid->bind_param(1, $suitename);
-	$valid->execute();
-	my $vref = $valid->fetchrow_hashref();
-	if (!$vref->{'valid'}) {
-	    Sbuild::Exception::DB->throw
-		(error => "Invalid archive (out of date)");
+	# Check validity if Valid-Until was provided.
+	if ($parserel->{'Valid-Until'}) {
+	    my $valid = $conn->prepare("SELECT validuntil > now() AS valid FROM suite_release WHERE (suitenick = ?)");
+	    $valid->bind_param(1, $suitename);
+	    $valid->execute();
+	    my $vref = $valid->fetchrow_hashref();
+	    if (!$vref->{'valid'}) {
+		Sbuild::Exception::DB->throw
+		    (error => "Invalid archive (out of date)");
+	    }
 	}
 
 	# Update source component mappings
