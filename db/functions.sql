@@ -509,6 +509,60 @@ END;
 $$
 LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION clean_binaries()
+RETURNS integer AS
+$$
+DECLARE
+    deleted integer := 0;
+BEGIN
+
+    DELETE FROM binaries
+    WHERE (package, version, architecture) IN
+    (SELECT b.package AS package,
+            b.version AS version,
+ 	    b.architecture AS architecture
+     FROM binaries AS b
+     LEFT OUTER join suite_binaries AS s
+     ON (s.package = b.package AND
+         s.version = b.version AND
+ 	 s.architecture = b.architecture)
+     WHERE s.package IS NULL);
+
+     IF found THEN
+        GET DIAGNOSTICS deleted = ROW_COUNT;
+     END IF;
+
+     RETURN deleted;
+END;
+$$
+LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION clean_sources()
+RETURNS integer AS
+$$
+DECLARE
+    deleted integer := 0;
+BEGIN
+
+    DELETE FROM sources
+    WHERE (source, source_version) IN
+    (SELECT s.source AS source,
+            s.source_version AS source_version
+     FROM sources AS s
+     LEFT OUTER join binaries AS b
+     ON (s.source = b.source AND
+         s.source_version = b.source_version)
+     WHERE b.source IS NULL);
+
+     IF found THEN
+        GET DIAGNOSTICS deleted = ROW_COUNT;
+     END IF;
+
+     RETURN deleted;
+END;
+$$
+LANGUAGE plpgsql;
+
 
 --
 -- Triggers to insert missing sections and priorities
