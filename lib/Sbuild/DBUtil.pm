@@ -183,34 +183,56 @@ sub download_cached_distfile {
     my $uri = $opts{URI};
     my $dist = $opts{DIST};
     my $file = $opts{FILE};
+    my $bz2file = $opts{BZ2FILE};
     my $cdir = $opts{CACHEDIR};
-    my $sha256 = $opts{SHA256};
-    my $size = $opts{SIZE};
 
     Sbuild::Exception::DB->throw
 	(error => "download_cached_distfile: Missing arguments")
 	if (!$uri || !$dist || !$file || !$cdir);
 
-    $uri = "$uri/dists/$dist/$file";
+    $uri = "$uri/dists/$dist/$file->{'NAME'}";
+
+    STDOUT->flush;
 
     my $stripuri = $uri;
     $stripuri =~ s|.*(//){1}?||;
     my $cfile = escape_path($stripuri);
 
-    if ($sha256 && $size &&
-	check_file_hash_size("$cdir/$cfile", $sha256, $size)) {
+    # If file exists locally, verify it if SHA256 sum and size are given.
+    if ($file->{'SHA256'} && $file->{'SIZE'} &&
+	check_file_hash_size("$cdir/$cfile", $file->{'SHA256'}, $file->{'SIZE'})) {
 	    return "$cdir/$cfile";
-	    # Mismatch, so download again
+	    # Mismatch or no hash/size, so download again
 	}
 
-    # If file exists locally, verify it if SHA256 sum and size are given.
-    my $dlfile = download(URI=>$uri, DIR=>$cdir, FILE=>$cfile);
+    my $dlfile;
+    if ($bz2file) {
+	$dlfile = download_cached_distfile(URI=>$opts{URI},
+					   DIST=>$opts{DIST},
+					   FILE=>$bz2file,
+					   CACHEDIR=>$opts{CACHEDIR});
 
-    if ($sha256 && $size &&
-	!check_file_hash_size($dlfile, $sha256, $size)) {
+	if (-f "$cdir/$cfile") {
+	    unlink "$cdir/$cfile" or
+		Sbuild::Exception::DB->throw
+		(error => "Failed to unlink $dlfile: $!");
+	}
+
+	my $status = system('bunzip2', $dlfile);
+	if ($status) {
+	    Sbuild::Exception::DB->throw
+		(error => "Failed to decompress $dlfile: $?");
+	}
+	$dlfile = "$cdir/$cfile";
+    } else {
+	$dlfile = download(URI=>$uri, DIR=>$cdir, FILE=>$cfile);
+    }
+
+    if ($file->{'SHA256'} && $file->{'SIZE'} &&
+	!check_file_hash_size($dlfile, $file->{'SHA256'}, $file->{'SIZE'})) {
 	Sbuild::Exception::DB->throw
 	    (error => "$dlfile: SHA256 or size mismatch")
-	}
+    }
 
     return $dlfile;
 }

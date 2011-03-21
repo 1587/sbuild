@@ -81,7 +81,7 @@ sub suite_fetch {
 
 	try eval {
 	    $release = download_cached_distfile(URI => $uri,
-						FILE => "InRelease",
+						FILE => { NAME => "InRelease"},
 						DIST => $distribution,
 						CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
 	    key_verify_file($db, $key, $release);
@@ -89,11 +89,11 @@ sub suite_fetch {
 	if (catch my $err) {
 	    print "InRelease not found; falling back to Release: $err\n";
 	    $release = download_cached_distfile(URI => $uri,
-						FILE => "Release",
+						FILE => { NAME => "Release"},
 						DIST => $distribution,
 						CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
 	    $releasegpg = download_cached_distfile(URI => $uri,
-						   FILE => "Release.gpg",
+						   FILE => { NAME => "Release.gpg" },
 						   DIST => $distribution,
 						   CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
 	    key_verify_file($db, $key, $releasegpg, $release);
@@ -149,7 +149,7 @@ sub suite_fetch {
 	    foreach my $line (split("\n", $parserel->{'SHA256'})) {
 		next if (!$line); # Skip blank line from split
 		my ($hash, $size, $file) = split(/\s+/, $line);
-		$files{$file} = { SHA256=>$hash, SIZE=>$size };
+		$files{$file} = { NAME=>$file, SHA256=>$hash, SIZE=>$size };
 	    }
 	}
 
@@ -163,32 +163,27 @@ sub suite_fetch {
 	    my $oldsha256 = $srcref->{'sha256'};
 
 	    print "  $component:";
-	    my $sfile = "$component/source/Sources.bz2";
-	    if ($files{$sfile}) {
+	    my $sfile = $files{"$component/source/Sources"};
+	    my $bsfile = $files{"$component/source/Sources.bz2"};
+	    if ($sfile && $bsfile) {
 		print " download";
 		STDOUT->flush;
 		my $source = download_cached_distfile(URI => $uri,
 						      FILE => $sfile,
+						      BZ2FILE => $bsfile,
 						      DIST => $distribution,
-						      CACHEDIR => $db->get_conf('ARCHIVE_CACHE'),
-						      SHA256 => $files{$sfile}->{'SHA256'},
-						      SIZE => $files{$sfile}->{'SIZE'});
+						      CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
 
-		if ($files{$sfile}->{'SHA256'} eq $oldsha256) {
+		if ($oldsha256 && $sfile->{'SHA256'} eq $oldsha256) {
 		    print " (already merged, skipping)\n";
 		    STDOUT->flush;
 		    next;
 		}
 
-		print " decompress";
+		print " parse";
 		STDOUT->flush;
-		my $z = new IO::Uncompress::AnyUncompress($source);
-		if (!$z) {
-		    Sbuild::Exception::DB->throw
-			(error => "Can't open $source for decompression: $!");
-		}
 		my $source_info = Dpkg::Index->new(type=>CTRL_INDEX_SRC);
-		$source_info->parse($z, $source);
+		$source_info->load($source);
 
 		print " import";
 		STDOUT->flush;
@@ -217,7 +212,7 @@ sub suite_fetch {
 		my $smerge = $conn->prepare("SELECT merge_sources(?,?,?)");
 		$smerge->bind_param(1, $suitename);
 		$smerge->bind_param(2, $component);
-		$smerge->bind_param(3, $files{$sfile}->{'SHA256'});
+		$smerge->bind_param(3, $sfile->{'SHA256'});
 		$smerge->execute();
 
 		$conn->do("DROP TABLE new_sources");
@@ -237,32 +232,27 @@ sub suite_fetch {
 	    my $oldsha256 = $pkgref->{'sha256'};
 
 	    print "  $component/$architecture:";
-	    my $sfile = "$component/binary-$architecture/Packages.bz2";
-	    if ($files{$sfile}) {
+	    my $sfile = $files{"$component/binary-$architecture/Packages"};
+	    my $bsfile = $files{"$component/binary-$architecture/Packages.bz2"};
+	    if ($sfile && $bsfile) {
 		print " download";
 		STDOUT->flush;
 		my $packages = download_cached_distfile(URI => $uri,
 							FILE => $sfile,
+							BZ2FILE => $bsfile,
 							DIST => $distribution,
-							CACHEDIR => $db->get_conf('ARCHIVE_CACHE'),
-							SHA256 => $files{$sfile}->{'SHA256'},
-							SIZE => $files{$sfile}->{'SIZE'});
+							CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
 
-		if ($files{$sfile}->{'SHA256'} eq $oldsha256) {
+		if ($oldsha256 && $sfile->{'SHA256'} eq $oldsha256) {
 		    print " (already merged, skipping)\n";
 		    STDOUT->flush;
 		    next;
 		}
 
-		print " decompress";
+		print " parse";
 		STDOUT->flush;
-		my $z = new IO::Uncompress::AnyUncompress($packages);
-		if (!$z) {
-		    Sbuild::Exception::DB->throw
-			(error => "Can't open $packages for decompression: $!");
-		}
 		my $binary_info = Dpkg::Index->new(type=>CTRL_INDEX_PKG);
-		$binary_info->parse($z, $packages);
+		$binary_info->load($packages);
 
 		print " import";
 		STDOUT->flush;
@@ -318,7 +308,7 @@ sub suite_fetch {
 		$smerge->bind_param(1, $suitename);
 		$smerge->bind_param(2, $component);
 		$smerge->bind_param(3, $architecture);
-		$smerge->bind_param(4, $files{$sfile}->{'SHA256'});
+		$smerge->bind_param(4, $sfile->{'SHA256'});
 		$smerge->execute();
 
 		$conn->do("DROP TABLE new_binaries");

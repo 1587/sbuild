@@ -82,37 +82,6 @@ COMMENT ON COLUMN suite_release.priority IS 'Sorting order (lower is higher prio
 COMMENT ON COLUMN suite_release.depwait IS 'Automatically wait on dependencies?';
 COMMENT ON COLUMN suite_release.hidden IS 'Hide suite from public view?  (e.g. for -security)';
 
-CREATE OR REPLACE FUNCTION merge_release(nsuitenick text,
-                    	   		 nsuite text,
-			      		 ncodename text,
-	  		      		 nversion debversion,
-	  		      		 norigin text,
-	    		      		 nlabel text,
-	     		      		 ndate timestamp with time zone,
-	      		      		 nvaliduntil timestamp with time zone)
-RETURNS VOID AS
-$$
-BEGIN
-    LOOP
-        -- first try to update the key
-        UPDATE suite_release SET fetched=now(), suite=nsuite, codename=ncodename, version=nversion, origin=norigin, label=nlabel, date=ndate, validuntil=nvaliduntil WHERE suitenick = nsuitenick;
-        IF found THEN
-            RETURN;
-        END IF;
-        -- not there, so try to insert the key
-        -- if someone else inserts the same key concurrently,
-        -- we could get a unique-key failure
-        BEGIN
-	    INSERT INTO suite_release (suitenick, fetched, suite, codename, version, origin, label, date, validuntil) VALUES (nsuitenick, now(), nsuite, ncodename, nversion, norigin, nlabel, ndate, nvaliduntil);
-            RETURN;
-        EXCEPTION WHEN unique_violation THEN
-            -- do nothing, and loop to try the UPDATE again
-        END;
-    END LOOP;
-END;
-$$
-LANGUAGE plpgsql;
-
 
 CREATE TABLE architectures (
 	architecture text
@@ -121,30 +90,6 @@ CREATE TABLE architectures (
 
 COMMENT ON TABLE architectures IS 'Architectures in use';
 COMMENT ON COLUMN architectures.architecture IS 'Architecture name';
-
-CREATE OR REPLACE FUNCTION merge_architecture(narchitecture text)
-RETURNS VOID AS
-$$
-BEGIN
-    LOOP
-        -- first try to update the key
-        PERFORM architecture FROM architectures WHERE architecture = narchitecture;
-        IF found THEN
-            RETURN;
-        END IF;
-        -- not there, so try to insert the key
-        -- if someone else inserts the same key concurrently,
-        -- we could get a unique-key failure
-        BEGIN
-	    INSERT INTO architectures (architecture) VALUES (narchitecture);
-            RETURN;
-        EXCEPTION WHEN unique_violation THEN
-            -- do nothing, and loop to try the UPDATE again
-        END;
-    END LOOP;
-END;
-$$
-LANGUAGE plpgsql;
 
 
 CREATE TABLE components (
@@ -155,29 +100,6 @@ CREATE TABLE components (
 COMMENT ON TABLE components IS 'Archive components in use';
 COMMENT ON COLUMN components.component IS 'Component name';
 
-CREATE OR REPLACE FUNCTION merge_component(ncomponent text)
-RETURNS VOID AS
-$$
-BEGIN
-    LOOP
-        -- first try to update the key
-        PERFORM component FROM components WHERE component = ncomponent;
-        IF found THEN
-            RETURN;
-        END IF;
-        -- not there, so try to insert the key
-        -- if someone else inserts the same key concurrently,
-        -- we could get a unique-key failure
-        BEGIN
-	    INSERT INTO components (component) VALUES (ncomponent);
-            RETURN;
-        EXCEPTION WHEN unique_violation THEN
-            -- do nothing, and loop to try the UPDATE again
-        END;
-    END LOOP;
-END;
-$$
-LANGUAGE plpgsql;
 
 CREATE TABLE suite_architectures (
 	suitenick text
@@ -197,32 +119,6 @@ COMMENT ON TABLE suite_architectures IS 'Archive components in use by suite';
 COMMENT ON COLUMN suite_architectures.suitenick IS 'Suite name (nickname)';
 COMMENT ON COLUMN suite_architectures.architecture IS 'Architecture name';
 
-CREATE OR REPLACE FUNCTION merge_suite_architecture(nsuitenick text,
-                                                    narchitecture text)
-RETURNS VOID AS
-$$
-BEGIN
-    PERFORM merge_architecture(narchitecture);
-
-    LOOP
-        -- first try to update the key
-        PERFORM suitenick, architecture FROM suite_architectures WHERE suitenick=nsuitenick AND architecture = narchitecture;
-        IF found THEN
-            RETURN;
-        END IF;
-        -- not there, so try to insert the key
-        -- if someone else inserts the same key concurrently,
-        -- we could get a unique-key failure
-        BEGIN
-	    INSERT INTO suite_architectures (suitenick, architecture) VALUES (nsuitenick, narchitecture);
-            RETURN;
-        EXCEPTION WHEN unique_violation THEN
-            -- do nothing, and loop to try the UPDATE again
-        END;
-    END LOOP;
-END;
-$$
-LANGUAGE plpgsql;
 
 CREATE TABLE suite_components (
 	suitenick text
@@ -241,33 +137,6 @@ CREATE TABLE suite_components (
 COMMENT ON TABLE suite_components IS 'Archive components in use by suite';
 COMMENT ON COLUMN suite_components.suitenick IS 'Suite name (nickname)';
 COMMENT ON COLUMN suite_components.component IS 'Component name';
-
-CREATE OR REPLACE FUNCTION merge_suite_component(nsuitenick text,
-                                                 ncomponent text)
-RETURNS VOID AS
-$$
-BEGIN
-    PERFORM merge_component(ncomponent);
-
-    LOOP
-        -- first try to update the key
-        PERFORM suitenick, component FROM suite_components WHERE suitenick=nsuitenick AND component = ncomponent;
-        IF found THEN
-            RETURN;
-        END IF;
-        -- not there, so try to insert the key
-        -- if someone else inserts the same key concurrently,
-        -- we could get a unique-key failure
-        BEGIN
-	    INSERT INTO suite_components (suitenick, component) VALUES (nsuitenick, ncomponent);
-            RETURN;
-        EXCEPTION WHEN unique_violation THEN
-            -- do nothing, and loop to try the UPDATE again
-        END;
-    END LOOP;
-END;
-$$
-LANGUAGE plpgsql;
 
 
 CREATE TABLE suite_source_detail (
@@ -292,37 +161,12 @@ COMMENT ON COLUMN suite_source_detail.component IS 'Component name';
 COMMENT ON COLUMN suite_source_detail.build IS 'Fetch sources from this suite/component?';
 COMMENT ON COLUMN suite_source_detail.sha256 IS 'SHA256 of latest Sources merge';
 
-CREATE OR REPLACE FUNCTION merge_suite_source_detail(nsuitenick text,
-					             ncomponent text)
-RETURNS VOID AS
-$$
-BEGIN
-    LOOP
-	PERFORM merge_suite_component(nsuitenick, ncomponent);
-
-        -- first try to update the key
-        PERFORM suitenick, component FROM suite_source_detail WHERE suitenick = nsuitenick AND component = ncomponent;
-        IF found THEN
-            RETURN;
-        END IF;
-        -- not there, so try to insert the key
-        -- if someone else inserts the same key concurrently,
-        -- we could get a unique-key failure
-        BEGIN
-	    INSERT INTO suite_source_detail (suitenick, component) VALUES (nsuitenick, ncomponent);
-            RETURN;
-        EXCEPTION WHEN unique_violation THEN
-            -- do nothing, and loop to try the UPDATE again
-        END;
-    END LOOP;
-END;
-$$
-LANGUAGE plpgsql;
 
 CREATE TABLE package_types (
 	type text
 	  CONSTRAINT pkg_tpe_pkey PRIMARY KEY
 );
+
 
 CREATE TABLE suite_binary_detail (
 	suitenick text
@@ -350,35 +194,6 @@ COMMENT ON COLUMN suite_binary_detail.component IS 'Component name';
 COMMENT ON COLUMN suite_binary_detail.build IS 'Build packages from this suite/architecture/component?';
 COMMENT ON COLUMN suite_binary_detail.sha256 IS 'SHA256 of latest Packages merge';
 
-CREATE OR REPLACE FUNCTION merge_suite_binary_detail(nsuitenick text,
-                                                     narchitecture text,
-					             ncomponent text)
-RETURNS VOID AS
-$$
-BEGIN
-    LOOP
-        PERFORM merge_suite_architecture(nsuitenick, 'all');
-        PERFORM merge_suite_architecture(nsuitenick, narchitecture);
-	PERFORM merge_suite_component(nsuitenick, ncomponent);
-
-        -- first try to update the key
-        PERFORM suitenick, architecture, component FROM suite_binary_detail WHERE suitenick = nsuitenick AND architecture = narchitecture AND component = ncomponent;
-        IF found THEN
-            RETURN;
-        END IF;
-        -- not there, so try to insert the key
-        -- if someone else inserts the same key concurrently,
-        -- we could get a unique-key failure
-        BEGIN
-	    INSERT INTO suite_binary_detail (suitenick, architecture, component) VALUES (nsuitenick, narchitecture, ncomponent);
-            RETURN;
-        EXCEPTION WHEN unique_violation THEN
-            -- do nothing, and loop to try the UPDATE again
-        END;
-    END LOOP;
-END;
-$$
-LANGUAGE plpgsql;
 
 CREATE TABLE package_types (
 	type text
@@ -389,31 +204,6 @@ COMMENT ON TABLE package_types IS 'Valid types for binary packages';
 COMMENT ON COLUMN package_types.type IS 'Type name';
 
 
-CREATE OR REPLACE FUNCTION merge_package_type(ntype text)
-RETURNS VOID AS
-$$
-BEGIN
-    LOOP
-        -- first try to update the key
-        PERFORM type FROM package_types WHERE type = ntype;
-        IF found THEN
-            RETURN;
-        END IF;
-        -- not there, so try to insert the key
-        -- if someone else inserts the same key concurrently,
-        -- we could get a unique-key failure
-        BEGIN
-	    INSERT INTO package_types (type) VALUES (ntype);
-            RETURN;
-        EXCEPTION WHEN unique_violation THEN
-            -- do nothing, and loop to try the UPDATE again
-        END;
-    END LOOP;
-END;
-$$
-LANGUAGE plpgsql;
-
-
 CREATE TABLE binary_architectures (
 	architecture text
 	  CONSTRAINT binary_arch_pkey PRIMARY KEY
@@ -422,29 +212,6 @@ CREATE TABLE binary_architectures (
 COMMENT ON TABLE binary_architectures IS 'Possible values for the Architecture field in binary packages';
 COMMENT ON COLUMN binary_architectures.arch IS 'Architecture name';
 
-CREATE OR REPLACE FUNCTION merge_binary_architecture(narchitecture text)
-RETURNS VOID AS
-$$
-BEGIN
-    LOOP
-        -- first try to update the key
-        PERFORM architecture FROM binary_architectures WHERE architecture = narchitecture;
-        IF found THEN
-            RETURN;
-        END IF;
-        -- not there, so try to insert the key
-        -- if someone else inserts the same key concurrently,
-        -- we could get a unique-key failure
-        BEGIN
-	    INSERT INTO binary_architectures (architecture) VALUES (narchitecture);
-            RETURN;
-        EXCEPTION WHEN unique_violation THEN
-            -- do nothing, and loop to try the UPDATE again
-        END;
-    END LOOP;
-END;
-$$
-LANGUAGE plpgsql;
 
 CREATE TABLE package_priorities (
 	priority text
@@ -457,29 +224,6 @@ COMMENT ON TABLE package_priorities IS 'Valid package priorities';
 COMMENT ON COLUMN package_priorities.priority IS 'Priority name';
 COMMENT ON COLUMN package_priorities.priority_value IS 'Integer value for sorting priorities';
 
-CREATE OR REPLACE FUNCTION merge_package_priority(npriority text)
-RETURNS VOID AS
-$$
-BEGIN
-    LOOP
-        -- first try to update the key
-        PERFORM priority FROM package_priorities WHERE priority = npriority;
-        IF found THEN
-            RETURN;
-        END IF;
-        -- not there, so try to insert the key
-        -- if someone else inserts the same key concurrently,
-        -- we could get a unique-key failure
-        BEGIN
-	    INSERT INTO package_priorities (priority) VALUES (npriority);
-            RETURN;
-        EXCEPTION WHEN unique_violation THEN
-            -- do nothing, and loop to try the UPDATE again
-        END;
-    END LOOP;
-END;
-$$
-LANGUAGE plpgsql;
 
 CREATE TABLE package_sections (
         section text
@@ -489,29 +233,6 @@ CREATE TABLE package_sections (
 COMMENT ON TABLE package_sections IS 'Valid package sections';
 COMMENT ON COLUMN package_sections.section IS 'Section name';
 
-CREATE OR REPLACE FUNCTION merge_package_section(nsection text)
-RETURNS VOID AS
-$$
-BEGIN
-    LOOP
-        -- first try to update the key
-        PERFORM section FROM package_sections WHERE section = nsection;
-        IF found THEN
-            RETURN;
-        END IF;
-        -- not there, so try to insert the key
-        -- if someone else inserts the same key concurrently,
-        -- we could get a unique-key failure
-        BEGIN
-	    INSERT INTO package_sections (section) VALUES (nsection);
-            RETURN;
-        EXCEPTION WHEN unique_violation THEN
-            -- do nothing, and loop to try the UPDATE again
-        END;
-    END LOOP;
-END;
-$$
-LANGUAGE plpgsql;
 
 CREATE TABLE sources (
 	source text
@@ -552,96 +273,6 @@ COMMENT ON COLUMN sources.build_confl IS 'Package build conflicts (architecture 
 COMMENT ON COLUMN sources.build_confl_indep IS 'Package build conflicts (architecture independent)';
 COMMENT ON COLUMN sources.stdver IS 'Debian Standards (policy) version number';
 
-CREATE OR REPLACE FUNCTION merge_sources(nsuite text,
-					 ncomponent text,
-					 nsha256 text)
-RETURNS VOID AS
-$$
-BEGIN
-    CREATE TEMPORARY TABLE tmp_sources (LIKE sources);
-
-    INSERT INTO tmp_sources
-    SELECT * FROM new_sources;
-
-    -- Move into main table.
-    INSERT INTO sources
-    SELECT * FROM tmp_sources
-    WHERE (source, source_version) IN
-      (SELECT source, source_version FROM tmp_sources AS s
-       EXCEPT
-       SELECT source, source_version FROM sources AS s);
-
-    --  Remove old suite-source mappings.
-    DELETE FROM suite_sources AS s
-    WHERE s.suite = nsuite and s.component = ncomponent;
-
-    -- Create new suite-source mappings.
-    INSERT INTO suite_sources (source, source_version, suite, component)
-    SELECT s.source, s.source_version, nsuite AS suite, ncomponent AS component
-    FROM tmp_sources AS s;
-
-    DELETE FROM tmp_sources
-    WHERE (source, source_version) IN
-      (SELECT source, source_version FROM tmp_sources AS s
-       EXCEPT
-       SELECT source, source_version FROM sources AS s);
-
-    UPDATE sources AS s
-    SET
-      component=n.component,
-      section=n.section,
-      priority=n.priority,
-      maintainer=n.maintainer,
-      uploaders=n.uploaders,
-      build_dep=n.build_dep,
-      build_dep_indep=n.build_dep_indep,
-      build_confl=n.build_confl,
-      build_confl_indep=n.build_confl_indep,
-      stdver=n.stdver
-    FROM tmp_sources AS n
-    WHERE s.source=n.source AND s.source_version=n.source_version;
-
-    UPDATE suite_source_detail AS d
-    SET
-      sha256 = nsha256
-    WHERE d.suitenick = nsuite AND d.component = ncomponent;
-
-    DROP TABLE tmp_sources;
-
-EXCEPTION WHEN OTHERS THEN
-    DROP TABLE IF EXISTS tmp_sources;
-    RAISE;
-END;
-$$
-LANGUAGE plpgsql;
-
--- Add dummy source package for binaries lacking sources.
-CREATE OR REPLACE FUNCTION merge_dummy_source(nsource text,
-                                              nsource_version debversion)
-RETURNS VOID AS
-$$
-BEGIN
-    LOOP
-        -- first try to update the key
-        PERFORM source, source_version FROM sources
-	WHERE source=nsource AND source_version=nsource_version;
-
-        IF found THEN
-            RETURN;
-        END IF;
-        -- not there, so try to insert the key
-        -- if someone else inserts the same key concurrently,
-        -- we could get a unique-key failure
-        BEGIN
-	    INSERT INTO sources (source, source_version, component, section, priority, maintainer) VALUES (nsource, nsource_version, 'INVALID', 'INVALID', 'INVALID', 'INVALID');
-            RETURN;
-        EXCEPTION WHEN unique_violation THEN
-            -- do nothing, and loop to try the UPDATE again
-        END;
-    END LOOP;
-END;
-$$
-LANGUAGE plpgsql;
 
 CREATE TABLE source_architectures (
 	arch text
@@ -651,29 +282,6 @@ CREATE TABLE source_architectures (
 COMMENT ON TABLE source_architectures IS 'Possible values for the Architecture field in sources';
 COMMENT ON COLUMN source_architectures.arch IS 'Architecture name';
 
-CREATE OR REPLACE FUNCTION merge_source_architecture(narchitecture text)
-RETURNS VOID AS
-$$
-BEGIN
-    LOOP
-        -- first try to update the key
-        PERFORM architecture FROM source_architectures WHERE architecture = narchitecture;
-        IF found THEN
-            RETURN;
-        END IF;
-        -- not there, so try to insert the key
-        -- if someone else inserts the same key concurrently,
-        -- we could get a unique-key failure
-        BEGIN
-	    INSERT INTO source_architectures (architecture) VALUES (narchitecture);
-            RETURN;
-        EXCEPTION WHEN unique_violation THEN
-            -- do nothing, and loop to try the UPDATE again
-        END;
-    END LOOP;
-END;
-$$
-LANGUAGE plpgsql;
 
 CREATE TABLE source_package_architectures (
        	source text
@@ -694,6 +302,7 @@ COMMENT ON TABLE source_package_architectures IS 'Source package architectures (
 COMMENT ON COLUMN source_package_architectures.source IS 'Package name';
 COMMENT ON COLUMN source_package_architectures.source_version IS 'Package version number';
 COMMENT ON COLUMN source_package_architectures.arch IS 'Architecture name';
+
 
 CREATE TABLE binaries (
 	-- PostgreSQL won't allow "binary" as column name
@@ -756,80 +365,6 @@ COMMENT ON COLUMN binaries.enhances IS 'Package enhances other packages';
 COMMENT ON COLUMN binaries.replaces IS 'Package replaces other packages';
 COMMENT ON COLUMN binaries.provides IS 'Package provides other packages';
 
-CREATE OR REPLACE FUNCTION merge_binaries(nsuite text,
-					  ncomponent text,
-					  narchitecture text,
-					  nsha256 text)
-RETURNS VOID AS
-$$
-BEGIN
-    CREATE TEMPORARY TABLE tmp_binaries (LIKE binaries);
-
-    INSERT INTO tmp_binaries
-    SELECT * FROM new_binaries;
-
-    -- Move into main table.
-    INSERT INTO binaries
-    SELECT * FROM tmp_binaries
-    WHERE (package, version) IN
-      (SELECT package, version FROM tmp_binaries AS s
-       EXCEPT
-       SELECT package, version FROM binaries AS s);
-
-    --  Remove old suite-binary mappings.
-    DELETE FROM suite_binaries AS s
-    WHERE s.suite = nsuite AND s.component = ncomponent AND (s.architecture = narchitecture OR s.architecture = 'all');
-
-    -- Create new suite-binary mappings.
-    INSERT INTO suite_binaries (package, version, suite, component, architecture)
-    SELECT s.package AS package, s.version AS version, nsuite AS suite, ncomponent AS component, s.architecture AS architecture
-    FROM tmp_binaries AS s;
-
-    DELETE FROM tmp_binaries
-    WHERE (package, version) IN
-      (SELECT package, version FROM tmp_binaries AS s
-       EXCEPT
-       SELECT package, version FROM binaries AS s);
-
-    UPDATE binaries AS s
-    SET
-      source=n.source,
-      source_version=n.source_version,
-      section=n.section,
-      type=n.type,
-      priority=n.priority,
-      installed_size=n.installed_size,
-      multi_arch=n.multi_arch,
-      essential=n.essential,
-      build_essential=n.build_essential,
-      pre_depends=n.pre_depends,
-      depends=n.depends,
-      recommends=n.recommends,
-      suggests=n.suggests,
-      conflicts=n.conflicts,
-      breaks=n.breaks,
-      enhances=n.enhances,
-      replaces=n.replaces,
-      provides=n.provides
-    FROM tmp_binaries AS n
-    WHERE s.package=n.package AND s.version=n.version AND s.architecture=n.architecture;
-
-    UPDATE suite_binary_detail AS d
-    SET
-      sha256 = nsha256
-    WHERE
-      d.suitenick = nsuite AND
-      d.component = ncomponent AND
-      d.architecture = narchitecture;
-
-    DROP TABLE tmp_binaries;
-
-EXCEPTION WHEN OTHERS THEN
-    DROP TABLE IF EXISTS tmp_binaries;
-    RAISE;
-END;
-$$
-LANGUAGE plpgsql;
 
 CREATE TABLE suite_sources (
 	source text
@@ -859,6 +394,7 @@ COMMENT ON COLUMN suite_sources.source IS 'Source package name';
 COMMENT ON COLUMN suite_sources.source_version IS 'Source package version number';
 COMMENT ON COLUMN suite_sources.suite IS 'Suite name';
 COMMENT ON COLUMN suite_sources.component IS 'Suite component';
+
 
 CREATE TABLE suite_binaries (
 	package text
