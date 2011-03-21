@@ -1,3 +1,11 @@
+sbuild (0.61.0-1+buildd20110321.1) squeeze; urgency=low
+
+  * sbuild: Add --no-apt-* options to disable default actions
+  * Buildd::Daemon: Don't upgrade or distupgrade running sbuild
+  * Revert "[Sbuild::Conf] set APT_UPGRADE's default to 0"
+
+ -- Philipp Kern <pkern@debian.org>  Mon, 21 Mar 2011 17:17:59 +0100
+
 sbuild (0.61.0-1+buildd20110321.0) squeeze; urgency=low
 
   * Sbuild::ResolverBase: Remove File::Path dependency
