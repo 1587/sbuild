@@ -237,6 +237,30 @@ $$
 LANGUAGE plpgsql;
 
 
+CREATE OR REPLACE FUNCTION merge_source_architecture(narchitecture text)
+RETURNS VOID AS
+$$
+BEGIN
+    LOOP
+        -- first try to update the key
+        PERFORM architecture FROM source_architectures WHERE architecture = narchitecture;
+        IF found THEN
+            RETURN;
+        END IF;
+        -- not there, so try to insert the key
+        -- if someone else inserts the same key concurrently,
+        -- we could get a unique-key failure
+        BEGIN
+	    INSERT INTO source_architectures (architecture) VALUES (narchitecture);
+            RETURN;
+        EXCEPTION WHEN unique_violation THEN
+            -- do nothing, and loop to try the UPDATE again
+        END;
+    END LOOP;
+END;
+$$
+LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION merge_binary_architecture(narchitecture text)
 RETURNS VOID AS
 $$
@@ -326,25 +350,25 @@ BEGIN
     -- Move into main table.
     INSERT INTO sources
     SELECT * FROM tmp_sources
-    WHERE (source, source_version) IN
-      (SELECT source, source_version FROM tmp_sources AS s
+    WHERE (source_package, source_version) IN
+      (SELECT source_package, source_version FROM tmp_sources AS s
        EXCEPT
-       SELECT source, source_version FROM sources AS s);
+       SELECT source_package, source_version FROM sources AS s);
 
     --  Remove old suite-source mappings.
     DELETE FROM suite_sources AS s
     WHERE s.suite = nsuite and s.component = ncomponent;
 
     -- Create new suite-source mappings.
-    INSERT INTO suite_sources (source, source_version, suite, component)
-    SELECT s.source, s.source_version, nsuite AS suite, ncomponent AS component
+    INSERT INTO suite_sources (source_package, source_version, suite, component)
+    SELECT s.source_package, s.source_version, nsuite AS suite, ncomponent AS component
     FROM tmp_sources AS s;
 
     DELETE FROM tmp_sources
-    WHERE (source, source_version) IN
-      (SELECT source, source_version FROM tmp_sources AS s
+    WHERE (source_package, source_version) IN
+      (SELECT source_package, source_version FROM tmp_sources AS s
        EXCEPT
-       SELECT source, source_version FROM sources AS s);
+       SELECT source_package, source_version FROM sources AS s);
 
     UPDATE sources AS s
     SET
@@ -359,8 +383,18 @@ BEGIN
       build_confl_indep=n.build_confl_indep,
       stdver=n.stdver
     FROM tmp_sources AS n
-    WHERE s.source=n.source AND s.source_version=n.source_version;
+    WHERE s.source_package=n.source_package AND s.source_version=n.source_version;
 
+    -- Update architectures
+    DELETE FROM source_package_architectures
+    WHERE (source_package, source_version) IN
+    (SELECT source_package, source_version
+     FROM new_sources_architectures);
+
+    INSERT INTO source_package_architectures
+    SELECT * FROM new_sources_architectures;
+
+    -- Update merge state
     UPDATE suite_source_detail AS d
     SET
       sha256 = nsha256
@@ -377,15 +411,15 @@ LANGUAGE plpgsql;
 
 
 -- Add dummy source package for binaries lacking sources.
-CREATE OR REPLACE FUNCTION merge_dummy_source(nsource text,
+CREATE OR REPLACE FUNCTION merge_dummy_source(nsource_package text,
                                               nsource_version debversion)
 RETURNS VOID AS
 $$
 BEGIN
     LOOP
         -- first try to update the key
-        PERFORM source, source_version FROM sources
-	WHERE source=nsource AND source_version=nsource_version;
+        PERFORM source_package, source_version FROM sources
+	WHERE source_package=nsource_package AND source_version=nsource_version;
 
         IF found THEN
             RETURN;
@@ -394,7 +428,7 @@ BEGIN
         -- if someone else inserts the same key concurrently,
         -- we could get a unique-key failure
         BEGIN
-	    INSERT INTO sources (source, source_version, component, section, priority, maintainer) VALUES (nsource, nsource_version, 'INVALID', 'INVALID', 'INVALID', 'INVALID');
+	    INSERT INTO sources (source_package, source_version, component, section, priority, maintainer) VALUES (nsource_package, nsource_version, 'INVALID', 'INVALID', 'INVALID', 'INVALID');
             RETURN;
         EXCEPTION WHEN unique_violation THEN
             -- do nothing, and loop to try the UPDATE again
@@ -471,7 +505,7 @@ BEGIN
 
     UPDATE binaries AS s
     SET
-      source=n.source,
+      source_package=n.source_package,
       source_version=n.source_version,
       section=n.section,
       type=n.type,
@@ -545,14 +579,14 @@ DECLARE
 BEGIN
 
     DELETE FROM sources
-    WHERE (source, source_version) IN
-    (SELECT s.source AS source,
+    WHERE (source_package, source_version) IN
+    (SELECT s.source_package AS source_package,
             s.source_version AS source_version
      FROM sources AS s
      LEFT OUTER join binaries AS b
-     ON (s.source = b.source AND
+     ON (s.source_package = b.source_package AND
          s.source_version = b.source_version)
-     WHERE b.source IS NULL);
+     WHERE b.source_package IS NULL);
 
      IF found THEN
         GET DIAGNOSTICS deleted = ROW_COUNT;
@@ -590,10 +624,26 @@ CREATE TRIGGER source_fkey_deps BEFORE INSERT OR UPDATE ON sources
 COMMENT ON TRIGGER source_fkey_deps ON sources
   IS 'Check foreign key references exist';
 
+CREATE OR REPLACE FUNCTION source_package_architecture_fkey_deps () RETURNS trigger AS $fkey_deps$
+BEGIN
+    IF NEW.architecture IS NOT NULL THEN
+        PERFORM merge_source_architecture(NEW.architecture);
+    END IF;
+    RETURN NEW;
+END;
+$fkey_deps$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION source_package_architecture_fkey_deps ()
+  IS 'Check foreign key references exist';
+
+CREATE TRIGGER source_package_architecture_fkey_deps BEFORE INSERT OR UPDATE ON sources
+  FOR EACH ROW EXECUTE PROCEDURE source_package_architecture_fkey_deps();
+COMMENT ON TRIGGER source_package_architecture_fkey_deps ON sources
+  IS 'Check foreign key references exist';
+
 CREATE OR REPLACE FUNCTION binary_fkey_deps () RETURNS trigger AS $fkey_deps$
 BEGIN
-    IF NEW.source IS NOT NULL AND NEW.source_version IS NOT NULL THEN
-        PERFORM merge_dummy_source(NEW.source, NEW.source_version);
+    IF NEW.source_package IS NOT NULL AND NEW.source_version IS NOT NULL THEN
+        PERFORM merge_dummy_source(NEW.source_package, NEW.source_version);
     END IF;
     IF NEW.architecture IS NOT NULL THEN
         PERFORM merge_binary_architecture(NEW.architecture);
@@ -687,10 +737,10 @@ CREATE OR REPLACE FUNCTION update_status_history()
 RETURNS trigger AS $update_status_history$
 BEGIN
   INSERT INTO build_status_history
-    (source, source_version, arch, suite,
+    (source_package, source_version, arch, suite,
      bin_nmu, user_name, builder, status, ctime)
     VALUES
-      (NEW.source, NEW.source_version, NEW.arch, NEW.suite,
+      (NEW.source_package, NEW.source_version, NEW.arch, NEW.suite,
        NEW.bin_nmu, NEW.user_name, NEW.builder, NEW.status, NEW.ctime);
   RETURN NULL;
 END;

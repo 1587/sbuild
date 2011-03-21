@@ -188,11 +188,12 @@ sub suite_fetch {
 		print " import";
 		STDOUT->flush;
 		$conn->do("CREATE TEMPORARY TABLE new_sources (LIKE sources)");
+		$conn->do("CREATE TEMPORARY TABLE new_sources_architectures (LIKE source_package_architectures)");
 
 		foreach my $pkgname ($source_info->get_keys()) {
 		    my $pkg = $source_info->get_by_key($pkgname);
 
-		    my $msource = $conn->prepare("INSERT INTO new_sources (source, source_version, component, section, priority, maintainer, uploaders, build_dep, build_dep_indep, build_confl, build_confl_indep, stdver) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)");
+		    my $msource = $conn->prepare("INSERT INTO new_sources (source_package, source_version, component, section, priority, maintainer, uploaders, build_dep, build_dep_indep, build_confl, build_confl_indep, stdver) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)");
 		    $msource->bind_param(1, $pkg->{'Package'});
 		    $msource->bind_param(2, $pkg->{'Version'});
 		    $msource->bind_param(3, $component);
@@ -206,9 +207,21 @@ sub suite_fetch {
 		    $msource->bind_param(11, $pkg->{'Build-Conflicts-Indep'});
 		    $msource->bind_param(12, $pkg->{'Standards-Version'});
 		    $msource->execute();
+
+		    # Update architectures
+		    foreach my $arch (split('\s+', $pkg->{'Architecture'})) {
+			next if (!$arch); # Skip blank line from split
+
+			my $msourcearches = $conn->prepare("INSERT INTO new_sources_architectures (source_package, source_version, architecture) VALUES (?,?,?)");
+			$msourcearches->bind_param(1, $pkg->{'Package'});
+			$msourcearches->bind_param(2, $pkg->{'Version'});
+			$msourcearches->bind_param(3, $arch);
+			$msourcearches->execute();
+		    }
 		}
 
 		# Move into main table.
+		print " merge";
 		my $smerge = $conn->prepare("SELECT merge_sources(?,?,?)");
 		$smerge->bind_param(1, $suitename);
 		$smerge->bind_param(2, $component);
@@ -216,6 +229,7 @@ sub suite_fetch {
 		$smerge->execute();
 
 		$conn->do("DROP TABLE new_sources");
+		$conn->do("DROP TABLE new_sources_architectures");
 		print ".\n";
 		STDOUT->flush;
 	    }
@@ -278,7 +292,7 @@ sub suite_fetch {
 			}
 		    }
 
-		    my $mbinary = $conn->prepare("INSERT INTO new_binaries (binary_package, binary_version, architecture, source, source_version, section, type, priority, installed_size, multi_arch, essential, build_essential, pre_depends, depends, recommends, suggests, conflicts, breaks, enhances, replaces, provides) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+		    my $mbinary = $conn->prepare("INSERT INTO new_binaries (binary_package, binary_version, architecture, source_package, source_version, section, type, priority, installed_size, multi_arch, essential, build_essential, pre_depends, depends, recommends, suggests, conflicts, breaks, enhances, replaces, provides) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
 		    $mbinary->bind_param(1, $pkg->{'Package'});
 		    $mbinary->bind_param(2, $pkg->{'Version'});
 		    $mbinary->bind_param(3, $pkg->{'Architecture'});
@@ -304,6 +318,7 @@ sub suite_fetch {
 		}
 
 		# Move into main table.
+		print " merge";
 		my $smerge = $conn->prepare("SELECT merge_binaries(?,?,?,?)");
 		$smerge->bind_param(1, $suitename);
 		$smerge->bind_param(2, $component);

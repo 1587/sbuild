@@ -235,7 +235,7 @@ COMMENT ON COLUMN package_sections.section IS 'Section name';
 
 
 CREATE TABLE sources (
-	source text
+	source_package text
 	  NOT NULL,
 	source_version debversion
 	  NOT NULL,
@@ -254,13 +254,13 @@ CREATE TABLE sources (
 	build_confl text,
 	build_confl_indep text,
 	stdver text,
-	CONSTRAINT sources_pkey PRIMARY KEY (source, source_version)
+	CONSTRAINT sources_pkey PRIMARY KEY (source_package, source_version)
 );
 
-CREATE INDEX sources_pkg_idx ON sources (source);
+CREATE INDEX sources_pkg_idx ON sources (source_package);
 
 COMMENT ON TABLE sources IS 'Source packages common to all architectures (from Sources)';
-COMMENT ON COLUMN sources.source IS 'Package name';
+COMMENT ON COLUMN sources.source_package IS 'Package name';
 COMMENT ON COLUMN sources.source_version IS 'Package version number';
 COMMENT ON COLUMN sources.component IS 'Archive component';
 COMMENT ON COLUMN sources.section IS 'Package section';
@@ -275,33 +275,33 @@ COMMENT ON COLUMN sources.stdver IS 'Debian Standards (policy) version number';
 
 
 CREATE TABLE source_architectures (
-	arch text
+	architecture text
 	  CONSTRAINT source_arch_pkey PRIMARY KEY
 );
 
 COMMENT ON TABLE source_architectures IS 'Possible values for the Architecture field in sources';
-COMMENT ON COLUMN source_architectures.arch IS 'Architecture name';
+COMMENT ON COLUMN source_architectures.architecture IS 'Architecture name';
 
 
 CREATE TABLE source_package_architectures (
-       	source text
+       	source_package text
 	  NOT NULL,
 	source_version debversion
 	  NOT NULL,
-	arch text
+	architecture text
 	  CONSTRAINT source_arch_arch_fkey
-	  REFERENCES source_architectures(arch)
+	  REFERENCES source_architectures(architecture)
 	  NOT NULL,
-	UNIQUE (source, source_version, arch),
-	CONSTRAINT source_arch_source_fkey FOREIGN KEY (source, source_version)
-	  REFERENCES sources (source, source_version)
+	UNIQUE (source_package, source_version, architecture),
+	CONSTRAINT source_arch_source_fkey FOREIGN KEY (source_package, source_version)
+	  REFERENCES sources (source_package, source_version)
 	  ON DELETE CASCADE
 );
 
 COMMENT ON TABLE source_package_architectures IS 'Source package architectures (from Sources)';
-COMMENT ON COLUMN source_package_architectures.source IS 'Package name';
+COMMENT ON COLUMN source_package_architectures.source_package IS 'Package name';
 COMMENT ON COLUMN source_package_architectures.source_version IS 'Package version number';
-COMMENT ON COLUMN source_package_architectures.arch IS 'Architecture name';
+COMMENT ON COLUMN source_package_architectures.architecture IS 'Architecture name';
 
 
 CREATE TABLE binaries (
@@ -311,7 +311,7 @@ CREATE TABLE binaries (
 	architecture text
 	  CONSTRAINT bin_arch_fkey REFERENCES binary_architectures(architecture)
 	  NOT NULL,
-	source text
+	source_package text
 	  NOT NULL,
 	source_version debversion
 	  NOT NULL,
@@ -337,8 +337,8 @@ CREATE TABLE binaries (
 	replaces text,
 	provides text,
 	CONSTRAINT binaries_pkey PRIMARY KEY (binary_package, binary_version, architecture),
-	CONSTRAINT binaries_source_fkey FOREIGN KEY (source, source_version)
-	  REFERENCES sources (source, source_version)
+	CONSTRAINT binaries_source_fkey FOREIGN KEY (source_package, source_version)
+	  REFERENCES sources (source_package, source_version)
 	  ON DELETE CASCADE
 );
 
@@ -346,7 +346,7 @@ COMMENT ON TABLE binaries IS 'Binary packages specific to single architectures (
 COMMENT ON COLUMN binaries.binary_package IS 'Binary package name';
 COMMENT ON COLUMN binaries.binary_version IS 'Binary package version number';
 COMMENT ON COLUMN binaries.architecture IS 'Architecture name';
-COMMENT ON COLUMN binaries.source IS 'Source package name';
+COMMENT ON COLUMN binaries.source_package IS 'Source package name';
 COMMENT ON COLUMN binaries.source_version IS 'Source package version number';
 COMMENT ON COLUMN binaries.section IS 'Package section';
 COMMENT ON COLUMN binaries.type IS 'Package type (e.g. deb, udeb)';
@@ -367,7 +367,7 @@ COMMENT ON COLUMN binaries.provides IS 'Package provides other packages';
 
 
 CREATE TABLE suite_sources (
-	source text
+	source_package text
 	  NOT NULL,
 	source_version debversion
 	  NOT NULL,
@@ -378,19 +378,19 @@ CREATE TABLE suite_sources (
 	component text
 	  CONSTRAINT suite_sources_component_fkey REFERENCES components(component)
 	  NOT NULL,
-	CONSTRAINT suite_sources_pkey PRIMARY KEY (source, suite, component),
-	CONSTRAINT suite_sources_src_fkey FOREIGN KEY (source, source_version)
-	  REFERENCES sources (source, source_version)
+	CONSTRAINT suite_sources_pkey PRIMARY KEY (source_package, suite, component),
+	CONSTRAINT suite_sources_src_fkey FOREIGN KEY (source_package, source_version)
+	  REFERENCES sources (source_package, source_version)
 	  ON DELETE CASCADE,
 	CONSTRAINT suite_sources_suitecomp_fkey FOREIGN KEY (suite, component)
 	  REFERENCES suite_components (suitenick, component)
 	  ON DELETE CASCADE
 );
 
-CREATE INDEX suite_sources_src_ver_idx ON suite_sources (source, source_version);
+CREATE INDEX suite_sources_src_ver_idx ON suite_sources (source_package, source_version);
 
 COMMENT ON TABLE suite_sources IS 'Source packages contained within a suite';
-COMMENT ON COLUMN suite_sources.source IS 'Source package name';
+COMMENT ON COLUMN suite_sources.source_package IS 'Source package name';
 COMMENT ON COLUMN suite_sources.source_version IS 'Source package version number';
 COMMENT ON COLUMN suite_sources.suite IS 'Suite name';
 COMMENT ON COLUMN suite_sources.component IS 'Suite component';
