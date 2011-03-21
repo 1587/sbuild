@@ -183,7 +183,7 @@ sub key_remove {
 sub key_verify_file {
     my $db = shift;
     my $keyname = shift;
-    my @filenames = shift;
+    my @filenames = @_;
 
     if (!$keyname) {
 	Sbuild::Exception::DB->throw
