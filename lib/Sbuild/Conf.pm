@@ -405,7 +405,7 @@ sub setup ($) {
 	    DEFAULT => 1
 	},
 	'APT_UPGRADE'				=> {
-	    DEFAULT => 1
+	    DEFAULT => 0
 	},
 	'APT_DISTUPGRADE'			=> {
 	    DEFAULT => 0
