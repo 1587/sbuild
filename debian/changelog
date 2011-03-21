@@ -1,8 +1,10 @@
-sbuild (0.61.0-1+buildd20110320.1) squeeze; urgency=low
+sbuild (0.61.0-1+buildd20110321.0) squeeze; urgency=low
 
-  * Built from git revision 09c90c332f7d7312312041fb3923de7fd34cbeb1.
+  * Sbuild::ResolverBase: Remove File::Path dependency
+  * buildd profile: all/copyfiles: remove comments on top
+  * [Sbuild::Conf] set APT_UPGRADE's default to 0
 
- -- Philipp Kern <pkern@debian.org>  Sun, 20 Mar 2011 14:15:17 +0100
+ -- Philipp Kern <pkern@debian.org>  Mon, 21 Mar 2011 09:46:17 +0100
 
 sbuild (0.61.0-1+buildd20110320.0) squeeze; urgency=low
 
