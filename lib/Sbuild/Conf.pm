@@ -121,8 +121,6 @@ sub setup ($) {
 	    if defined $conf->get('MAINTAINER_NAME');
 	push @signing_options, "-e".$conf->get('UPLOADER_NAME')
 	    if defined $conf->get('UPLOADER_NAME');
-	push @signing_options, "-k".$conf->get('KEY_ID')
-	    if defined $conf->get('KEY_ID');
 	$conf->set('SIGNING_OPTIONS', \@signing_options);
     };
 
@@ -411,7 +409,6 @@ sub setup ($) {
 	},
 	'KEY_ID'				=> {
 	    DEFAULT => undef,
-	    SET => $set_signing_option
 	},
 	'SIGNING_OPTIONS'			=> {
 	    DEFAULT => ""
