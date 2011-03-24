@@ -1,3 +1,14 @@
+sbuild (0.61.0-1+buildd20110324.1) squeeze; urgency=low
+
+  * [Sbuild::Build] invoke debsign post-build
+  * [Sbuild::Conf] handle command-line signing options correctly
+  * [Sbuild::Conf] put SIGNING_OPTIONS into an array instead of overwriting values
+  * [Sbuild::Build] check correctly for SIGNING_OPTIONS being an ARRAY
+  * [Buildd::Uploader] make .changes -> .upload substitution clearer
+  * [Sbuild::Build] attach a .summary file to MIME build logs
+
+ -- Philipp Kern <pkern@thrall.0x539.de>  Thu, 24 Mar 2011 21:22:33 +0100
+
 sbuild (0.61.0-1+buildd20110324.0) squeeze; urgency=low
 
   * [Sbuild::Build] put KEY_ID into the log mail header if set
