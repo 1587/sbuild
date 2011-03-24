@@ -1,3 +1,13 @@
+sbuild (0.61.0-1+buildd20110324.0) squeeze; urgency=low
+
+  * [Sbuild::Build] put KEY_ID into the log mail header if set
+  * [Buildd::Daemon] put signed builds into the upload queue
+  * [Buildd::Daemon] pass SIGN_WITH as keyid to sbuild
+  * [Buildd::DistConf] SIGN_WITH added as a new variable
+  * [Buildd::Daemon] remove unused read_config function
+
+ -- Philipp Kern <pkern@debian.org>  Thu, 24 Mar 2011 15:35:55 +0100
+
 sbuild (0.61.0-1+buildd20110321.1) squeeze; urgency=low
 
   * sbuild: Add --no-apt-* options to disable default actions
