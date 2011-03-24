@@ -109,6 +109,24 @@ sub setup ($) {
 	}
     };
 
+    my $set_signing_option = sub {
+	my $conf = shift;
+	my $entry = shift;
+	my $value = shift;
+	my $key = $entry->{'NAME'};
+	$conf->_set_value($key, $value);
+
+	my @signing_options = ();
+	push @signing_options, "-m".$conf->get('MAINTAINER_NAME')
+	    if defined $conf->get('MAINTAINER_NAME');
+	push @signing_options, "-e".$conf->get('UPLOADER_NAME')
+	    if defined $conf->get('UPLOADER_NAME');
+	push @signing_options, "-k".$conf->get('KEY_ID')
+	    if defined $conf->get('KEY_ID');
+	$conf->set('SIGNING_OPTIONS', \@signing_options);
+    };
+
+
     our $HOME = $conf->get('HOME');
 
     my %sbuild_keys = (
@@ -384,13 +402,16 @@ sub setup ($) {
 	    DEFAULT => undef
 	},
 	'MAINTAINER_NAME'			=> {
-	    DEFAULT => undef
+	    DEFAULT => undef,
+	    SET => $set_signing_option
 	},
 	'UPLOADER_NAME'				=> {
-	    DEFAULT => undef
+	    DEFAULT => undef,
+	    SET => $set_signing_option
 	},
 	'KEY_ID'				=> {
-	    DEFAULT => undef
+	    DEFAULT => undef,
+	    SET => $set_signing_option
 	},
 	'SIGNING_OPTIONS'			=> {
 	    DEFAULT => ""
@@ -755,15 +776,6 @@ sub read ($) {
 	if defined($conf->get('DISTRIBUTION')) &&
 	   $conf->get('DISTRIBUTION') &&
 	   $conf->get('MAILTO_HASH')->{$conf->get('DISTRIBUTION')};
-
-    my @signing_options = ();
-    push @signing_options, "-m".$conf->get('MAINTAINER_NAME')
-	if defined $conf->get('MAINTAINER_NAME');
-    push @signing_options, "-e".$conf->get('UPLOADER_NAME')
-	if defined $conf->get('UPLOADER_NAME');
-    push @signing_options, "-k".$conf->get('KEY_ID')
-	if defined $conf->get('KEY_ID');
-    $conf->set('SIGNING_OPTIONS', \@signing_options);
 
     $conf->set('MAINTAINER_NAME', $conf->get('UPLOADER_NAME')) if defined $conf->get('UPLOADER_NAME');
     $conf->set('MAINTAINER_NAME', $conf->get('KEY_ID')) if defined $conf->get('KEY_ID');
