@@ -296,6 +296,9 @@ sub setup ($) {
 	'MIME_BUILD_LOG_MAILS'                  => {
 	    DEFAULT => 0
 	},
+	'SUPPRESS_SUCCESSFUL_LOGS'		=> {
+	    DEFAULT => 0
+	},
 	'PURGE_BUILD_DEPS'			=> {
 	    CHECK => sub {
 		my $conf = shift;
@@ -730,6 +733,7 @@ sub read ($) {
     $conf->set('MAILFROM', $mailfrom);
     $conf->set('COMPRESS_BUILD_LOG_MAILS', $compress_build_log_mails);
     $conf->set('MIME_BUILD_LOG_MAILS', $mime_build_log_mails);
+    $conf->set('SUPPRESS_SUCCESSFUL_LOGS', $suppress_successful_logs);
     $conf->set('PURGE_BUILD_DEPS', $purge_build_deps);
     $conf->set('PURGE_BUILD_DIRECTORY', $purge_build_directory);
     $conf->set('TOOLCHAIN_REGEX', \@toolchain_regex)
