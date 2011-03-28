@@ -156,7 +156,7 @@ sub do_key {
 	case "list" { key_list($db, @opts); }
 	case "show" { key_show($db, @opts); }
 	case "verify" { key_verify_file($db, @opts); }
-	else { key_list(); }
+	else { key_list($db); }
     }
 }
 
@@ -173,6 +173,6 @@ sub do_suite {
 	case "list" { suite_list($db, @opts); }
 	case "show" { suite_show($db, @opts); }
 	case "fetch" { suite_fetch($db, @opts); }
-	else { suite_list(); }
+	else { suite_list($db); }
     }
 }
