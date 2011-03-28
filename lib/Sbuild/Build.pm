@@ -1894,10 +1894,6 @@ sub send_build_log {
 
     my $conf = $self->get('Config');
 
-    if ($conf->get('SUPPRESS_SUCCESSFUL_LOGS')) {
-	return;
-    }
-
     if ($conf->get('MIME_BUILD_LOG_MAILS')) {
 	return $self->send_mime_build_log($to, $subject, $filename);
     } elsif ($conf->get('COMPRESS_BUILD_LOG_MAILS')) {
