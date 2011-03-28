@@ -1,3 +1,11 @@
+sbuild (0.61.0-1+buildd20110328.0) squeeze; urgency=low
+
+  * [Sbuild::Conf] adjust ENVIRONMENT_FILTER to be sane
+  * [Buildd::Daemon] add arch_all building support
+  * [Sbuild::Build] only try to invoke debsign on successful builds
+
+ -- Philipp Kern <pkern@debian.org>  Mon, 28 Mar 2011 21:50:45 +0200
+
 sbuild (0.61.0-1+buildd20110324.1) squeeze; urgency=low
 
   * [Sbuild::Build] invoke debsign post-build
@@ -7,7 +15,7 @@ sbuild (0.61.0-1+buildd20110324.1) squeeze; urgency=low
   * [Buildd::Uploader] make .changes -> .upload substitution clearer
   * [Sbuild::Build] attach a .summary file to MIME build logs
 
- -- Philipp Kern <pkern@thrall.0x539.de>  Thu, 24 Mar 2011 21:22:33 +0100
+ -- Philipp Kern <pkern@debian.org>  Thu, 24 Mar 2011 21:22:33 +0100
 
 sbuild (0.61.0-1+buildd20110324.0) squeeze; urgency=low
 
