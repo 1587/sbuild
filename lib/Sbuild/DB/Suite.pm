@@ -51,7 +51,7 @@ sub suite_fetch {
     if (!$suitename) {
 	Sbuild::Exception::DB->throw
 	    (error => "No suite specified",
-	     usage => "suite remove <suitename>");
+	     usage => "suite fetch <suitename>");
     }
 
     my $conn = $db->get('CONN');
