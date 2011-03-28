@@ -89,6 +89,7 @@ use Sbuild qw(help_text version_text usage_error);
 use Sbuild::DB;
 use Sbuild::DB::Key;
 use Sbuild::DB::Suite;
+use Sbuild::DB::Clean;
 
 try eval {
     my $conf = Sbuild::Conf::new();
@@ -108,7 +109,8 @@ try eval {
     my $command = shift(@ARGV);
 
     switch ($command) {
-	case "key" { do_key($db, @ARGV); }
+	case "clean" { do_clean($db, @ARGV); }
+	case "key"   { do_key($db, @ARGV); }
 	case "suite" { do_suite($db, @ARGV); }
 	else { print STDERR "sbuild-db: '$command' is not an sbuild-db command\n";
 	       exit 1; }
@@ -125,6 +127,21 @@ if (catch my $err) {
     exit(1);
 }
 exit 0;
+
+sub do_clean {
+    my $db = shift;
+    my @opts = @_;
+
+    my $operation = shift(@opts);
+
+    switch ($operation) {
+	case "all" { clean($db); }
+	case "binaries" { clean_binaries($db, @opts); }
+	case "packages" { clean_binaries($db, @opts); }
+	case "sources" { clean_sources($db, @opts); }
+	else { clean($db); }
+    }
+}
 
 sub do_key {
     my $db = shift;
