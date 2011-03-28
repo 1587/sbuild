@@ -189,8 +189,8 @@ sub suite_fetch {
 
 		print " import";
 		STDOUT->flush;
-		$conn->do("CREATE TEMPORARY TABLE new_sources (LIKE sources)");
-		$conn->do("CREATE TEMPORARY TABLE new_sources_architectures (LIKE source_package_architectures)");
+		$conn->do("CREATE TEMPORARY TABLE new_sources (LIKE sources INCLUDING DEFAULTS)");
+		$conn->do("CREATE TEMPORARY TABLE new_sources_architectures (LIKE source_package_architectures INCLUDING DEFAULTS)");
 
 		# Cache prepared statements outside loop.
 		my $msource = $conn->prepare("INSERT INTO new_sources (source_package, source_version, component, section, priority, maintainer, uploaders, build_dep, build_dep_indep, build_confl, build_confl_indep, stdver) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)");
@@ -276,7 +276,7 @@ sub suite_fetch {
 		STDOUT->flush;
 
 
-		$conn->do("CREATE TEMPORARY TABLE new_binaries (LIKE binaries)");
+		$conn->do("CREATE TEMPORARY TABLE new_binaries (LIKE binaries INCLUDING DEFAULTS)");
 
 		# Cache prepared statement outside loop.
 		my $mbinary = $conn->prepare("INSERT INTO new_binaries (binary_package, binary_version, architecture, source_package, source_version, section, type, priority, installed_size, multi_arch, essential, build_essential, pre_depends, depends, recommends, suggests, conflicts, breaks, enhances, replaces, provides) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
