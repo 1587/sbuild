@@ -342,7 +342,7 @@ CREATE OR REPLACE FUNCTION merge_sources(nsuite text,
 RETURNS VOID AS
 $$
 BEGIN
-    CREATE TEMPORARY TABLE tmp_sources (LIKE sources);
+    CREATE TEMPORARY TABLE tmp_sources (LIKE sources INCLUDING DEFAULTS);
 
     INSERT INTO tmp_sources
     SELECT * FROM new_sources;
@@ -471,7 +471,7 @@ CREATE OR REPLACE FUNCTION merge_binaries(nsuite text,
 RETURNS VOID AS
 $$
 BEGIN
-    CREATE TEMPORARY TABLE tmp_binaries (LIKE binaries);
+    CREATE TEMPORARY TABLE tmp_binaries (LIKE binaries INCLUDING DEFAULTS);
 
     INSERT INTO tmp_binaries
     SELECT * FROM new_binaries;
