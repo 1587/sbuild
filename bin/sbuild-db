@@ -28,7 +28,7 @@ sub setup {
     my $conf = shift;
 
     my %db_keys = (
-	'DBNAME'				=> {
+	'DBSERVICE'				=> {
 	    DEFAULT => 'sbuild'
 	},
 	'DBUSER'				=> {
@@ -66,8 +66,8 @@ sub set_options {
     my $self = shift;
 
     $self->add_options(
-	"db-name=s" => sub {
-	    $self->set_conf('DBNAME', $_[1]);
+	"db-service=s" => sub {
+	    $self->set_conf('DBSERVICE', $_[1]);
 	},
 	"db-user=s" => sub {
 	    $self->set_conf('DBUSER', $_[1]);

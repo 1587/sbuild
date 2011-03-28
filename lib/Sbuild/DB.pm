@@ -45,14 +45,14 @@ sub new {
     my $self = $class->SUPER::new($conf);
     bless($self, $class);
 
-    my $dbname = $self->get_conf('DBNAME');
+    my $dbservice = $self->get_conf('DBSERVICE');
     my $dbuser = $self->get_conf('DBUSER');
     my $dbpassword = $self->get_conf('DBPASSWORD');
-    my $conn = DBI->connect("DBI:Pg:dbname=$dbname",$dbuser,$dbpassword,
+    my $conn = DBI->connect("DBI:Pg:service=$dbservice",$dbuser,$dbpassword,
 	{RaiseError => 1});
     if (!$conn) {
 	Sbuild::Exception::DB->throw
-	    (error => "Can't connect to database ‘$dbname’ as user ‘$dbuser’")
+	    (error => "Can't connect to database service ‘$dbservice’ as user ‘$dbuser’")
     }
     $self->set('CONN', $conn);
 
