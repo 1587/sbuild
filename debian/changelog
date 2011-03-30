@@ -1,3 +1,9 @@
+sbuild (0.61.0-1+buildd20110330.0) squeeze; urgency=low
+
+  * [Buildd::Daemon] support autosigning of binNMUs
+
+ -- Philipp Kern <pkern@debian.org>  Wed, 30 Mar 2011 11:56:44 +0200
+
 sbuild (0.61.0-1+buildd20110328.0) squeeze; urgency=low
 
   * [Sbuild::Conf] adjust ENVIRONMENT_FILTER to be sane
