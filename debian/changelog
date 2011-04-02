@@ -1,3 +1,9 @@
+sbuild (0.61.0-1+buildd20110402.0) squeeze; urgency=low
+
+  * [Buildd::Daemon] move_to_upload: fix binNMU uploading
+
+ -- Philipp Kern <pkern@debian.org>  Sat, 02 Apr 2011 13:45:11 +0200
+
 sbuild (0.61.0-1+buildd20110330.0) squeeze; urgency=low
 
   * [Buildd::Daemon] support autosigning of binNMUs
