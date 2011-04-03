@@ -490,11 +490,21 @@ BEGIN
 
     --  Remove old suite-binary mappings.
     DELETE FROM suite_binaries AS s
-    WHERE s.suite = nsuite AND s.component = ncomponent AND (s.architecture = narchitecture OR s.architecture = 'all');
+    WHERE s.suite = nsuite AND
+          s.component = ncomponent AND
+          (s.architecture = narchitecture OR s.architecture = 'all');
 
     -- Create new suite-binary mappings.
-    INSERT INTO suite_binaries (binary_package, binary_version, suite, component, architecture)
-    SELECT s.binary_package AS binary_package, s.binary_version AS binary_version, nsuite AS suite, ncomponent AS component, s.architecture AS architecture
+    INSERT INTO suite_binaries (binary_package,
+                                binary_version,
+				suite,
+				component,
+				architecture)
+    SELECT s.binary_package AS binary_package,
+           s.binary_version AS binary_version,
+	   nsuite AS suite,
+	   ncomponent AS component,
+	   s.architecture AS architecture
     FROM tmp_binaries AS s;
 
     DELETE FROM tmp_binaries
@@ -524,7 +534,9 @@ BEGIN
       replaces=n.replaces,
       provides=n.provides
     FROM tmp_binaries AS n
-    WHERE s.binary_package=n.binary_package AND s.binary_version=n.binary_version AND s.architecture=n.architecture;
+    WHERE s.binary_package=n.binary_package AND
+          s.binary_version=n.binary_version AND
+	  s.architecture=n.architecture;
 
     UPDATE suite_binary_detail AS d
     SET

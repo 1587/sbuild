@@ -417,7 +417,7 @@ CREATE TABLE suite_binaries (
 	    ON DELETE CASCADE
 	  NOT NULL,
 	CONSTRAINT suite_bin_pkey
-	  PRIMARY KEY (binary_package, architecture, suite),
+	  PRIMARY KEY (binary_package, architecture, suite, component),
 	CONSTRAINT suite_bin_bin_fkey
           FOREIGN KEY (binary_package, binary_version, architecture)
 	  REFERENCES binaries (binary_package, binary_version, architecture)
