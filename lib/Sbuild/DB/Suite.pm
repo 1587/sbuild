@@ -62,98 +62,8 @@ sub suite_fetch {
 	# Try to get InRelease, then fall back to Release and Release.gpg
 	# if not available.
 
-	my $find = $conn->prepare("SELECT suitenick, key, uri, distribution FROM suites WHERE (suitenick = ?)");
-	$find->bind_param(1, $suitename);
-	$find->execute();
-	my $rows = $find->rows();
-	if (!$rows) {
-	    Sbuild::Exception::DB->throw
-		(error => "Suite ‘$suitename’ not found");
-	}
-	my $ref = $find->fetchrow_hashref();
-
-	my $key = $ref->{'key'};
-	my $distribution = $ref->{'distribution'};
-	my $uri = $ref->{'uri'};
-
-	my $release;
-	my $releasegpg;
-
-	try eval {
-	    $release = download_cached_distfile(URI => $uri,
-						FILE => { NAME => "InRelease"},
-						DIST => $distribution,
-						CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
-	    key_verify_file($db, $key, $release);
-	};
-	if (catch my $err) {
-	    print "InRelease not found; falling back to Release: $err\n";
-	    $release = download_cached_distfile(URI => $uri,
-						FILE => { NAME => "Release"},
-						DIST => $distribution,
-						CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
-	    $releasegpg = download_cached_distfile(URI => $uri,
-						   FILE => { NAME => "Release.gpg" },
-						   DIST => $distribution,
-						   CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
-	    key_verify_file($db, $key, $releasegpg, $release);
-	}
-
-	# Release file successfully downloaded and validated.  Now import
-	# details.
-	my $parserel = Dpkg::Control::Hash->new(allow_pgp=>1);
-	$parserel->load($release);
-
-	my $insert = $conn->prepare("SELECT merge_release(?, ?, ?, ?, ?, ?, ?, ?)");
-	$insert->bind_param(1, $suitename);
-	$insert->bind_param(2, $parserel->{'Suite'});
-	$insert->bind_param(3, $parserel->{'Codename'});
-	$insert->bind_param(4, $parserel->{'Version'});
-	$insert->bind_param(5, $parserel->{'Origin'});
-	$insert->bind_param(6, $parserel->{'Label'});
-	$insert->bind_param(7, $parserel->{'Date'});
-	$insert->bind_param(8, $parserel->{'Valid-Until'});
-	$insert->execute();
-
-	# Check validity if Valid-Until was provided.
-	if ($parserel->{'Valid-Until'}) {
-	    my $valid = $conn->prepare("SELECT validuntil > now() AS valid FROM suite_release WHERE (suitenick = ?)");
-	    $valid->bind_param(1, $suitename);
-	    $valid->execute();
-	    my $vref = $valid->fetchrow_hashref();
-	    if (!$vref->{'valid'}) {
-		Sbuild::Exception::DB->throw
-		    (error => "Invalid archive (out of date)");
-	    }
-	}
-
-	# Update source component mappings
-	foreach my $component (split('\s+', $parserel->{'Components'})) {
-	    my $detail = $conn->prepare("SELECT merge_suite_source_detail(?,?)");
-	    $detail->bind_param(1, $suitename);
-	    $detail->bind_param(2, $component);
-	    $detail->execute();
-	}
-	# Update binary arch-component mappings
-	foreach my $arch (split('\s+', $parserel->{'Architectures'})) {
-	    foreach my $component (split('\s+', $parserel->{'Components'})) {
-		my $detail = $conn->prepare("SELECT merge_suite_binary_detail(?,?,?)");
-		$detail->bind_param(1, $suitename);
-		$detail->bind_param(2, $arch);
-		$detail->bind_param(3, $component);
-		$detail->execute();
-	    }
-	}
-
-	# Sort out files
-	my %files = ();
-	{
-	    foreach my $line (split("\n", $parserel->{'SHA256'})) {
-		next if (!$line); # Skip blank line from split
-		my ($hash, $size, $file) = split(/\s+/, $line);
-		$files{$file} = { NAME=>$file, SHA256=>$hash, SIZE=>$size };
-	    }
-	}
+	my ($uri, $distribution, $release_files) =
+	    suite_fetch_release($db, $suitename);
 
 	# Update Sources using Sources.bz2
 	print "Updating $suitename sources:\n";
@@ -161,82 +71,13 @@ sub suite_fetch {
 	$src_detail->bind_param(1, $suitename);
 	$src_detail->execute();
 	while (my $srcref = $src_detail->fetchrow_hashref()) {
-	    my $component = $srcref->{'component'};
-	    my $oldsha256 = $srcref->{'sha256'};
-
-	    print "  $component:";
-	    my $sfile = $files{"$component/source/Sources"};
-	    my $bsfile = $files{"$component/source/Sources.bz2"};
-	    if ($sfile && $bsfile) {
-		print " download";
-		STDOUT->flush;
-		my $source = download_cached_distfile(URI => $uri,
-						      FILE => $sfile,
-						      BZ2FILE => $bsfile,
-						      DIST => $distribution,
-						      CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
-
-		if ($oldsha256 && $sfile->{'SHA256'} eq $oldsha256) {
-		    print " (already merged, skipping)\n";
-		    STDOUT->flush;
-		    next;
-		}
-
-		print " parse";
-		STDOUT->flush;
-		my $source_info = Dpkg::Index->new(type=>CTRL_INDEX_SRC);
-		$source_info->load($source);
-
-		print " import";
-		STDOUT->flush;
-		$conn->do("CREATE TEMPORARY TABLE new_sources (LIKE sources INCLUDING DEFAULTS)");
-		$conn->do("CREATE TEMPORARY TABLE new_sources_architectures (LIKE source_package_architectures INCLUDING DEFAULTS)");
-
-		# Cache prepared statements outside loop.
-		my $msource = $conn->prepare("INSERT INTO new_sources (source_package, source_version, component, section, priority, maintainer, uploaders, build_dep, build_dep_indep, build_confl, build_confl_indep, stdver) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)");
-		my $msourcearches = $conn->prepare("INSERT INTO new_sources_architectures (source_package, source_version, architecture) VALUES (?,?,?)");
-
-		foreach my $pkgname ($source_info->get_keys()) {
-		    my $pkg = $source_info->get_by_key($pkgname);
-
-		    $msource->bind_param(1, $pkg->{'Package'});
-		    $msource->bind_param(2, $pkg->{'Version'});
-		    $msource->bind_param(3, $component);
-		    $msource->bind_param(4, $pkg->{'Section'});
-		    $msource->bind_param(5, $pkg->{'Priority'});
-		    $msource->bind_param(6, $pkg->{'Maintainer'});
-		    $msource->bind_param(7, $pkg->{'Uploaders'});
-		    $msource->bind_param(8, $pkg->{'Build-Depends'});
-		    $msource->bind_param(9, $pkg->{'Build-Depends-Indep'});
-		    $msource->bind_param(10, $pkg->{'Build-Conflicts'});
-		    $msource->bind_param(11, $pkg->{'Build-Conflicts-Indep'});
-		    $msource->bind_param(12, $pkg->{'Standards-Version'});
-		    $msource->execute();
-
-		    # Update architectures
-		    foreach my $arch (split('\s+', $pkg->{'Architecture'})) {
-			next if (!$arch); # Skip blank line from split
-
-			$msourcearches->bind_param(1, $pkg->{'Package'});
-			$msourcearches->bind_param(2, $pkg->{'Version'});
-			$msourcearches->bind_param(3, $arch);
-			$msourcearches->execute();
-		    }
-		}
-
-		# Move into main table.
-		print " merge";
-		my $smerge = $conn->prepare("SELECT merge_sources(?,?,?)");
-		$smerge->bind_param(1, $suitename);
-		$smerge->bind_param(2, $component);
-		$smerge->bind_param(3, $sfile->{'SHA256'});
-		$smerge->execute();
-
-		$conn->do("DROP TABLE new_sources");
-		$conn->do("DROP TABLE new_sources_architectures");
-		print ".\n";
-		STDOUT->flush;
-	    }
+	    suite_fetch_sources($db,
+				SUITE => $suitename,
+				URI => $uri,
+				DISTRIBUTION => $distribution,
+				FILES => $release_files,
+				COMPONENT => $srcref->{'component'},
+				SHA256 => $srcref->{'sha256'});
 	}
 
 	# Update Packages
@@ -245,101 +86,15 @@ sub suite_fetch {
 	$pkg_detail->bind_param(1, $suitename);
 	$pkg_detail->execute();
 	while (my $pkgref = $pkg_detail->fetchrow_hashref()) {
-	    my $component = $pkgref->{'component'};
-	    my $architecture = $pkgref->{'architecture'};
-	    my $oldsha256 = $pkgref->{'sha256'};
-
-	    print "  $component/$architecture:";
-	    my $sfile = $files{"$component/binary-$architecture/Packages"};
-	    my $bsfile = $files{"$component/binary-$architecture/Packages.bz2"};
-	    if ($sfile && $bsfile) {
-		print " download";
-		STDOUT->flush;
-		my $packages = download_cached_distfile(URI => $uri,
-							FILE => $sfile,
-							BZ2FILE => $bsfile,
-							DIST => $distribution,
-							CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
-
-		if ($oldsha256 && $sfile->{'SHA256'} eq $oldsha256) {
-		    print " (already merged, skipping)\n";
-		    STDOUT->flush;
-		    next;
-		}
-
-		print " parse";
-		STDOUT->flush;
-		my $binary_info = Dpkg::Index->new(type=>CTRL_INDEX_PKG);
-		$binary_info->load($packages);
-
-		print " import";
-		STDOUT->flush;
-
-
-		$conn->do("CREATE TEMPORARY TABLE new_binaries (LIKE binaries INCLUDING DEFAULTS)");
-
-		# Cache prepared statement outside loop.
-		my $mbinary = $conn->prepare("INSERT INTO new_binaries (binary_package, binary_version, architecture, source_package, source_version, section, type, priority, installed_size, multi_arch, essential, build_essential, pre_depends, depends, recommends, suggests, conflicts, breaks, enhances, replaces, provides) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-
-		foreach my $pkgname ($binary_info->get_keys()) {
-		    my $pkg = $binary_info->get_by_key($pkgname);
-
-		    my $source = $pkg->{'Package'};
-		    my $source_version = $pkg->{'Version'};
-		    my $source_detail = $pkg->{'Source'};
-		    if ($source_detail) {
-			my $match = ($source_detail =~ m/(\S+)\s?(?:\((\S+\)))?/);
-			if (!$match) {
-			    Sbuild::Exception::DB->throw
-				(error => "Can't parse Source field ‘$source_detail’");
-			}
-			$source = $1;
-			if ($2) {
-			    $source_version = $2;
-			}
-		    }
-
-		    $mbinary->bind_param(1, $pkg->{'Package'});
-		    $mbinary->bind_param(2, $pkg->{'Version'});
-		    $mbinary->bind_param(3, $pkg->{'Architecture'});
-		    $mbinary->bind_param(4, $source);
-		    $mbinary->bind_param(5, $source_version);
-		    $mbinary->bind_param(6, $pkg->{'Section'});
-		    $mbinary->bind_param(7, 'deb');
-		    $mbinary->bind_param(8, $pkg->{'Priority'});
-		    $mbinary->bind_param(9, $pkg->{'Installed-Size'});
-		    $mbinary->bind_param(10, $pkg->{'Multi-Arch'});
-		    $mbinary->bind_param(11, $pkg->{'Essential'});
-		    $mbinary->bind_param(12, $pkg->{'Build-Essential'});
-		    $mbinary->bind_param(13, $pkg->{'Pre-Depends'});
-		    $mbinary->bind_param(14, $pkg->{'Depends'});
-		    $mbinary->bind_param(15, $pkg->{'Recommends'});
-		    $mbinary->bind_param(16, $pkg->{'Suggests'});
-		    $mbinary->bind_param(17, $pkg->{'Conflicts'});
-		    $mbinary->bind_param(18, $pkg->{'Breaks'});
-		    $mbinary->bind_param(19, $pkg->{'Enhances'});
-		    $mbinary->bind_param(20, $pkg->{'Replaces'});
-		    $mbinary->bind_param(21, $pkg->{'Provides'});
-		    $mbinary->execute();
-		}
-
-		# Move into main table.
-		print " merge";
-		my $smerge = $conn->prepare("SELECT merge_binaries(?,?,?,?)");
-		$smerge->bind_param(1, $suitename);
-		$smerge->bind_param(2, $component);
-		$smerge->bind_param(3, $architecture);
-		$smerge->bind_param(4, $sfile->{'SHA256'});
-		$smerge->execute();
-
-		$conn->do("DROP TABLE new_binaries");
-
-		print ".\n";
-		STDOUT->flush;
-	    }
-
+	    suite_fetch_packages($db,
+				 SUITE => $suitename,
+				 URI => $uri,
+				 DISTRIBUTION => $distribution,
+				 FILES => $release_files,
+				 COMPONENT => $pkgref->{'component'},
+				 ARCHITECTURE => $pkgref->{'architecture'},
+				 SHA256 => $pkgref->{'sha256'});
 	}
-
 
 	$conn->commit();
     };
@@ -348,8 +103,311 @@ sub suite_fetch {
 	$conn->rollback();
 	$err->rethrow();
     }
+}
 
-    # Update Packages
+sub suite_fetch_release {
+    my $db = shift;
+    my $suitename = shift;
+
+    my $conn = $db->get('CONN');
+
+    my $find = $conn->prepare("SELECT suitenick, key, uri, distribution FROM suites WHERE (suitenick = ?)");
+    $find->bind_param(1, $suitename);
+    $find->execute();
+    my $rows = $find->rows();
+    if (!$rows) {
+	Sbuild::Exception::DB->throw
+	    (error => "Suite ‘$suitename’ not found");
+    }
+    my $ref = $find->fetchrow_hashref();
+
+    my $key = $ref->{'key'};
+    my $distribution = $ref->{'distribution'};
+    my $uri = $ref->{'uri'};
+
+    my $release;
+    my $releasegpg;
+
+    try eval {
+	$release = download_cached_distfile(URI => $uri,
+					    FILE => { NAME => "InRelease"},
+					    DIST => $distribution,
+					    CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
+	key_verify_file($db, $key, $release);
+    };
+    if (catch my $err) {
+	print "InRelease not found; falling back to Release: $err\n";
+	$release = download_cached_distfile(URI => $uri,
+					    FILE => { NAME => "Release"},
+					    DIST => $distribution,
+					    CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
+	$releasegpg = download_cached_distfile(URI => $uri,
+					       FILE => { NAME => "Release.gpg" },
+					       DIST => $distribution,
+					       CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
+	key_verify_file($db, $key, $releasegpg, $release);
+    }
+
+    # Release file successfully downloaded and validated.  Now import
+    # details.
+    my $parserel = Dpkg::Control::Hash->new(allow_pgp=>1);
+    $parserel->load($release);
+
+    my $insert = $conn->prepare("SELECT merge_release(?, ?, ?, ?, ?, ?, ?, ?)");
+    $insert->bind_param(1, $suitename);
+    $insert->bind_param(2, $parserel->{'Suite'});
+    $insert->bind_param(3, $parserel->{'Codename'});
+    $insert->bind_param(4, $parserel->{'Version'});
+    $insert->bind_param(5, $parserel->{'Origin'});
+    $insert->bind_param(6, $parserel->{'Label'});
+    $insert->bind_param(7, $parserel->{'Date'});
+    $insert->bind_param(8, $parserel->{'Valid-Until'});
+    $insert->execute();
+
+    # Check validity if Valid-Until was provided.
+    if ($parserel->{'Valid-Until'}) {
+	my $valid = $conn->prepare("SELECT validuntil > now() AS valid FROM suite_release WHERE (suitenick = ?)");
+	$valid->bind_param(1, $suitename);
+	$valid->execute();
+	my $vref = $valid->fetchrow_hashref();
+	if (!$vref->{'valid'}) {
+	    Sbuild::Exception::DB->throw
+		(error => "Invalid archive (out of date)");
+	}
+    }
+
+    # Update source component mappings
+    foreach my $component (split('\s+', $parserel->{'Components'})) {
+	my $detail = $conn->prepare("SELECT merge_suite_source_detail(?,?)");
+	$detail->bind_param(1, $suitename);
+	$detail->bind_param(2, $component);
+	$detail->execute();
+    }
+    # Update binary arch-component mappings
+    foreach my $arch (split('\s+', $parserel->{'Architectures'})) {
+	foreach my $component (split('\s+', $parserel->{'Components'})) {
+	    my $detail = $conn->prepare("SELECT merge_suite_binary_detail(?,?,?)");
+	    $detail->bind_param(1, $suitename);
+	    $detail->bind_param(2, $arch);
+	    $detail->bind_param(3, $component);
+	    $detail->execute();
+	}
+    }
+
+    # Sort out files
+    my %files = ();
+    {
+	foreach my $line (split("\n", $parserel->{'SHA256'})) {
+	    next if (!$line); # Skip blank line from split
+	    my ($hash, $size, $file) = split(/\s+/, $line);
+	    $files{$file} = { NAME=>$file, SHA256=>$hash, SIZE=>$size };
+	}
+    }
+
+    return ($uri, $distribution, \%files);
+}
+
+sub suite_fetch_sources {
+    my $db = shift;
+    my %opts = @_;
+
+    my $suitename = $opts{'SUITE'};
+    my $files = $opts{'FILES'};
+    my $component = $opts{'COMPONENT'};
+    my $oldsha256 = $opts{'SHA256'};
+    my $uri = $opts{'URI'};
+    my $distribution = $opts{'DISTRIBUTION'};
+
+    Sbuild::Exception::DB->throw
+	(error => "suite_fetch_sources: Missing arguments")
+	if (!$suitename || !$files || !$component ||
+	    !$uri || !$distribution);
+
+    my $conn = $db->get('CONN');
+
+
+    print "  $component:";
+    my $sfile = $files->{"$component/source/Sources"};
+    my $bsfile = $files->{"$component/source/Sources.bz2"};
+    if ($sfile && $bsfile) {
+	print " download";
+	STDOUT->flush;
+	my $source = download_cached_distfile(URI => $uri,
+					      FILE => $sfile,
+					      BZ2FILE => $bsfile,
+					      DIST => $distribution,
+					      CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
+
+	if ($oldsha256 && $sfile->{'SHA256'} eq $oldsha256) {
+	    print " (already merged, skipping)\n";
+	    STDOUT->flush;
+	    return;
+	}
+
+	print " parse";
+	STDOUT->flush;
+	my $source_info = Dpkg::Index->new(type=>CTRL_INDEX_SRC);
+	$source_info->load($source);
+
+	print " import";
+	STDOUT->flush;
+	$conn->do("CREATE TEMPORARY TABLE new_sources (LIKE sources INCLUDING DEFAULTS)");
+	$conn->do("CREATE TEMPORARY TABLE new_sources_architectures (LIKE source_package_architectures INCLUDING DEFAULTS)");
+
+	# Cache prepared statements outside loop.
+	my $msource = $conn->prepare("INSERT INTO new_sources (source_package, source_version, component, section, priority, maintainer, uploaders, build_dep, build_dep_indep, build_confl, build_confl_indep, stdver) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)");
+	my $msourcearches = $conn->prepare("INSERT INTO new_sources_architectures (source_package, source_version, architecture) VALUES (?,?,?)");
+
+	foreach my $pkgname ($source_info->get_keys()) {
+	    my $pkg = $source_info->get_by_key($pkgname);
+
+	    $msource->bind_param(1, $pkg->{'Package'});
+	    $msource->bind_param(2, $pkg->{'Version'});
+	    $msource->bind_param(3, $component);
+	    $msource->bind_param(4, $pkg->{'Section'});
+	    $msource->bind_param(5, $pkg->{'Priority'});
+	    $msource->bind_param(6, $pkg->{'Maintainer'});
+	    $msource->bind_param(7, $pkg->{'Uploaders'});
+	    $msource->bind_param(8, $pkg->{'Build-Depends'});
+	    $msource->bind_param(9, $pkg->{'Build-Depends-Indep'});
+	    $msource->bind_param(10, $pkg->{'Build-Conflicts'});
+	    $msource->bind_param(11, $pkg->{'Build-Conflicts-Indep'});
+	    $msource->bind_param(12, $pkg->{'Standards-Version'});
+	    $msource->execute();
+
+	    # Update architectures
+	    foreach my $arch (split('\s+', $pkg->{'Architecture'})) {
+		next if (!$arch); # Skip blank line from split
+
+		$msourcearches->bind_param(1, $pkg->{'Package'});
+		$msourcearches->bind_param(2, $pkg->{'Version'});
+		$msourcearches->bind_param(3, $arch);
+		$msourcearches->execute();
+	    }
+	}
+
+	# Move into main table.
+	print " merge";
+	my $smerge = $conn->prepare("SELECT merge_sources(?,?,?)");
+	$smerge->bind_param(1, $suitename);
+	$smerge->bind_param(2, $component);
+	$smerge->bind_param(3, $sfile->{'SHA256'});
+	$smerge->execute();
+
+	$conn->do("DROP TABLE new_sources");
+	$conn->do("DROP TABLE new_sources_architectures");
+	print ".\n";
+	STDOUT->flush;
+    }
+}
+
+sub suite_fetch_packages {
+    my $db = shift;
+    my %opts = @_;
+
+    my $conn = $db->get('CONN');
+
+    my $suitename = $opts{'SUITE'};
+    my $files = $opts{'FILES'};
+    my $component = $opts{'COMPONENT'};
+    my $oldsha256 = $opts{'SHA256'};
+    my $uri = $opts{'URI'};
+    my $distribution = $opts{'DISTRIBUTION'};
+    my $architecture = $opts{'ARCHITECTURE'};
+
+    Sbuild::Exception::DB->throw
+	(error => "suite_fetch_packages: Missing arguments")
+	if (!$suitename || !$files || !$component ||
+	    !$uri || !$distribution || !$architecture);
+
+    print "  $component/$architecture:";
+    my $sfile = $files->{"$component/binary-$architecture/Packages"};
+    my $bsfile = $files->{"$component/binary-$architecture/Packages.bz2"};
+    if ($sfile && $bsfile) {
+	print " download";
+	STDOUT->flush;
+	my $packages = download_cached_distfile(URI => $uri,
+						FILE => $sfile,
+						BZ2FILE => $bsfile,
+						DIST => $distribution,
+						CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
+
+	if ($oldsha256 && $sfile->{'SHA256'} eq $oldsha256) {
+	    print " (already merged, skipping)\n";
+	    STDOUT->flush;
+	    return;
+	}
+
+	print " parse";
+	STDOUT->flush;
+	my $binary_info = Dpkg::Index->new(type=>CTRL_INDEX_PKG);
+	$binary_info->load($packages);
+
+	print " import";
+	STDOUT->flush;
+
+
+	$conn->do("CREATE TEMPORARY TABLE new_binaries (LIKE binaries INCLUDING DEFAULTS)");
+
+	# Cache prepared statement outside loop.
+	my $mbinary = $conn->prepare("INSERT INTO new_binaries (binary_package, binary_version, architecture, source_package, source_version, section, type, priority, installed_size, multi_arch, essential, build_essential, pre_depends, depends, recommends, suggests, conflicts, breaks, enhances, replaces, provides) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+
+	foreach my $pkgname ($binary_info->get_keys()) {
+	    my $pkg = $binary_info->get_by_key($pkgname);
+
+	    my $source = $pkg->{'Package'};
+	    my $source_version = $pkg->{'Version'};
+	    my $source_detail = $pkg->{'Source'};
+	    if ($source_detail) {
+		my $match = ($source_detail =~ m/(\S+)\s?(?:\((\S+\)))?/);
+		if (!$match) {
+		    Sbuild::Exception::DB->throw
+			(error => "Can't parse Source field ‘$source_detail’");
+		}
+		$source = $1;
+		if ($2) {
+		    $source_version = $2;
+		}
+	    }
+
+	    $mbinary->bind_param(1, $pkg->{'Package'});
+	    $mbinary->bind_param(2, $pkg->{'Version'});
+	    $mbinary->bind_param(3, $pkg->{'Architecture'});
+	    $mbinary->bind_param(4, $source);
+	    $mbinary->bind_param(5, $source_version);
+	    $mbinary->bind_param(6, $pkg->{'Section'});
+	    $mbinary->bind_param(7, 'deb');
+	    $mbinary->bind_param(8, $pkg->{'Priority'});
+	    $mbinary->bind_param(9, $pkg->{'Installed-Size'});
+	    $mbinary->bind_param(10, $pkg->{'Multi-Arch'});
+	    $mbinary->bind_param(11, $pkg->{'Essential'});
+	    $mbinary->bind_param(12, $pkg->{'Build-Essential'});
+	    $mbinary->bind_param(13, $pkg->{'Pre-Depends'});
+	    $mbinary->bind_param(14, $pkg->{'Depends'});
+	    $mbinary->bind_param(15, $pkg->{'Recommends'});
+	    $mbinary->bind_param(16, $pkg->{'Suggests'});
+	    $mbinary->bind_param(17, $pkg->{'Conflicts'});
+	    $mbinary->bind_param(18, $pkg->{'Breaks'});
+	    $mbinary->bind_param(19, $pkg->{'Enhances'});
+	    $mbinary->bind_param(20, $pkg->{'Replaces'});
+	    $mbinary->bind_param(21, $pkg->{'Provides'});
+	    $mbinary->execute();
+	}
+
+	# Move into main table.
+	print " merge";
+	my $smerge = $conn->prepare("SELECT merge_binaries(?,?,?,?)");
+	$smerge->bind_param(1, $suitename);
+	$smerge->bind_param(2, $component);
+	$smerge->bind_param(3, $architecture);
+	$smerge->bind_param(4, $sfile->{'SHA256'});
+	$smerge->execute();
+
+	$conn->do("DROP TABLE new_binaries");
+
+	print ".\n";
+	STDOUT->flush;
+    }
 }
 
 sub suite_add {
