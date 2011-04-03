@@ -239,9 +239,13 @@ sub suite_fetch_sources {
 					      CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
 
 	if ($oldsha256 && $sfile->{'SHA256'} eq $oldsha256) {
-	    print " (already merged, skipping)\n";
-	    STDOUT->flush;
-	    return;
+	    if ($db->get_conf('FORCE')) {
+		print " (already merged, force merge)";
+	    } else {
+		print " (already merged, skipping)\n";
+		STDOUT->flush;
+		return;
+	    }
 	}
 
 	print " parse";
@@ -333,9 +337,13 @@ sub suite_fetch_packages {
 						CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
 
 	if ($oldsha256 && $sfile->{'SHA256'} eq $oldsha256) {
-	    print " (already merged, skipping)\n";
-	    STDOUT->flush;
-	    return;
+	    if ($db->get_conf('FORCE')) {
+		print " (already merged, force merge)";
+	    } else {
+		print " (already merged, skipping)\n";
+		STDOUT->flush;
+		return;
+	    }
 	}
 
 	print " parse";

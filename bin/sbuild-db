@@ -42,6 +42,9 @@ sub setup {
 	},
 	'ARCHIVE_CACHE'				=> {
 	    DEFAULT => '/var/lib/sbuild/archive-cache'
+	},
+	'FORCE'					=> {
+	    DEFAULT => 0
 	}
     );
 
@@ -74,6 +77,9 @@ sub set_options {
 	},
 	"db-password=s" => sub {
 	    $self->set_conf('DBPASSWORD', $_[1]);
+	},
+	"force|f" => sub {
+	    $self->set_conf('FORCE', 1);
 	},
 	"gpg-keyring=s" => sub {
 	    $self->set_conf('GPG_KEYRING', $_[1]);
