@@ -59,8 +59,8 @@ sub suite_fetch {
     try eval {
 	$conn->begin_work();
 
-	# Try to get InRelease, then fall back to Release and Release.gpg
-	# if not available.
+	print "Updating $suitename release:\n";
+	STDOUT->flush;
 
 	my ($uri, $distribution, $release_files) =
 	    suite_fetch_release($db, $suitename);
@@ -128,11 +128,15 @@ sub suite_fetch_release {
     my $release;
     my $releasegpg;
 
+    # Try to get InRelease, then fall back to Release and Release.gpg
+    # if not available.
     try eval {
 	$release = download_cached_distfile(URI => $uri,
 					    FILE => { NAME => "InRelease"},
 					    DIST => $distribution,
 					    CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
+	print "  InRelease\n";
+	STDOUT->flush;
 	key_verify_file($db, $key, $release);
     };
     if (catch my $err) {
@@ -145,6 +149,8 @@ sub suite_fetch_release {
 					       FILE => { NAME => "Release.gpg" },
 					       DIST => $distribution,
 					       CACHEDIR => $db->get_conf('ARCHIVE_CACHE'));
+	print "  Release\n";
+	STDOUT->flush;
 	key_verify_file($db, $key, $releasegpg, $release);
     }
 
