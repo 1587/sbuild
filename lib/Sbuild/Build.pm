@@ -1173,7 +1173,6 @@ sub build {
 	unlink "$dscdir/debian/files";
     }
 
-    $self->log_subsubsection("dpkg-buildpackage");
     $self->set('Build Start Time', time);
     $self->set('Build End Time', $self->get('Build Start Time'));
     $self->set('Pkg Fail Stage', "build");
@@ -1191,6 +1190,7 @@ sub build {
 	      PRIORITY => 0,
 	      DIR => '/' });
 
+	$self->log_subsubsection("Fix ld.so");
 	$self->log("ld.so.conf was not readable! Fixed.\n");
     }
 
@@ -1230,6 +1230,30 @@ sub build {
     $buildenv->{'PATH'} = $self->get_conf('PATH');
     $buildenv->{'LD_LIBRARY_PATH'} = $self->get_conf('LD_LIBRARY_PATH')
 	if defined($self->get_conf('LD_LIBRARY_PATH'));
+
+    # Dump build environment
+    $self->log_subsubsection("User Environment");
+    {
+	my $pipe = $self->get('Session')->pipe_command(
+	    { COMMAND => ['env'],
+	      ENV => $buildenv,
+	      USER => $self->get_conf('BUILD_USER'),
+	      SETSID => 1,
+	      PRIORITY => 0,
+	      DIR => $bdir
+	    });
+
+	my (@lines) = <$pipe>;
+	close($pipe);
+
+	@lines=sort(@lines);
+	foreach my $line (@lines) {
+	    # $line contains a trailing newline, so don't add one.
+	    $self->log($line);
+	}
+    }
+
+    $self->log_subsubsection("dpkg-buildpackage");
 
     my $command = {
 	COMMAND => $buildcmd,
