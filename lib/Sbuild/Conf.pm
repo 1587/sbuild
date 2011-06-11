@@ -397,6 +397,7 @@ sub setup ($) {
 			'^(C(PP|XX)?|LD|F)FLAGS(_APPEND)?$',
 			'^USER(NAME)?$',
 			'^LOGNAME$',
+			'^HOME$',
 			'^TERM$',
 			'^SHELL$']
 	},
