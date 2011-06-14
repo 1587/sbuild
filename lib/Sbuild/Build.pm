@@ -94,6 +94,7 @@ sub new {
     $host_defaults->{'STREAMIN'} = $devnull;
     $host_defaults->{'ENV'}->{'LC_ALL'} = 'POSIX';
     $host_defaults->{'ENV'}->{'SHELL'} = '/bin/sh';
+    $host_defaults->{'ENV'}->{'HOME'} = '/nonexistent';
     # Note, this should never fail.  But, we should handle failure anyway.
     $self->get('Host')->begin_session();
 

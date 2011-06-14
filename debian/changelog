@@ -1,3 +1,18 @@
+sbuild (0.61.0-1+buildd20110611.0) squeeze; urgency=low
+
+  * Set HOME explicitly to cope with schroot 1.2 in Lenny.
+  * create-chroot: set check intervals to 0 for the new filesystem
+
+ -- Philipp Kern <pkern@debian.org>  Sat, 11 Jun 2011 16:44:10 +0200
+
+sbuild (0.61.0-1+buildd20110527.0) squeeze; urgency=low
+
+  * Buildd::Mail: Remove empty newline from .changes
+  * sbuild-apt: Run apt via the resolver
+  * Sbuild::ResolverBase: sources.list fragments must have 0644 permissions
+
+ -- Philipp Kern <pkern@debian.org>  Fri, 27 May 2011 22:12:49 +0200
+
 sbuild (0.61.0-1+buildd20110402.0) squeeze; urgency=low
 
   * [Buildd::Daemon] move_to_upload: fix binNMU uploading
