@@ -241,6 +241,82 @@ sbuild (0.62.0-1) unstable; urgency=low
 
  -- Roger Leigh <rleigh@debian.org>  Wed, 16 Mar 2011 16:10:31 +0000
 
+sbuild (0.61.0-1+buildd20110402.0) squeeze; urgency=low
+
+  * [Buildd::Daemon] move_to_upload: fix binNMU uploading
+
+ -- Philipp Kern <pkern@debian.org>  Sat, 02 Apr 2011 13:45:11 +0200
+
+sbuild (0.61.0-1+buildd20110330.0) squeeze; urgency=low
+
+  * [Buildd::Daemon] support autosigning of binNMUs
+
+ -- Philipp Kern <pkern@debian.org>  Wed, 30 Mar 2011 11:56:44 +0200
+
+sbuild (0.61.0-1+buildd20110328.0) squeeze; urgency=low
+
+  * [Sbuild::Conf] adjust ENVIRONMENT_FILTER to be sane
+  * [Buildd::Daemon] add arch_all building support
+  * [Sbuild::Build] only try to invoke debsign on successful builds
+
+ -- Philipp Kern <pkern@debian.org>  Mon, 28 Mar 2011 21:50:45 +0200
+
+sbuild (0.61.0-1+buildd20110324.1) squeeze; urgency=low
+
+  * [Sbuild::Build] invoke debsign post-build
+  * [Sbuild::Conf] handle command-line signing options correctly
+  * [Sbuild::Conf] put SIGNING_OPTIONS into an array instead of overwriting values
+  * [Sbuild::Build] check correctly for SIGNING_OPTIONS being an ARRAY
+  * [Buildd::Uploader] make .changes -> .upload substitution clearer
+  * [Sbuild::Build] attach a .summary file to MIME build logs
+
+ -- Philipp Kern <pkern@debian.org>  Thu, 24 Mar 2011 21:22:33 +0100
+
+sbuild (0.61.0-1+buildd20110324.0) squeeze; urgency=low
+
+  * [Sbuild::Build] put KEY_ID into the log mail header if set
+  * [Buildd::Daemon] put signed builds into the upload queue
+  * [Buildd::Daemon] pass SIGN_WITH as keyid to sbuild
+  * [Buildd::DistConf] SIGN_WITH added as a new variable
+  * [Buildd::Daemon] remove unused read_config function
+
+ -- Philipp Kern <pkern@debian.org>  Thu, 24 Mar 2011 15:35:55 +0100
+
+sbuild (0.61.0-1+buildd20110321.1) squeeze; urgency=low
+
+  * sbuild: Add --no-apt-* options to disable default actions
+  * Buildd::Daemon: Don't upgrade or distupgrade running sbuild
+  * Revert "[Sbuild::Conf] set APT_UPGRADE's default to 0"
+
+ -- Philipp Kern <pkern@debian.org>  Mon, 21 Mar 2011 17:17:59 +0100
+
+sbuild (0.61.0-1+buildd20110321.0) squeeze; urgency=low
+
+  * Sbuild::ResolverBase: Remove File::Path dependency
+  * buildd profile: all/copyfiles: remove comments on top
+  * [Sbuild::Conf] set APT_UPGRADE's default to 0
+
+ -- Philipp Kern <pkern@debian.org>  Mon, 21 Mar 2011 09:46:17 +0100
+
+sbuild (0.61.0-1+buildd20110320.0) squeeze; urgency=low
+
+  * Built from git revision f97a8a7b668c16a2b8281110a91730c7ca349930.
+
+ -- Philipp Kern <pkern@debian.org>  Sun, 20 Mar 2011 14:15:17 +0100
+
+sbuild (0.61.0-1+buildd20110319.1) squeeze; urgency=low
+
+  * Built from git revision d6c599e73426d1039c3396cd87b8ba667b7a515a.
+
+ -- Philipp Kern <pkern@debian.org>  Sat, 19 Mar 2011 14:28:20 +0100
+
+sbuild (0.61.0-1buildd0) unstable; urgency=low
+
+  * Buildd-specific modifications:
+    - debian/rules: Enable compatibility with stable releases.
+
+ -- Roger Leigh <rleigh@debian.org>  Wed, 23 Feb 2011 13:43:01 +0000
+
 sbuild (0.61.0-1) unstable; urgency=low
 
   * sbuild:
