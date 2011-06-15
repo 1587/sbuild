@@ -25,7 +25,6 @@ use strict;
 use warnings;
 use File::Temp qw(tempdir);
 
-use Sbuild::Deps qw(deps_parse);
 use Sbuild qw(debug copy version_compare);
 use Sbuild::Base;
 use Sbuild::ResolverBase;
