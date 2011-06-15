@@ -639,7 +639,7 @@ EOF
     if (!$self->get_conf('RESOLVE_ALTERNATIVES')) {
 	my $positive_filtered = Sbuild::Deps::AND->new();
 	foreach my $item ($positive->get_deps()) {
-	    my $alt_filtered = Dpkg::Deps::OR->new();
+	    my $alt_filtered = Sbuild::Deps::OR->new();
 	    my @alternatives = $item->get_deps();
 	    my $first = shift @alternatives;
 	    $alt_filtered->add($first) if defined $first;
