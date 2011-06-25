@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package Dpkg::Checksums;
+package Sbuild::Checksums;
 
 use strict;
 use warnings;
@@ -24,7 +24,7 @@ our $VERSION = "1.00";
 use Dpkg;
 use Dpkg::Gettext;
 use Dpkg::ErrorHandling;
-use Dpkg::IPC;
+use Sbuild::IPC;
 
 use base qw(Exporter);
 our @EXPORT = qw(checksums_get_list checksums_is_supported
