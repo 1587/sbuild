@@ -50,8 +50,10 @@ MODULES =			\
 	Options.pm		\
 	OptionsBase.pm		\
 	Utility.pm		\
+	Checksums.pm		\
 	Control.pm		\
 	Deps.pm			\
+	IPC.pm			\
 	Storable.pm		\
 	Version.pm
 
