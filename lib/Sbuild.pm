@@ -31,9 +31,9 @@ use Filesys::Df qw();
 use Time::Local;
 use IO::Zlib;
 use MIME::Base64;
-use Dpkg::Control;
-use Dpkg::Checksums;
-use Dpkg::Version;
+use Sbuild::Control;
+use Sbuild::Checksums;
+use Sbuild::Version;
 
 BEGIN {
     use Exporter ();
@@ -388,14 +388,14 @@ sub dsc_files ($) {
     my $dsc = shift;
 
     debug("Parsing $dsc\n");
-    my $pdsc = Dpkg::Control->new(type => CTRL_PKG_SRC);
+    my $pdsc = Sbuild::Control->new(type => CTRL_PKG_SRC);
     $pdsc->set_options(allow_pgp => 1);
     if (!$pdsc->load($dsc)) {
 	print STDERR "Could not parse $dsc\n";
 	return undef;
     }
 
-    my $csums = Dpkg::Checksums->new();
+    my $csums = Sbuild::Checksums->new();
     $csums->add_from_control($pdsc, use_files_for_md5 => 1);
     return $csums->get_files();
 }
