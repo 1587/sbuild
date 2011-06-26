@@ -287,6 +287,12 @@ sbuild (0.62.0-1) unstable; urgency=low
 
  -- Roger Leigh <rleigh@debian.org>  Wed, 16 Mar 2011 16:10:31 +0000
 
+sbuild (0.61.0-1+buildd20110626.0) squeeze-buildd; urgency=low
+
+  * etc/99builddsourceslist: use backports.d.o for main bpo archive
+
+ -- Philipp Kern <pkern@debian.org>  Sun, 26 Jun 2011 22:14:21 +0200
+
 sbuild (0.61.0-1+buildd20110611.0) squeeze; urgency=low
 
   * Set HOME explicitly to cope with schroot 1.2 in Lenny.
