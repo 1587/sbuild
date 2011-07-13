@@ -26,8 +26,8 @@ use warnings;
 use Errno qw(:POSIX);
 use POSIX ();
 
-use Dpkg::Deps;
-use Dpkg::Version qw(version_compare_relation);
+use Sbuild::Deps qw(deps_parse);
+use Sbuild::Version qw(version_compare_relation);
 use Sbuild qw(debug);
 use Sbuild::Base;
 use Sbuild::ResolverBase;
