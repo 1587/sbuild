@@ -1,3 +1,9 @@
+sbuild (0.61.0-1+buildd20110721.0) squeeze-buildd; urgency=low
+
+  * Sbuild: use our for version comparision variable
+
+ -- Philipp Kern <pkern@debian.org>  Thu, 21 Jul 2011 10:34:08 +0200
+
 sbuild (0.61.0-1+buildd20110626.0) squeeze-buildd; urgency=low
 
   * etc/99builddsourceslist: use backports.d.o for main bpo archive
