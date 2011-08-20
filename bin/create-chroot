@@ -190,6 +190,7 @@ EOT
         [ "$ARCH" = "mips" ] || \
         [ "$ARCH" = "sparc" ] || \
         [ "$ARCH" = "i386" ] || \
+        [ "$ARCH" = "s390" ] || \
         [ "$ARCH" = "powerpc" ]; then
             echo "personality=linux32" >>"${TEMPFILE}"
     fi
