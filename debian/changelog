@@ -1,3 +1,9 @@
+sbuild (0.61.0-1+buildd20110803.0) squeeze-buildd; urgency=low
+
+  * Revert "Sbuild::ResolverBase: Implement alternative stripping"
+
+ -- Philipp Kern <pkern@debian.org>  Wed, 03 Aug 2011 13:40:30 +0200
+
 sbuild (0.61.0-1+buildd20110721.0) squeeze-buildd; urgency=low
 
   * Sbuild: use our for version comparision variable
