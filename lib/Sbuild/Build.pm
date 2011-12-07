@@ -36,8 +36,8 @@ use GDBM_File;
 use File::Copy qw(); # copy is already exported from Sbuild, so don't export
 		     # anything.
 use Dpkg::Arch;
-use Dpkg::Control;
-use Dpkg::Version;
+use Sbuild::Control;
+use Sbuild::Version;
 use MIME::Lite;
 use Term::ANSIColor;
 
@@ -178,7 +178,7 @@ sub set_version {
     debug("Setting package version: $pkgv\n");
 
     my ($pkg, $version) = split /_/, $pkgv;
-    my $pver = Dpkg::Version->new($version, check => 1);
+    my $pver = Sbuild::Version->new($version, check => 1);
     return if (!defined($pkg) || !defined($version) || !defined($pver));
     my ($o_version, $o_revision);
     $o_version = $pver->version();
@@ -197,7 +197,7 @@ sub set_version {
 	    $self->get_conf('APPEND_TO_VERSION'));
     }
 
-    my $bver = Dpkg::Version->new($version, check => 1);
+    my $bver = Sbuild::Version->new($version, check => 1);
     return if (!defined($bver));
     my ($b_epoch, $b_version, $b_revision);
     $b_epoch = $bver->epoch();
@@ -948,7 +948,7 @@ sub fetch_source_files {
 	$self->set_dsc((grep { /\.dsc$/ } @fetched)[0]);
     }
 
-    my $pdsc = Dpkg::Control->new(type => CTRL_PKG_SRC);
+    my $pdsc = Sbuild::Control->new(type => CTRL_PKG_SRC);
     $pdsc->set_options(allow_pgp => 1);
     if (!$pdsc->load("$build_dir/$dsc")) {
 	$self->log("Error parsing $build_dir/$dsc");
