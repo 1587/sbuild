@@ -125,11 +125,13 @@ try eval {
 
 if (catch my $err) {
     print STDERR "E: $err\n";
-    print STDERR "I: " . $err->info . "\n"
-	if ($err->info);
-    print STDERR "Usage: sbuild-db " . $err->usage . "\n"
-	if ($err->usage);
-    print "TRACE: " . $err->trace->as_string. "\n";
+    if ($err->isa('Sbuild::Exception::DB')) {
+	print STDERR "I: " . $err->info . "\n"
+	    if ($err->info);
+	print STDERR "Usage: sbuild-db " . $err->usage . "\n"
+	    if ($err->usage);
+	print "TRACE: " . $err->trace->as_string. "\n";
+    }
     exit(1);
 }
 exit 0;
