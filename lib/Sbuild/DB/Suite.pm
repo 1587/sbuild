@@ -28,6 +28,7 @@ use Dpkg::Control;
 use Dpkg::Index;
 use Dpkg::Control::Hash;
 use File::Temp qw(tempdir);
+use Text::CSV;
 use Sbuild::Exception;
 use Sbuild::Base;
 use Sbuild::DBUtil qw(uncompress escape_path download download_cached_distfile valid_changes);
@@ -265,36 +266,50 @@ sub suite_fetch_sources {
 	$conn->do("CREATE TEMPORARY TABLE new_sources_architectures (LIKE source_package_architectures INCLUDING DEFAULTS)");
 
 	# Cache prepared statements outside loop.
-	my $msource = $conn->prepare("INSERT INTO new_sources (source_package, source_version, component, section, priority, maintainer, uploaders, build_dep, build_dep_indep, build_confl, build_confl_indep, stdver) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)");
-	my $msourcearches = $conn->prepare("INSERT INTO new_sources_architectures (source_package, source_version, architecture) VALUES (?,?,?)");
+	my $csv = Text::CSV->new ({ binary => 1, eol => $/ });
+	$conn->do("COPY new_sources (source_package, source_version, component, section, priority, maintainer, uploaders, build_dep, build_dep_indep, build_confl, build_confl_indep, stdver) FROM STDIN CSV");
 
 	foreach my $pkgname ($source_info->get_keys()) {
 	    my $pkg = $source_info->get_by_key($pkgname);
 
-	    $msource->bind_param(1, $pkg->{'Package'});
-	    $msource->bind_param(2, $pkg->{'Version'});
-	    $msource->bind_param(3, $component);
-	    $msource->bind_param(4, $pkg->{'Section'});
-	    $msource->bind_param(5, $pkg->{'Priority'});
-	    $msource->bind_param(6, $pkg->{'Maintainer'});
-	    $msource->bind_param(7, $pkg->{'Uploaders'});
-	    $msource->bind_param(8, $pkg->{'Build-Depends'});
-	    $msource->bind_param(9, $pkg->{'Build-Depends-Indep'});
-	    $msource->bind_param(10, $pkg->{'Build-Conflicts'});
-	    $msource->bind_param(11, $pkg->{'Build-Conflicts-Indep'});
-	    $msource->bind_param(12, $pkg->{'Standards-Version'});
-	    $msource->execute();
+	    $csv->combine($pkg->{'Package'},
+			  $pkg->{'Version'},
+			  $component,
+			  $pkg->{'Section'},
+			  $pkg->{'Priority'},
+			  $pkg->{'Maintainer'},
+			  $pkg->{'Uploaders'},
+			  $pkg->{'Build-Depends'},
+			  $pkg->{'Build-Depends-Indep'},
+			  $pkg->{'Build-Conflicts'},
+			  $pkg->{'Build-Conflicts-Indep'},
+			  $pkg->{'Standards-Version'})
+		or Sbuild::Exception::DB->throw
+		(error => "Can't transform source ‘$pkg->{'Package'}_$pkg->{'Version'}’ to CSV",
+		 detail => 'Input: '.$csv->error_input);
 
+	    $conn->pg_putcopydata($csv->string);
+	}
+	$conn->pg_putcopyend();
+
+
+	$conn->do("COPY new_sources_architectures (source_package, source_version, architecture) FROM STDIN CSV");
+
+	foreach my $pkgname ($source_info->get_keys()) {
+	    my $pkg = $source_info->get_by_key($pkgname);
 	    # Update architectures
 	    foreach my $arch (split('\s+', $pkg->{'Architecture'})) {
 		next if (!$arch); # Skip blank line from split
 
-		$msourcearches->bind_param(1, $pkg->{'Package'});
-		$msourcearches->bind_param(2, $pkg->{'Version'});
-		$msourcearches->bind_param(3, $arch);
-		$msourcearches->execute();
+		$csv->combine($pkg->{'Package'},
+			      $pkg->{'Version'},
+			      $arch)
+		    or Sbuild::Exception::DB->throw
+		    (error => "Can't transform source ‘$pkg->{'Package'}_$pkg->{'Version'}’ to CSV");
+		    $conn->pg_putcopydata($csv->string);
 	    }
 	}
+	$conn->pg_putcopyend();
 
 	# Move into main table.
 	print " merge";
@@ -363,8 +378,8 @@ sub suite_fetch_packages {
 
 	$conn->do("CREATE TEMPORARY TABLE new_binaries (LIKE binaries INCLUDING DEFAULTS)");
 
-	# Cache prepared statement outside loop.
-	my $mbinary = $conn->prepare("INSERT INTO new_binaries (binary_package, binary_version, architecture, source_package, source_version, section, type, priority, installed_size, multi_arch, essential, build_essential, pre_depends, depends, recommends, suggests, conflicts, breaks, enhances, replaces, provides) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+	my $csv = Text::CSV->new ({ binary => 1, eol => $/ });
+	$conn->do("COPY new_binaries (binary_package, binary_version, architecture, source_package, source_version, section, type, priority, installed_size, multi_arch, essential, build_essential, pre_depends, depends, recommends, suggests, conflicts, breaks, enhances, replaces, provides) FROM STDIN CSV");
 
 	foreach my $pkgname ($binary_info->get_keys()) {
 	    my $pkg = $binary_info->get_by_key($pkgname);
@@ -384,29 +399,32 @@ sub suite_fetch_packages {
 		}
 	    }
 
-	    $mbinary->bind_param(1, $pkg->{'Package'});
-	    $mbinary->bind_param(2, $pkg->{'Version'});
-	    $mbinary->bind_param(3, $pkg->{'Architecture'});
-	    $mbinary->bind_param(4, $source);
-	    $mbinary->bind_param(5, $source_version);
-	    $mbinary->bind_param(6, $pkg->{'Section'});
-	    $mbinary->bind_param(7, 'deb');
-	    $mbinary->bind_param(8, $pkg->{'Priority'});
-	    $mbinary->bind_param(9, $pkg->{'Installed-Size'});
-	    $mbinary->bind_param(10, $pkg->{'Multi-Arch'});
-	    $mbinary->bind_param(11, $pkg->{'Essential'});
-	    $mbinary->bind_param(12, $pkg->{'Build-Essential'});
-	    $mbinary->bind_param(13, $pkg->{'Pre-Depends'});
-	    $mbinary->bind_param(14, $pkg->{'Depends'});
-	    $mbinary->bind_param(15, $pkg->{'Recommends'});
-	    $mbinary->bind_param(16, $pkg->{'Suggests'});
-	    $mbinary->bind_param(17, $pkg->{'Conflicts'});
-	    $mbinary->bind_param(18, $pkg->{'Breaks'});
-	    $mbinary->bind_param(19, $pkg->{'Enhances'});
-	    $mbinary->bind_param(20, $pkg->{'Replaces'});
-	    $mbinary->bind_param(21, $pkg->{'Provides'});
-	    $mbinary->execute();
+	    $csv->combine($pkg->{'Package'},
+			  $pkg->{'Version'},
+			  $pkg->{'Architecture'},
+			  $source,
+			  $source_version,
+			  $pkg->{'Section'},
+			  'deb',
+			  $pkg->{'Priority'},
+			  $pkg->{'Installed-Size'},
+			  $pkg->{'Multi-Arch'},
+			  $pkg->{'Essential'},
+			  $pkg->{'Build-Essential'},
+			  $pkg->{'Pre-Depends'},
+			  $pkg->{'Depends'},
+			  $pkg->{'Recommends'},
+			  $pkg->{'Suggests'},
+			  $pkg->{'Conflicts'},
+			  $pkg->{'Breaks'},
+			  $pkg->{'Enhances'},
+			  $pkg->{'Replaces'},
+			  $pkg->{'Provides'})
+		or Sbuild::Exception::DB->throw
+		(error => "Can't transform source ‘$pkg->{'Package'}_$pkg->{'Version'}’ to CSV");
+	    $conn->pg_putcopydata($csv->string);
 	}
+	$conn->pg_putcopyend();
 
 	# Move into main table.
 	print " merge";

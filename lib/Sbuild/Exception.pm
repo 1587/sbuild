@@ -30,7 +30,7 @@ use Exception::Class (
 				    fields => [ 'info', 'status', 'failstage' ] },
 
     'Sbuild::Exception::DB' => { isa => 'Sbuild::Exception::Base',
-				 fields => [ 'info', 'usage' ] }
+				 fields => [ 'info', 'usage', 'detail' ] }
     );
 
 1;
