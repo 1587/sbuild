@@ -221,7 +221,7 @@ sub download_cached_distfile {
 	my $status = system('bunzip2', $dlfile);
 	if ($status) {
 	    Sbuild::Exception::DB->throw
-		(error => "Failed to decompress $dlfile: $?");
+		(error => "Failed to bunzip2 decompress $dlfile: $status $!");
 	}
 	$dlfile = "$cdir/$cfile";
     } else {

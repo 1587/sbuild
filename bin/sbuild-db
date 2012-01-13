@@ -130,7 +130,7 @@ if (catch my $err) {
 	    if ($err->info);
 	print STDERR "Usage: sbuild-db " . $err->usage . "\n"
 	    if ($err->usage);
-	print "TRACE: " . $err->trace->as_string. "\n";
+	# print "TRACE: " . $err->trace->as_string. "\n";
     }
     exit(1);
 }

@@ -143,14 +143,14 @@ sub key_update {
 	    (error => "Key ‘$keyname’ does not exist");
     }
 
-    my $file = fetch_gpg_key($db, @keys);
-    if (!$file) {
+    my $keydata = fetch_gpg_key($db, @keys);
+    if (!$keydata) {
 	Sbuild::Exception::DB->throw
 	    (error => "Failed to get gpg key");
     }
 
     my $update = $conn->prepare("UPDATE keys SET key = ? WHERE (name = ?)");
-    $update->bind_param(1, $file, { pg_type=>DBD::Pg::PG_BYTEA });
+    $update->bind_param(1, $keydata, { pg_type=>DBD::Pg::PG_BYTEA });
     $update->bind_param(2, $keyname);
     $rows = $update->execute();
     print "Updated $rows row(s)\n";
@@ -216,6 +216,7 @@ sub key_verify_file {
     binmode($fh,":raw");
     print $fh $key;
     $fh->flush;
+
     if (!$fh->close()) {
 	Sbuild::Exception::DB->throw
 	    (error => "Error closing gpg pipe: $?");
