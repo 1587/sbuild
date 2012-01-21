@@ -1,3 +1,9 @@
+sbuild (0.61.0-1+buildd20120121.3) squeeze-buildd; urgency=low
+
+  * [Sbuild::Chroot] unlock_chroot: also fix lockfile location here
+
+ -- Philipp Kern <pkern@debian.org>  Sat, 21 Jan 2012 21:11:47 +0100
+
 sbuild (0.61.0-1+buildd20120121.2) squeeze-buildd; urgency=low
 
   * [Sbuild::Chroot] lock_chroot: fix lockfile location
