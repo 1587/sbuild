@@ -393,7 +393,7 @@ EOF
 sub unlock_chroot {
     my $self = shift;
 
-    my $lockfile = $self->get('Location') . '/var/lib/sbuild/chroot-lock';
+    my $lockfile = '/var/lib/sbuild/chroot-lock';
 
     # The following command in run /inside/ the chroot to remove the lockfile.
     my $command = <<"EOF";
