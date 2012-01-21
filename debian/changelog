@@ -1,3 +1,9 @@
+sbuild (0.61.0-1+buildd20120121.2) squeeze-buildd; urgency=low
+
+  * [Sbuild::Chroot] lock_chroot: fix lockfile location
+
+ -- Philipp Kern <pkern@debian.org>  Sat, 21 Jan 2012 21:05:31 +0100
+
 sbuild (0.61.0-1+buildd20120121.1) squeeze-buildd; urgency=low
 
   * Fix SSH control master restart.
