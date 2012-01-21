@@ -1,3 +1,14 @@
+sbuild (0.61.0-1+buildd20120121.0) squeeze-buildd; urgency=low
+
+  * bin/create-chroot: add s390 as linux32 architecture
+  * [Sbuild::Build] specify UTF-8 encoding in the .changes's MIME part
+  * create-chroot: use directory in schroot snippet, not location
+  * etc/99builddsourceslist: fix a typo
+  * Sbuild::Chroot: Create chroot lock inside chroot
+  * [Sbuild::DB::Client] do not change the cwd
+
+ -- Philipp Kern <pkern@debian.org>  Sat, 21 Jan 2012 13:12:02 +0200
+
 sbuild (0.61.0-1+buildd20110803.0) squeeze-buildd; urgency=low
 
   * Revert "Sbuild::ResolverBase: Implement alternative stripping"
