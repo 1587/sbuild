@@ -162,12 +162,6 @@ COMMENT ON COLUMN suite_source_detail.build IS 'Fetch sources from this suite/co
 COMMENT ON COLUMN suite_source_detail.sha256 IS 'SHA256 of latest Sources merge';
 
 
-CREATE TABLE package_types (
-	type text
-	  CONSTRAINT pkg_tpe_pkey PRIMARY KEY
-);
-
-
 CREATE TABLE suite_binary_detail (
 	suitenick text
 	  NOT NULL,
