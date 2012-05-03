@@ -125,6 +125,7 @@ if [ "$1" = "setup-start" ] || [ "$1" = "setup-recover" ]; then
         echo 'Acquire::PDiffs "false";' >> ${APT_CONF}
         echo 'APT::Install-Recommends 0;' >> ${APT_CONF}
         echo 'Dir::Etc::SourceList "sources.buildd.list";' >> ${APT_CONF}
+        echo 'Acquire::Languages "none";' >> ${APT_CONF}
 
         if [ -n "${APT_KEYS}" ]; then
             for KEY in ${APT_KEYS}; do
