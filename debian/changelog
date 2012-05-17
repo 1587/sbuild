@@ -1,3 +1,9 @@
+sbuild (0.61.0-1+buildd20120517.0) squeeze-buildd; urgency=low
+
+  * etc/99builddsourceslist: do not pull in description translations
+
+ -- Philipp Kern <pkern@debian.org>  Thu, 17 May 2012 23:16:23 +0200
+
 sbuild (0.61.0-1+buildd20120121.3) squeeze-buildd; urgency=low
 
   * [Sbuild::Chroot] unlock_chroot: also fix lockfile location here
