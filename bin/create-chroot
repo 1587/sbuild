@@ -151,6 +151,15 @@ EOT
     sudo mv "${TEMPFILE}" "${TARGET}/usr/sbin/policy-rc.d"
     sudo chown root: "${TARGET}/usr/sbin/policy-rc.d"
     sudo chmod 0755 "${TARGET}/usr/sbin/policy-rc.d"
+    # With wheezy and up /dev/shm is a symlink to /run/shm; because all
+    # suites share the same setup scripts, this needs to be reverted.
+    echo "I: Switching /dev/shm to a real directory..."
+    if [ -L "${TARGET}/dev/shm" ]
+    then
+        sudo rm "${TARGET}/dev/shm"
+        sudo mkdir "${TARGET}/dev/shm"
+        sudo chmod a+w,o+t "${TARGET}/dev/shm"
+    fi
     ensure_target_unmounted
 }
 
