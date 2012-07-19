@@ -1,3 +1,9 @@
+sbuild (0.61.0-1+buildd20120619.0) squeeze-buildd; urgency=low
+
+  * bin/create-chroot: switch /dev/shm to a real directory
+
+ -- Philipp Kern <pkern@debian.org>  Thu, 19 Jul 2012 20:53:11 +0200
+
 sbuild (0.61.0-1+buildd20120517.0) squeeze-buildd; urgency=low
 
   * etc/99builddsourceslist: do not pull in description translations
