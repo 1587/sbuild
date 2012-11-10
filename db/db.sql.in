@@ -18,11 +18,10 @@
 --- along with this program.  If not, see
 --- <http://www.gnu.org/licenses/>.
 
-CREATE EXTENSION debversion;
+CREATE EXTENSION IF NOT EXISTS debversion;
 
 SET search_path = public;
 
-\i SQL_PATHNAME/language.sql
 \i SQL_PATHNAME/schema.sql
 \i SQL_PATHNAME/archive.sql
 \i SQL_PATHNAME/build.sql

@@ -30,8 +30,7 @@ sql_DATA =			\
 	build.sql		\
 	db.sql			\
 	functions.sql		\
-	install.sql		\
-	language.sql
+	install.sql
 
 db.sql: db.sql.in
 	sqlpath=$$(echo "$(sqldir)"); \
