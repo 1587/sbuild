@@ -25,9 +25,11 @@ use warnings;
 use DBI;
 use DBD::Pg;
 use File::Temp qw(tempdir);
+use Sbuild qw(debug);
 use Sbuild::Exception;
 use Sbuild::Base;
 use Exception::Class::TryCatch;
+use Module::Pluggable search_path => ['Sbuild::DB'];
 
 BEGIN {
     use Exporter ();
@@ -35,8 +37,10 @@ BEGIN {
 
     @ISA = qw(Exporter Sbuild::Base);
 
-    @EXPORT = qw();
+    @EXPORT = qw(run_command list_commands);
 }
+
+my %actions = ();
 
 sub new {
     my $class = shift;
@@ -45,6 +49,13 @@ sub new {
     my $self = $class->SUPER::new($conf);
     bless($self, $class);
 
+    # Register actions
+    foreach my $p ($self->plugins()) {
+	debug("Found plugin: $p");
+	my $action = $p->actions();
+	@actions{keys %{$action}} = values %{$action};
+    }
+
     my $dbservice = $self->get_conf('DBSERVICE');
     my $dbuser = $self->get_conf('DBUSER');
     my $dbpassword = $self->get_conf('DBPASSWORD');
@@ -52,11 +63,93 @@ sub new {
 	{RaiseError => 1});
     if (!$conn) {
 	Sbuild::Exception::DB->throw
-	    (error => "Can't connect to database service ‘$dbservice’ as user ‘$dbuser’")
+	    (error => "Can't connect to database service ‘$dbservice’ as user ‘$dbuser’");
     }
     $self->set('CONN', $conn);
 
     return $self;
+}
+
+sub run_command {
+    my $self = shift;
+    my $context = [];
+
+    $self->__run_command(\%actions, $context, @_);
+}
+
+sub __run_command {
+    my $self = shift;
+    my $actions = shift;
+    my $context = shift;
+    my $command = shift;
+    if (!defined($command)) {
+	$command = '__default';
+    }
+
+    push(@$context, $command);
+
+    if (exists ${actions}->{"$command"}) {
+	my $action = ${actions}->{$command};
+	if (ref($action) eq 'HASH') {
+	    $self->__run_command($action, $context, @_);
+	} else {
+	    $action->($self, @_);
+	}
+    } else {
+	my $used = join(' ', @{$context});
+	pop(@$context);
+	my $context = join(' ', @$context);
+	my @commands = ();
+	foreach my $cmd (keys{%{$actions}}) {
+	    push (@commands, $cmd) if $cmd ne '__default';
+	}
+	@commands = sort(@commands);
+	my @msg = ();
+	if ($context) {
+	    push(@msg, $context);
+	}
+	push(@msg, '{', join(' | ', @commands), '}');
+	Sbuild::Exception::DB->throw
+	    (error => "‘$used’ is not an sbuild-db command",
+	     usage => join(' ', @msg));
+    }
+}
+
+sub list_commands {
+    my $self = shift;
+    my $context = [];
+    my $pad = 0;
+
+    print STDERR "Available commands:\n\n";
+    $self->__list_commands(\%actions, \$pad);
+}
+
+sub __list_commands {
+    my $self = shift;
+    my $actions = shift;
+    my $pad = shift;
+
+    my $first = 1;
+    foreach my $command (sort keys{%{$actions}}) {
+	if ($command eq '__default') {
+	    next;
+	}
+	if ($first && $$pad) {
+	    print STDERR ' ';
+	    $first = 0;
+	} else {
+	    print STDERR ' ' x ($$pad);
+	}
+	$$pad += length($command) + 1;
+	my $action = ${actions}->{$command};
+	print STDERR $command;
+	if (ref($action) eq 'HASH') {
+	    $self->__list_commands($action, $pad);
+	} else {
+	    print STDERR "\n";
+	}
+	$$pad -= length($command) + 1;
+    }
 }
 
 1;

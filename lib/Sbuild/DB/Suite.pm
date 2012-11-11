@@ -41,8 +41,20 @@ BEGIN {
 
     @ISA = qw(Exporter Sbuild::Base);
 
-    @EXPORT = qw(suite_fetch suite_add suite_update suite_remove
-                 suite_show suite_list);
+    @EXPORT = qw(actions suite_fetch suite_add suite_update
+                 suite_remove suite_show suite_list);
+}
+
+sub actions {
+    return { "suite" =>
+	     { "add" => \&suite_add,
+	       "update" => \&suite_update,
+	       "remove" => \&suite_remove,
+	       "list" => \&suite_list,
+	       "show" => \&suite_show,
+	       "fetch" => \&suite_fetch,
+	       "__default" => \&suite_list }
+    };
 }
 
 sub suite_fetch {

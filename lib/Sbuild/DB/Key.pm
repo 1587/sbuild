@@ -35,8 +35,20 @@ BEGIN {
 
     @ISA = qw(Exporter Sbuild::Base);
 
-    @EXPORT = qw(key_add key_update key_remove key_verify_file
+    @EXPORT = qw(actions key_add key_update key_remove key_verify_file
                  key_show key_list);
+}
+
+sub actions {
+    return { "key" =>
+	     { "add" => \&key_add,
+	       "update" => \&key_update,
+	       "remove" => \&key_remove,
+	       "list" => \&key_list,
+	       "show" => \&key_show,
+	       "verify" => \&key_verify_file,
+	       "__default" => \&key_list }
+    };
 }
 
 sub fetch_gpg_key {

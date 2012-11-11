@@ -41,7 +41,7 @@ sub setup {
 	    DEFAULT => ''
 	},
 	'ARCHIVE_CACHE'				=> {
-	    DEFAULT => '/var/lib/sbuild/archive-cache'
+	    DEFAULT => '/var/cache/sbuild/db/archive'
 	},
 	'FORCE'					=> {
 	    DEFAULT => 0
@@ -107,20 +107,11 @@ try eval {
     exit 1 if !defined($db);
 
     if (@ARGV < 1) {
-	usage_error("sbuild-db", "Incorrect number of options")
+	$db->list_commands();
+	exit(1);
     }
 
-
-
-    my $command = shift(@ARGV);
-
-    switch ($command) {
-	case "clean" { do_clean($db, @ARGV); }
-	case "key"   { do_key($db, @ARGV); }
-	case "suite" { do_suite($db, @ARGV); }
-	else { print STDERR "sbuild-db: '$command' is not an sbuild-db command\n";
-	       exit 1; }
-    }
+    $db->run_command(@ARGV);
 };
 
 if (catch my $err) {
@@ -135,52 +126,3 @@ if (catch my $err) {
     exit(1);
 }
 exit 0;
-
-sub do_clean {
-    my $db = shift;
-    my @opts = @_;
-
-    my $operation = shift(@opts);
-
-    switch ($operation) {
-	case "all" { clean($db); }
-	case "binaries" { clean_binaries($db, @opts); }
-	case "packages" { clean_binaries($db, @opts); }
-	case "sources" { clean_sources($db, @opts); }
-	else { clean($db); }
-    }
-}
-
-sub do_key {
-    my $db = shift;
-    my @opts = @_;
-
-    my $operation = shift(@opts);
-
-    switch ($operation) {
-	case "add" { key_add($db, @opts); }
-	case "update" { key_update($db, @opts); }
-	case "remove" { key_remove($db, @opts); }
-	case "list" { key_list($db, @opts); }
-	case "show" { key_show($db, @opts); }
-	case "verify" { key_verify_file($db, @opts); }
-	else { key_list($db); }
-    }
-}
-
-sub do_suite {
-    my $db = shift;
-    my @opts = @_;
-
-    my $operation = shift(@opts);
-
-    switch ($operation) {
-	case "add" { suite_add($db, @opts); }
-	case "update" { suite_update($db, @opts); }
-	case "remove" { suite_remove($db, @opts); }
-	case "list" { suite_list($db, @opts); }
-	case "show" { suite_show($db, @opts); }
-	case "fetch" { suite_fetch($db, @opts); }
-	else { suite_list($db); }
-    }
-}

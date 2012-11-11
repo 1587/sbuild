@@ -35,9 +35,17 @@ BEGIN {
 
     @ISA = qw(Exporter Sbuild::Base);
 
-    @EXPORT = qw(clean clean_binaries clean_sources);
+    @EXPORT = qw(actions clean clean_binaries clean_sources);
 }
 
+sub actions {
+    return { "clean" =>
+	     { "all" => \&clean,
+	       "binaries" => \&clean_binaries,
+	       "sources" => \&clean_sources,
+	       "__default" => \&clean }
+    };
+}
 
 sub clean {
     my $db = shift;
