@@ -31,8 +31,14 @@ sub setup {
 	'DBSERVICE'				=> {
 	    DEFAULT => 'sbuild'
 	},
+	'DBSUPERUSER'				=> {
+	    DEFAULT => 'postgres'
+	},
+	'DBSUPERPASSWORD'			=> {
+	    DEFAULT => ''
+	},
 	'DBUSER'				=> {
-	    DEFAULT => 'rleigh'
+	    DEFAULT => 'sbuild'
 	},
 	'DBPASSWORD'				=> {
 	    DEFAULT => ''
@@ -71,6 +77,12 @@ sub set_options {
     $self->add_options(
 	"db-service=s" => sub {
 	    $self->set_conf('DBSERVICE', $_[1]);
+	},
+	"db-super-user=s" => sub {
+	    $self->set_conf('DBSUPERUSER', $_[1]);
+	},
+	"db-super-password=s" => sub {
+	    $self->set_conf('DBSUPERPASSWORD', $_[1]);
 	},
 	"db-user=s" => sub {
 	    $self->set_conf('DBUSER', $_[1]);

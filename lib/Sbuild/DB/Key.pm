@@ -91,7 +91,7 @@ sub key_add {
     my $keyname = shift;
     my @keys = @_;
 
-    my $conn = $db->get('CONN');
+    my $conn = $db->connect();
 
     if (!$keyname) {
 	Sbuild::Exception::DB->throw
@@ -144,7 +144,7 @@ sub key_update {
 	     usage => "key update <keyname> <keyid1> [<keyid>]");
     }
 
-    my $conn = $db->get('CONN');
+    my $conn = $db->connect();
 
     my $find = $conn->prepare("SELECT name FROM keys WHERE (name = ?)");
     $find->bind_param(1, $keyname);
@@ -184,7 +184,7 @@ sub key_remove {
 	     usage => "key remove <keyname>");
     }
 
-    my $conn = $db->get('CONN');
+    my $conn = $db->connect();
 
     my $delete = $conn->prepare("DELETE FROM keys WHERE (name = ?)");
     $delete->bind_param(1, $keyname);
@@ -247,7 +247,7 @@ sub _find_key {
 
     my $key = undef;
     if ($keyname) {
-	my $conn = $db->get('CONN');
+	my $conn = $db->connect();
 
 	my $find = $conn->prepare("SELECT key FROM keys WHERE (name = ?)");
 	$find->bind_param(1, $keyname);
@@ -294,7 +294,7 @@ sub key_list {
     my $db = shift;
     my $keyname = shift;
 
-    my $conn = $db->get('CONN');
+    my $conn = $db->connect();
 
     my $find = $conn->prepare("SELECT name FROM keys");
     $find->execute();

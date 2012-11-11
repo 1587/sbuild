@@ -56,9 +56,27 @@ sub new {
 	@actions{keys %{$action}} = values %{$action};
     }
 
+    return $self;
+}
+
+sub connect() {
+    my $self = shift;
+    my $super = shift;
+    $super = 0 if !defined($super);
+
+    if (defined($self->get('CONN'))) {
+	return $self->get('CONN');
+    }
+
     my $dbservice = $self->get_conf('DBSERVICE');
-    my $dbuser = $self->get_conf('DBUSER');
-    my $dbpassword = $self->get_conf('DBPASSWORD');
+    my ($dbuser, $dbpassword);
+    if ($super) {
+	$dbuser = $self->get_conf('DBSUPERUSER');
+	$dbpassword = $self->get_conf('DBSUPERPASSWORD');
+    } else {
+	$dbuser = $self->get_conf('DBUSER');
+	$dbpassword = $self->get_conf('DBPASSWORD');
+    }
     my $conn = DBI->connect("DBI:Pg:service=$dbservice",$dbuser,$dbpassword,
 	{RaiseError => 1});
     if (!$conn) {
@@ -66,8 +84,17 @@ sub new {
 	    (error => "Can't connect to database service ‘$dbservice’ as user ‘$dbuser’");
     }
     $self->set('CONN', $conn);
+    return $conn;
+}
 
-    return $self;
+sub disconnect() {
+    my $self = shift;
+    my $conn = $self->get('CONN');
+    if (!defined($conn)) {
+	return
+    }
+    $conn->disconnect();
+    $self->set('CONN', undef);
 }
 
 sub run_command {

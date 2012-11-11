@@ -57,7 +57,7 @@ sub clean {
 sub clean_binaries {
     my $db = shift;
 
-    my $conn = $db->get('CONN');
+    my $conn = $db->connect();
 
     print "Cleaning binaries...";
     STDOUT->flush();
@@ -73,7 +73,7 @@ sub clean_binaries {
 sub clean_sources {
     my $db = shift;
 
-    my $conn = $db->get('CONN');
+    my $conn = $db->connect();
 
     print "Cleaning sources...";
     STDOUT->flush();

@@ -67,7 +67,7 @@ sub suite_fetch {
 	     usage => "suite fetch <suitename>");
     }
 
-    my $conn = $db->get('CONN');
+    my $conn = $db->connect();
 
     try eval {
 	$conn->begin_work();
@@ -122,7 +122,7 @@ sub suite_fetch_release {
     my $db = shift;
     my $suitename = shift;
 
-    my $conn = $db->get('CONN');
+    my $conn = $db->connect();
 
     my $find = $conn->prepare("SELECT suitenick, key, uri, distribution FROM suites WHERE (suitenick = ?)");
     $find->bind_param(1, $suitename);
@@ -242,8 +242,7 @@ sub suite_fetch_sources {
 	if (!$suitename || !$files || !$component ||
 	    !$uri || !$distribution);
 
-    my $conn = $db->get('CONN');
-
+    my $conn = $db->connect();
 
     print "  $component:";
     my $sfile = $files->{"$component/source/Sources"};
@@ -342,7 +341,7 @@ sub suite_fetch_packages {
     my $db = shift;
     my %opts = @_;
 
-    my $conn = $db->get('CONN');
+    my $conn = $db->connect();
 
     my $suitename = $opts{'SUITE'};
     my $files = $opts{'FILES'};
@@ -461,7 +460,7 @@ sub suite_add {
     my $uri = shift;
     my $distribution = shift;
 
-    my $conn = $db->get('CONN');
+    my $conn = $db->connect();
 
     if (!$suitename) {
 	Sbuild::Exception::DB->throw
@@ -514,7 +513,7 @@ sub suite_update {
 	     usage => "suite update <suitename> [key=<key>] [uri=<uri>] [distribution=<distribution>]");
     }
 
-    my $conn = $db->get('CONN');
+    my $conn = $db->connect();
 
     my $find = $conn->prepare("SELECT suitenick FROM suites WHERE (suitenick = ?)");
     $find->bind_param(1, $suitename);
@@ -550,7 +549,7 @@ sub suite_remove {
 	     usage => "suite remove <suitename>");
     }
 
-    my $conn = $db->get('CONN');
+    my $conn = $db->connect();
 
     my $delete = $conn->prepare("DELETE FROM suites WHERE (suitenick = ?)");
     $delete->bind_param(1, $suitename);
@@ -582,7 +581,7 @@ sub suite_list {
     my $db = shift;
     my $suitename = shift;
 
-    my $conn = $db->get('CONN');
+    my $conn = $db->connect();
 
     my $find = $conn->prepare("SELECT suitenick, key, uri, distribution FROM suites");
     $find->execute();
