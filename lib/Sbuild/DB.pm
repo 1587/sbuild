@@ -29,7 +29,7 @@ use Sbuild qw(debug);
 use Sbuild::Exception;
 use Sbuild::Base;
 use Exception::Class::TryCatch;
-use Module::Pluggable search_path => ['Sbuild::DB'];
+use Module::Pluggable search_path => ['Sbuild::DB'], instantiate => 'new';
 
 BEGIN {
     use Exporter ();

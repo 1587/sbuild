@@ -93,9 +93,6 @@ use Switch;
 
 use Sbuild qw(help_text version_text usage_error);
 use Sbuild::DB;
-use Sbuild::DB::Key;
-use Sbuild::DB::Suite;
-use Sbuild::DB::Clean;
 
 try eval {
     my $conf = Sbuild::Conf::new();
