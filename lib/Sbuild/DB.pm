@@ -123,8 +123,9 @@ sub __run_command {
 	    $action->($self, @_);
 	}
     } else {
+	pop(@$context) if $command eq "__default";
 	my $used = join(' ', @{$context});
-	pop(@$context);
+	pop(@$context) if $command ne "__default";
 	my $context = join(' ', @$context);
 	my @commands = ();
 	foreach my $cmd (keys{%{$actions}}) {
@@ -136,8 +137,10 @@ sub __run_command {
 	    push(@msg, $context);
 	}
 	push(@msg, '{', join(' | ', @commands), '}');
+	my $error = "‘$used’ is not an sbuild-db command";
+	$error = "$used has no default action" if $command eq "__default";
 	Sbuild::Exception::DB->throw
-	    (error => "‘$used’ is not an sbuild-db command",
+	    (error => $error,
 	     usage => join(' ', @msg));
     }
 }
