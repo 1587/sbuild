@@ -17,7 +17,7 @@
 #
 #######################################################################
 
-package Sbuild::DB::Key;
+package Sbuild::DB::Action::Key;
 
 use strict;
 use warnings;

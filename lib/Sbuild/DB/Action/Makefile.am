@@ -21,7 +21,7 @@
 
 include $(top_srcdir)/scripts/global.mk
 
-perlmodsbuilddbdir = $(perlmoddir)/Sbuild/DB
+perlmodsbuilddbdir = $(perlmoddir)/Sbuild/DB/Action
 
 MODULES =			\
 	Clean.pm		\

@@ -17,7 +17,7 @@
 #
 #######################################################################
 
-package Sbuild::DB::Clean;
+package Sbuild::DB::Action::Clean;
 
 use strict;
 use warnings;

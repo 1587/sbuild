@@ -33,7 +33,7 @@ use Sbuild::Exception;
 use Sbuild::Base;
 use Sbuild::DBUtil qw(uncompress escape_path download download_cached_distfile valid_changes);
 use Exception::Class::TryCatch;
-use Sbuild::DB::Key qw(key_verify_file);
+use Sbuild::DB::Action::Key qw(key_verify_file);
 
 BEGIN {
     use Exporter ();
