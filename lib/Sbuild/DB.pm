@@ -51,7 +51,7 @@ sub new {
 
     # Register actions
     foreach my $p ($self->plugins()) {
-	debug("Found plugin: $p");
+	debug("Found plugin: $p\n");
 	my $action = $p->actions();
 	@actions{keys %{$action}} = values %{$action};
     }

@@ -17,7 +17,7 @@
 #
 #######################################################################
 
-package Sbuild::DB::Suite;
+package Sbuild::DB::Action::Suite;
 
 use strict;
 use warnings;
