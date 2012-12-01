@@ -75,30 +75,35 @@ sub upgrade {
     $conn->do("COMMENT ON COLUMN schema.version IS 'Schema version'");
     $conn->do("COMMENT ON COLUMN schema.description IS 'Schema change description'");
 
-$conn->do("CREATE TABLE keys (
+    $conn->do(<<'EOS');
+CREATE TABLE keys (
        name text CONSTRAINT keys_pkey PRIMARY KEY,
        key bytea NOT NULL
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE keys IS 'GPG keys used to sign Release files'");
-$conn->do("COMMENT ON COLUMN keys.name IS 'Name used to reference a key'");
-$conn->do("COMMENT ON COLUMN keys.key IS 'GPG key as exported ASCII armoured text'");
+    $conn->do("COMMENT ON TABLE keys IS 'GPG keys used to sign Release files'");
+    $conn->do("COMMENT ON COLUMN keys.name IS 'Name used to reference a key'");
+    $conn->do("COMMENT ON COLUMN keys.key IS 'GPG key as exported ASCII armoured text'");
 
-$conn->do("CREATE TABLE suites (
+    $conn->do(<<'EOS');
+CREATE TABLE suites (
 	suitenick text CONSTRAINT suites_pkey PRIMARY KEY,
 	key text NOT NULL
 	  CONSTRAINT suites_key_fkey REFERENCES keys(name),
 	uri text NOT NULL,
 	distribution text NOT NULL
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE suites IS 'Valid suites'");
-$conn->do("COMMENT ON COLUMN suites.suitenick IS 'Name used to reference a suite (nickname)'");
-$conn->do("COMMENT ON COLUMN suites.key IS 'GPG key name for validation'");
-$conn->do("COMMENT ON COLUMN suites.uri IS 'URI to fetch from'");
-$conn->do("COMMENT ON COLUMN suites.distribution IS 'Distribution name (used in combination with URI)'");
+    $conn->do("COMMENT ON TABLE suites IS 'Valid suites'");
+    $conn->do("COMMENT ON COLUMN suites.suitenick IS 'Name used to reference a suite (nickname)'");
+    $conn->do("COMMENT ON COLUMN suites.key IS 'GPG key name for validation'");
+    $conn->do("COMMENT ON COLUMN suites.uri IS 'URI to fetch from'");
+    $conn->do("COMMENT ON COLUMN suites.distribution IS 'Distribution name (used in combination with URI)'");
 
-$conn->do("CREATE TABLE suite_release (
+    $conn->do(<<'EOS');
+CREATE TABLE suite_release (
         suitenick text
           UNIQUE NOT NULL
 	  CONSTRAINT suite_release_suitenick_fkey
@@ -112,8 +117,8 @@ $conn->do("CREATE TABLE suite_release (
 	origin text NOT NULL,
 	label text NOT NULL,
 	date timestamp with time zone NOT NULL,
-	validuntil timestamp with time zone, -- old suites don't support it
--- Old wanna-build options
+	validuntil timestamp with time zone, -- old suites do not support it
+        -- Old wanna-build options
 	priority integer
 	  NOT NULL
 	  DEFAULT 10,
@@ -123,42 +128,48 @@ $conn->do("CREATE TABLE suite_release (
 	hidden boolean
 	  NOT NULL
 	  DEFAULT 'f'
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE suite_release IS 'Suite release details'");
-$conn->do("COMMENT ON COLUMN suite_release.suitenick IS 'Suite name (nickname)'");
-$conn->do("COMMENT ON COLUMN suite_release.fetched IS 'Date on which the Release file was fetched from the archive'");
-$conn->do("COMMENT ON COLUMN suite_release.suite IS 'Suite name'");
-$conn->do("COMMENT ON COLUMN suite_release.codename IS 'Suite codename'");
-$conn->do("COMMENT ON COLUMN suite_release.version IS 'Suite release version (if applicable)'");
-$conn->do("COMMENT ON COLUMN suite_release.origin IS 'Suite origin'");
-$conn->do("COMMENT ON COLUMN suite_release.label IS 'Suite label'");
-$conn->do("COMMENT ON COLUMN suite_release.date IS 'Date on which the Release file was generated'");
-$conn->do("COMMENT ON COLUMN suite_release.validuntil IS 'Date after which the data expires'");
-$conn->do("COMMENT ON COLUMN suite_release.priority IS 'Sorting order (lower is higher priority)'");
-$conn->do("COMMENT ON COLUMN suite_release.depwait IS 'Automatically wait on dependencies?'");
-$conn->do("COMMENT ON COLUMN suite_release.hidden IS 'Hide suite from public view?  (e.g. for -security)'");
+    $conn->do("COMMENT ON TABLE suite_release IS 'Suite release details'");
+    $conn->do("COMMENT ON COLUMN suite_release.suitenick IS 'Suite name (nickname)'");
+    $conn->do("COMMENT ON COLUMN suite_release.fetched IS 'Date on which the Release file was fetched from the archive'");
+    $conn->do("COMMENT ON COLUMN suite_release.suite IS 'Suite name'");
+    $conn->do("COMMENT ON COLUMN suite_release.codename IS 'Suite codename'");
+    $conn->do("COMMENT ON COLUMN suite_release.version IS 'Suite release version (if applicable)'");
+    $conn->do("COMMENT ON COLUMN suite_release.origin IS 'Suite origin'");
+    $conn->do("COMMENT ON COLUMN suite_release.label IS 'Suite label'");
+    $conn->do("COMMENT ON COLUMN suite_release.date IS 'Date on which the Release file was generated'");
+    $conn->do("COMMENT ON COLUMN suite_release.validuntil IS 'Date after which the data expires'");
+    $conn->do("COMMENT ON COLUMN suite_release.priority IS 'Sorting order (lower is higher priority)'");
+    $conn->do("COMMENT ON COLUMN suite_release.depwait IS 'Automatically wait on dependencies?'");
+    $conn->do("COMMENT ON COLUMN suite_release.hidden IS 'Hide suite from public view?  (e.g. for -security)'");
 
 
-$conn->do("CREATE TABLE architectures (
+    $conn->do(<<'EOS');
+CREATE TABLE architectures (
 	architecture text
 	  CONSTRAINT arch_pkey PRIMARY KEY
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE architectures IS 'Architectures in use'");
-$conn->do("COMMENT ON COLUMN architectures.architecture IS 'Architecture name'");
+    $conn->do("COMMENT ON TABLE architectures IS 'Architectures in use'");
+    $conn->do("COMMENT ON COLUMN architectures.architecture IS 'Architecture name'");
 
 
-$conn->do("CREATE TABLE components (
+    $conn->do(<<'EOS');
+CREATE TABLE components (
 	component text
 	  CONSTRAINT components_pkey PRIMARY KEY
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE components IS 'Archive components in use'");
-$conn->do("COMMENT ON COLUMN components.component IS 'Component name'");
+    $conn->do("COMMENT ON TABLE components IS 'Archive components in use'");
+    $conn->do("COMMENT ON COLUMN components.component IS 'Component name'");
 
 
-$conn->do("CREATE TABLE suite_architectures (
+    $conn->do(<<'EOS');
+CREATE TABLE suite_architectures (
 	suitenick text
 	  NOT NULL
 	  CONSTRAINT suite_arch_suite_fkey
@@ -170,14 +181,16 @@ $conn->do("CREATE TABLE suite_architectures (
 	    REFERENCES architectures(architecture),
 	CONSTRAINT suite_arch_pkey
 	  PRIMARY KEY (suitenick, architecture)
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE suite_architectures IS 'Archive components in use by suite'");
-$conn->do("COMMENT ON COLUMN suite_architectures.suitenick IS 'Suite name (nickname)'");
-$conn->do("COMMENT ON COLUMN suite_architectures.architecture IS 'Architecture name'");
+    $conn->do("COMMENT ON TABLE suite_architectures IS 'Archive components in use by suite'");
+    $conn->do("COMMENT ON COLUMN suite_architectures.suitenick IS 'Suite name (nickname)'");
+    $conn->do("COMMENT ON COLUMN suite_architectures.architecture IS 'Architecture name'");
 
 
-$conn->do("CREATE TABLE suite_components (
+    $conn->do(<<'EOS');
+CREATE TABLE suite_components (
 	suitenick text
 	  NOT NULL
 	  CONSTRAINT suite_components_suite_fkey
@@ -189,14 +202,16 @@ $conn->do("CREATE TABLE suite_components (
 	    REFERENCES components(component),
 	CONSTRAINT suite_components_pkey
 	  PRIMARY KEY (suitenick, component)
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE suite_components IS 'Archive components in use by suite'");
-$conn->do("COMMENT ON COLUMN suite_components.suitenick IS 'Suite name (nickname)'");
-$conn->do("COMMENT ON COLUMN suite_components.component IS 'Component name'");
+    $conn->do("COMMENT ON TABLE suite_components IS 'Archive components in use by suite'");
+    $conn->do("COMMENT ON COLUMN suite_components.suitenick IS 'Suite name (nickname)'");
+    $conn->do("COMMENT ON COLUMN suite_components.component IS 'Component name'");
 
 
-$conn->do("CREATE TABLE suite_source_detail (
+    $conn->do(<<'EOS');
+CREATE TABLE suite_source_detail (
 	suitenick text
 	  NOT NULL,
 	component text
@@ -210,16 +225,18 @@ $conn->do("CREATE TABLE suite_source_detail (
 	CONSTRAINT suite_source_detail_suitecomponent_fkey
           FOREIGN KEY (suitenick, component)
 	  REFERENCES suite_components (suitenick, component)
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE suite_source_detail IS 'List of architectures in each suite'");
-$conn->do("COMMENT ON COLUMN suite_source_detail.suitenick IS 'Suite name (nickname)'");
-$conn->do("COMMENT ON COLUMN suite_source_detail.component IS 'Component name'");
-$conn->do("COMMENT ON COLUMN suite_source_detail.build IS 'Fetch sources from this suite/component?'");
-$conn->do("COMMENT ON COLUMN suite_source_detail.sha256 IS 'SHA256 of latest Sources merge'");
+    $conn->do("COMMENT ON TABLE suite_source_detail IS 'List of architectures in each suite'");
+    $conn->do("COMMENT ON COLUMN suite_source_detail.suitenick IS 'Suite name (nickname)'");
+    $conn->do("COMMENT ON COLUMN suite_source_detail.component IS 'Component name'");
+    $conn->do("COMMENT ON COLUMN suite_source_detail.build IS 'Fetch sources from this suite/component?'");
+    $conn->do("COMMENT ON COLUMN suite_source_detail.sha256 IS 'SHA256 of latest Sources merge'");
 
 
-$conn->do("CREATE TABLE suite_binary_detail (
+    $conn->do(<<'EOS');
+CREATE TABLE suite_binary_detail (
 	suitenick text
 	  NOT NULL,
 	architecture text
@@ -236,56 +253,66 @@ $conn->do("CREATE TABLE suite_binary_detail (
 	  REFERENCES suite_architectures (suitenick, architecture),
 	CONSTRAINT suite_binary_detail_component_fkey FOREIGN KEY (suitenick, component)
 	  REFERENCES suite_components (suitenick, component)
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE suite_binary_detail IS 'List of architectures in each suite'");
-$conn->do("COMMENT ON COLUMN suite_binary_detail.suitenick IS 'Suite name (nickname)'");
-$conn->do("COMMENT ON COLUMN suite_binary_detail.architecture IS 'Architecture name'");
-$conn->do("COMMENT ON COLUMN suite_binary_detail.component IS 'Component name'");
-$conn->do("COMMENT ON COLUMN suite_binary_detail.build IS 'Build packages from this suite/architecture/component?'");
-$conn->do("COMMENT ON COLUMN suite_binary_detail.sha256 IS 'SHA256 of latest Packages merge'");
+    $conn->do("COMMENT ON TABLE suite_binary_detail IS 'List of architectures in each suite'");
+    $conn->do("COMMENT ON COLUMN suite_binary_detail.suitenick IS 'Suite name (nickname)'");
+    $conn->do("COMMENT ON COLUMN suite_binary_detail.architecture IS 'Architecture name'");
+    $conn->do("COMMENT ON COLUMN suite_binary_detail.component IS 'Component name'");
+    $conn->do("COMMENT ON COLUMN suite_binary_detail.build IS 'Build packages from this suite/architecture/component?'");
+    $conn->do("COMMENT ON COLUMN suite_binary_detail.sha256 IS 'SHA256 of latest Packages merge'");
 
 
-$conn->do("CREATE TABLE package_types (
+    $conn->do(<<'EOS');
+CREATE TABLE package_types (
 	type text
 	  CONSTRAINT pkg_tpe_pkey PRIMARY KEY
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE package_types IS 'Valid types for binary packages'");
-$conn->do("COMMENT ON COLUMN package_types.type IS 'Type name'");
+    $conn->do("COMMENT ON TABLE package_types IS 'Valid types for binary packages'");
+    $conn->do("COMMENT ON COLUMN package_types.type IS 'Type name'");
 
 
-$conn->do("CREATE TABLE binary_architectures (
+    $conn->do(<<'EOS');
+CREATE TABLE binary_architectures (
 	architecture text
 	  CONSTRAINT binary_arch_pkey PRIMARY KEY
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE binary_architectures IS 'Possible values for the Architecture field in binary packages'");
-$conn->do("COMMENT ON COLUMN binary_architectures.architecture IS 'Architecture name'");
+    $conn->do("COMMENT ON TABLE binary_architectures IS 'Possible values for the Architecture field in binary packages'");
+    $conn->do("COMMENT ON COLUMN binary_architectures.architecture IS 'Architecture name'");
 
 
-$conn->do("CREATE TABLE package_priorities (
+    $conn->do(<<'EOS');
+CREATE TABLE package_priorities (
 	priority text
 	  CONSTRAINT pkg_priority_pkey PRIMARY KEY,
 	priority_value integer
 	  DEFAULT 0
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE package_priorities IS 'Valid package priorities'");
-$conn->do("COMMENT ON COLUMN package_priorities.priority IS 'Priority name'");
-$conn->do("COMMENT ON COLUMN package_priorities.priority_value IS 'Integer value for sorting priorities'");
+    $conn->do("COMMENT ON TABLE package_priorities IS 'Valid package priorities'");
+    $conn->do("COMMENT ON COLUMN package_priorities.priority IS 'Priority name'");
+    $conn->do("COMMENT ON COLUMN package_priorities.priority_value IS 'Integer value for sorting priorities'");
 
 
-$conn->do("CREATE TABLE package_sections (
+    $conn->do(<<'EOS');
+CREATE TABLE package_sections (
         section text
           CONSTRAINT pkg_sect_pkey PRIMARY KEY
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE package_sections IS 'Valid package sections'");
-$conn->do("COMMENT ON COLUMN package_sections.section IS 'Section name'");
+    $conn->do("COMMENT ON TABLE package_sections IS 'Valid package sections'");
+    $conn->do("COMMENT ON COLUMN package_sections.section IS 'Section name'");
 
 
-$conn->do("CREATE TABLE sources (
+    $conn->do(<<'EOS');
+CREATE TABLE sources (
 	source_package text
 	  NOT NULL,
 	source_version debversion
@@ -306,35 +333,39 @@ $conn->do("CREATE TABLE sources (
 	build_confl_indep text,
 	stdver text,
 	CONSTRAINT sources_pkey PRIMARY KEY (source_package, source_version)
-)");
+)
+EOS
 
-$conn->do("CREATE INDEX sources_pkg_idx ON sources (source_package)");
+    $conn->do("CREATE INDEX sources_pkg_idx ON sources (source_package)");
 
-$conn->do("COMMENT ON TABLE sources IS 'Source packages common to all architectures (from Sources)'");
-$conn->do("COMMENT ON COLUMN sources.source_package IS 'Package name'");
-$conn->do("COMMENT ON COLUMN sources.source_version IS 'Package version number'");
-$conn->do("COMMENT ON COLUMN sources.component IS 'Archive component'");
-$conn->do("COMMENT ON COLUMN sources.section IS 'Package section'");
-$conn->do("COMMENT ON COLUMN sources.priority IS 'Package priority'");
-$conn->do("COMMENT ON COLUMN sources.maintainer IS 'Package maintainer'");
-$conn->do("COMMENT ON COLUMN sources.maintainer IS 'Package uploaders'");
-$conn->do("COMMENT ON COLUMN sources.build_dep IS 'Package build dependencies (architecture dependent)'");
-$conn->do("COMMENT ON COLUMN sources.build_dep_indep IS 'Package build dependencies (architecture independent)'");
-$conn->do("COMMENT ON COLUMN sources.build_confl IS 'Package build conflicts (architecture dependent)'");
-$conn->do("COMMENT ON COLUMN sources.build_confl_indep IS 'Package build conflicts (architecture independent)'");
-$conn->do("COMMENT ON COLUMN sources.stdver IS 'Debian Standards (policy) version number'");
+    $conn->do("COMMENT ON TABLE sources IS 'Source packages common to all architectures (from Sources)'");
+    $conn->do("COMMENT ON COLUMN sources.source_package IS 'Package name'");
+    $conn->do("COMMENT ON COLUMN sources.source_version IS 'Package version number'");
+    $conn->do("COMMENT ON COLUMN sources.component IS 'Archive component'");
+    $conn->do("COMMENT ON COLUMN sources.section IS 'Package section'");
+    $conn->do("COMMENT ON COLUMN sources.priority IS 'Package priority'");
+    $conn->do("COMMENT ON COLUMN sources.maintainer IS 'Package maintainer'");
+    $conn->do("COMMENT ON COLUMN sources.maintainer IS 'Package uploaders'");
+    $conn->do("COMMENT ON COLUMN sources.build_dep IS 'Package build dependencies (architecture dependent)'");
+    $conn->do("COMMENT ON COLUMN sources.build_dep_indep IS 'Package build dependencies (architecture independent)'");
+    $conn->do("COMMENT ON COLUMN sources.build_confl IS 'Package build conflicts (architecture dependent)'");
+    $conn->do("COMMENT ON COLUMN sources.build_confl_indep IS 'Package build conflicts (architecture independent)'");
+    $conn->do("COMMENT ON COLUMN sources.stdver IS 'Debian Standards (policy) version number'");
 
 
-$conn->do("CREATE TABLE source_architectures (
+    $conn->do(<<'EOS');
+CREATE TABLE source_architectures (
 	architecture text
 	  CONSTRAINT source_arch_pkey PRIMARY KEY
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE source_architectures IS 'Possible values for the Architecture field in sources'");
-$conn->do("COMMENT ON COLUMN source_architectures.architecture IS 'Architecture name'");
+    $conn->do("COMMENT ON TABLE source_architectures IS 'Possible values for the Architecture field in sources'");
+    $conn->do("COMMENT ON COLUMN source_architectures.architecture IS 'Architecture name'");
 
 
-$conn->do("CREATE TABLE source_package_architectures (
+    $conn->do(<<'EOS');
+CREATE TABLE source_package_architectures (
        	source_package text
 	  NOT NULL,
 	source_version debversion
@@ -347,16 +378,18 @@ $conn->do("CREATE TABLE source_package_architectures (
 	CONSTRAINT source_arch_source_fkey FOREIGN KEY (source_package, source_version)
 	  REFERENCES sources (source_package, source_version)
 	  ON DELETE CASCADE
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE source_package_architectures IS 'Source package architectures (from Sources)'");
-$conn->do("COMMENT ON COLUMN source_package_architectures.source_package IS 'Package name'");
-$conn->do("COMMENT ON COLUMN source_package_architectures.source_version IS 'Package version number'");
-$conn->do("COMMENT ON COLUMN source_package_architectures.architecture IS 'Architecture name'");
+    $conn->do("COMMENT ON TABLE source_package_architectures IS 'Source package architectures (from Sources)'");
+    $conn->do("COMMENT ON COLUMN source_package_architectures.source_package IS 'Package name'");
+    $conn->do("COMMENT ON COLUMN source_package_architectures.source_version IS 'Package version number'");
+    $conn->do("COMMENT ON COLUMN source_package_architectures.architecture IS 'Architecture name'");
 
 
-$conn->do("CREATE TABLE binaries (
-	-- PostgreSQL won't allow \"binary\" as column name
+    $conn->do(<<'EOS');
+CREATE TABLE binaries (
+	-- PostgreSQL will not allow "binary" as column name
 	binary_package text NOT NULL,
 	binary_version debversion NOT NULL,
 	architecture text
@@ -391,33 +424,35 @@ $conn->do("CREATE TABLE binaries (
 	CONSTRAINT binaries_source_fkey FOREIGN KEY (source_package, source_version)
 	  REFERENCES sources (source_package, source_version)
 	  ON DELETE CASCADE
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE binaries IS 'Binary packages specific to single architectures (from Packages)'");
-$conn->do("COMMENT ON COLUMN binaries.binary_package IS 'Binary package name'");
-$conn->do("COMMENT ON COLUMN binaries.binary_version IS 'Binary package version number'");
-$conn->do("COMMENT ON COLUMN binaries.architecture IS 'Architecture name'");
-$conn->do("COMMENT ON COLUMN binaries.source_package IS 'Source package name'");
-$conn->do("COMMENT ON COLUMN binaries.source_version IS 'Source package version number'");
-$conn->do("COMMENT ON COLUMN binaries.section IS 'Package section'");
-$conn->do("COMMENT ON COLUMN binaries.type IS 'Package type (e.g. deb, udeb)'");
-$conn->do("COMMENT ON COLUMN binaries.priority IS 'Package priority'");
-$conn->do("COMMENT ON COLUMN binaries.installed_size IS 'Size of installed package (KiB, rounded up)'");
-$conn->do("COMMENT ON COLUMN binaries.multi_arch IS 'Multiple architecture co-installation behaviour'");
-$conn->do("COMMENT ON COLUMN binaries.essential IS 'Package is essential'");
-$conn->do("COMMENT ON COLUMN binaries.build_essential IS 'Package is essential for building'");
-$conn->do("COMMENT ON COLUMN binaries.pre_depends IS 'Package pre-dependencies'");
-$conn->do("COMMENT ON COLUMN binaries.depends IS 'Package dependencies'");
-$conn->do("COMMENT ON COLUMN binaries.recommends IS 'Package recommendations'");
-$conn->do("COMMENT ON COLUMN binaries.suggests IS 'Package suggestions'");
-$conn->do("COMMENT ON COLUMN binaries.conflicts IS 'Package conflicts with other packages'");
-$conn->do("COMMENT ON COLUMN binaries.breaks IS 'Package breaks other packages'");
-$conn->do("COMMENT ON COLUMN binaries.enhances IS 'Package enhances other packages'");
-$conn->do("COMMENT ON COLUMN binaries.replaces IS 'Package replaces other packages'");
-$conn->do("COMMENT ON COLUMN binaries.provides IS 'Package provides other packages'");
+    $conn->do("COMMENT ON TABLE binaries IS 'Binary packages specific to single architectures (from Packages)'");
+    $conn->do("COMMENT ON COLUMN binaries.binary_package IS 'Binary package name'");
+    $conn->do("COMMENT ON COLUMN binaries.binary_version IS 'Binary package version number'");
+    $conn->do("COMMENT ON COLUMN binaries.architecture IS 'Architecture name'");
+    $conn->do("COMMENT ON COLUMN binaries.source_package IS 'Source package name'");
+    $conn->do("COMMENT ON COLUMN binaries.source_version IS 'Source package version number'");
+    $conn->do("COMMENT ON COLUMN binaries.section IS 'Package section'");
+    $conn->do("COMMENT ON COLUMN binaries.type IS 'Package type (e.g. deb, udeb)'");
+    $conn->do("COMMENT ON COLUMN binaries.priority IS 'Package priority'");
+    $conn->do("COMMENT ON COLUMN binaries.installed_size IS 'Size of installed package (KiB, rounded up)'");
+    $conn->do("COMMENT ON COLUMN binaries.multi_arch IS 'Multiple architecture co-installation behaviour'");
+    $conn->do("COMMENT ON COLUMN binaries.essential IS 'Package is essential'");
+    $conn->do("COMMENT ON COLUMN binaries.build_essential IS 'Package is essential for building'");
+    $conn->do("COMMENT ON COLUMN binaries.pre_depends IS 'Package pre-dependencies'");
+    $conn->do("COMMENT ON COLUMN binaries.depends IS 'Package dependencies'");
+    $conn->do("COMMENT ON COLUMN binaries.recommends IS 'Package recommendations'");
+    $conn->do("COMMENT ON COLUMN binaries.suggests IS 'Package suggestions'");
+    $conn->do("COMMENT ON COLUMN binaries.conflicts IS 'Package conflicts with other packages'");
+    $conn->do("COMMENT ON COLUMN binaries.breaks IS 'Package breaks other packages'");
+    $conn->do("COMMENT ON COLUMN binaries.enhances IS 'Package enhances other packages'");
+    $conn->do("COMMENT ON COLUMN binaries.replaces IS 'Package replaces other packages'");
+    $conn->do("COMMENT ON COLUMN binaries.provides IS 'Package provides other packages'");
 
 
-$conn->do("CREATE TABLE suite_sources (
+    $conn->do(<<'EOS');
+CREATE TABLE suite_sources (
 	source_package text
 	  NOT NULL,
 	source_version debversion
@@ -436,18 +471,20 @@ $conn->do("CREATE TABLE suite_sources (
 	CONSTRAINT suite_sources_suitecomp_fkey FOREIGN KEY (suite, component)
 	  REFERENCES suite_components (suitenick, component)
 	  ON DELETE CASCADE
-)");
+)
+EOS
 
-$conn->do("CREATE INDEX suite_sources_src_ver_idx ON suite_sources (source_package, source_version)");
+    $conn->do("CREATE INDEX suite_sources_src_ver_idx ON suite_sources (source_package, source_version)");
 
-$conn->do("COMMENT ON TABLE suite_sources IS 'Source packages contained within a suite'");
-$conn->do("COMMENT ON COLUMN suite_sources.source_package IS 'Source package name'");
-$conn->do("COMMENT ON COLUMN suite_sources.source_version IS 'Source package version number'");
-$conn->do("COMMENT ON COLUMN suite_sources.suite IS 'Suite name'");
-$conn->do("COMMENT ON COLUMN suite_sources.component IS 'Suite component'");
+    $conn->do("COMMENT ON TABLE suite_sources IS 'Source packages contained within a suite'");
+    $conn->do("COMMENT ON COLUMN suite_sources.source_package IS 'Source package name'");
+    $conn->do("COMMENT ON COLUMN suite_sources.source_version IS 'Source package version number'");
+    $conn->do("COMMENT ON COLUMN suite_sources.suite IS 'Suite name'");
+    $conn->do("COMMENT ON COLUMN suite_sources.component IS 'Suite component'");
 
 
-$conn->do("CREATE TABLE suite_binaries (
+    $conn->do(<<'EOS');
+CREATE TABLE suite_binaries (
 	binary_package text
 	  NOT NULL,
 	binary_version debversion
@@ -476,18 +513,20 @@ $conn->do("CREATE TABLE suite_binaries (
 	CONSTRAINT suite_bin_suite_arch_fkey FOREIGN KEY (suite, architecture)
 	  REFERENCES suite_architectures (suitenick, architecture)
 	  ON DELETE CASCADE
-)");
+)
+EOS
 
-$conn->do("CREATE INDEX suite_binaries_pkg_ver_idx ON suite_binaries (binary_package, binary_version)");
+    $conn->do("CREATE INDEX suite_binaries_pkg_ver_idx ON suite_binaries (binary_package, binary_version)");
 
-$conn->do("COMMENT ON TABLE suite_binaries IS 'Binary packages contained within a suite'");
-$conn->do("COMMENT ON COLUMN suite_binaries.binary_package IS 'Binary package name'");
-$conn->do("COMMENT ON COLUMN suite_binaries.binary_version IS 'Binary package version number'");
-$conn->do("COMMENT ON COLUMN suite_binaries.architecture IS 'Architecture name'");
-$conn->do("COMMENT ON COLUMN suite_binaries.suite IS 'Suite name'");
+    $conn->do("COMMENT ON TABLE suite_binaries IS 'Binary packages contained within a suite'");
+    $conn->do("COMMENT ON COLUMN suite_binaries.binary_package IS 'Binary package name'");
+    $conn->do("COMMENT ON COLUMN suite_binaries.binary_version IS 'Binary package version number'");
+    $conn->do("COMMENT ON COLUMN suite_binaries.architecture IS 'Architecture name'");
+    $conn->do("COMMENT ON COLUMN suite_binaries.suite IS 'Suite name'");
     $conn->do("COMMENT ON COLUMN suite_binaries.component IS 'Suite component'");
 
-$conn->do("CREATE TABLE builders (
+    $conn->do(<<'EOS');
+CREATE TABLE builders (
 	builder text
 	  CONSTRAINT builder_pkey PRIMARY KEY,
 	arch text
@@ -495,22 +534,26 @@ $conn->do("CREATE TABLE builders (
 	  NOT NULL,
 	address text
 	  NOT NULL
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE builders IS 'buildd usernames (database users from _userinfo in old MLDBM db format)'");
-$conn->do("COMMENT ON COLUMN builders.builder IS 'Username'");
-$conn->do("COMMENT ON COLUMN builders.arch IS 'Buildd architecture'");
-$conn->do("COMMENT ON COLUMN builders.address IS 'Remote e-mail address of the buildd user'");
+    $conn->do("COMMENT ON TABLE builders IS 'buildd usernames (database users from _userinfo in old MLDBM db format)'");
+    $conn->do("COMMENT ON COLUMN builders.builder IS 'Username'");
+    $conn->do("COMMENT ON COLUMN builders.arch IS 'Buildd architecture'");
+    $conn->do("COMMENT ON COLUMN builders.address IS 'Remote e-mail address of the buildd user'");
 
-$conn->do("CREATE TABLE package_states (
+    $conn->do(<<'EOS');
+CREATE TABLE package_states (
 	name text
 	  CONSTRAINT state_pkey PRIMARY KEY
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE package_states IS 'Package states'");
-$conn->do("COMMENT ON COLUMN package_states.name IS 'State name'");
+    $conn->do("COMMENT ON TABLE package_states IS 'Package states'");
+    $conn->do("COMMENT ON COLUMN package_states.name IS 'State name'");
 
-$conn->do("CREATE TABLE build_status (
+    $conn->do(<<'EOS');
+CREATE TABLE build_status (
 	source text
 	  NOT NULL,
 	source_version debversion
@@ -544,22 +587,24 @@ $conn->do("CREATE TABLE build_status (
 	CONSTRAINT suite_bin_suite_arch_fkey FOREIGN KEY (suite, arch)
 	  REFERENCES suite_arches (suite, arch)
 	  ON DELETE CASCADE
-)");
+)
+EOS
 
-$conn->do("CREATE INDEX build_status_source ON build_status (source)");
+    $conn->do("CREATE INDEX build_status_source ON build_status (source)");
 
-$conn->do("COMMENT ON TABLE build_status IS 'Build status for each package'");
-$conn->do("COMMENT ON COLUMN build_status.source IS 'Source package name'");
-$conn->do("COMMENT ON COLUMN build_status.source_version IS 'Source package version number'");
-$conn->do("COMMENT ON COLUMN build_status.arch IS 'Architecture name'");
-$conn->do("COMMENT ON COLUMN build_status.suite IS 'Suite name'");
-$conn->do("COMMENT ON COLUMN build_status.bin_nmu IS 'Scheduled binary NMU version, if any'");
-$conn->do("COMMENT ON COLUMN build_status.user_name IS 'User making this change (username)'");
-$conn->do("COMMENT ON COLUMN build_status.builder IS 'Build dæmon making this change (username)'");
-$conn->do("COMMENT ON COLUMN build_status.status IS 'Status name'");
-$conn->do("COMMENT ON COLUMN build_status.ctime IS 'Stage change time'");
+    $conn->do("COMMENT ON TABLE build_status IS 'Build status for each package'");
+    $conn->do("COMMENT ON COLUMN build_status.source IS 'Source package name'");
+    $conn->do("COMMENT ON COLUMN build_status.source_version IS 'Source package version number'");
+    $conn->do("COMMENT ON COLUMN build_status.arch IS 'Architecture name'");
+    $conn->do("COMMENT ON COLUMN build_status.suite IS 'Suite name'");
+    $conn->do("COMMENT ON COLUMN build_status.bin_nmu IS 'Scheduled binary NMU version, if any'");
+    $conn->do("COMMENT ON COLUMN build_status.user_name IS 'User making this change (username)'");
+    $conn->do("COMMENT ON COLUMN build_status.builder IS 'Build dæmon making this change (username)'");
+    $conn->do("COMMENT ON COLUMN build_status.status IS 'Status name'");
+    $conn->do("COMMENT ON COLUMN build_status.ctime IS 'Stage change time'");
 
-$conn->do("CREATE TABLE build_status_history (
+    $conn->do(<<'EOS');
+CREATE TABLE build_status_history (
 	source text
 	  NOT NULL,
 	source_version debversion
@@ -584,23 +629,25 @@ $conn->do("CREATE TABLE build_status_history (
 	log bytea,
 	ctime timestamp with time zone
 	  NOT NULL DEFAULT CURRENT_TIMESTAMP
-)");
+)
+EOS
 
-$conn->do("CREATE INDEX build_status_history_source ON build_status_history (source)");
-$conn->do("CREATE INDEX build_status_history_ctime ON build_status_history (ctime)");
+    $conn->do("CREATE INDEX build_status_history_source ON build_status_history (source)");
+    $conn->do("CREATE INDEX build_status_history_ctime ON build_status_history (ctime)");
 
-$conn->do("COMMENT ON TABLE build_status_history IS 'Build status history for each package'");
-$conn->do("COMMENT ON COLUMN build_status_history.source IS 'Source package name'");
-$conn->do("COMMENT ON COLUMN build_status_history.source_version IS 'Source package version number'");
-$conn->do("COMMENT ON COLUMN build_status_history.arch IS 'Architecture name'");
-$conn->do("COMMENT ON COLUMN build_status_history.suite IS 'Suite name'");
-$conn->do("COMMENT ON COLUMN build_status_history.bin_nmu IS 'Scheduled binary NMU version, if any'");
-$conn->do("COMMENT ON COLUMN build_status_history.user_name IS 'User making this change (username)'");
-$conn->do("COMMENT ON COLUMN build_status_history.builder IS 'Build dæmon making this change (username)'");
-$conn->do("COMMENT ON COLUMN build_status_history.status IS 'Status name'");
-$conn->do("COMMENT ON COLUMN build_status_history.ctime IS 'Stage change time'");
+    $conn->do("COMMENT ON TABLE build_status_history IS 'Build status history for each package'");
+    $conn->do("COMMENT ON COLUMN build_status_history.source IS 'Source package name'");
+    $conn->do("COMMENT ON COLUMN build_status_history.source_version IS 'Source package version number'");
+    $conn->do("COMMENT ON COLUMN build_status_history.arch IS 'Architecture name'");
+    $conn->do("COMMENT ON COLUMN build_status_history.suite IS 'Suite name'");
+    $conn->do("COMMENT ON COLUMN build_status_history.bin_nmu IS 'Scheduled binary NMU version, if any'");
+    $conn->do("COMMENT ON COLUMN build_status_history.user_name IS 'User making this change (username)'");
+    $conn->do("COMMENT ON COLUMN build_status_history.builder IS 'Build dæmon making this change (username)'");
+    $conn->do("COMMENT ON COLUMN build_status_history.status IS 'Status name'");
+    $conn->do("COMMENT ON COLUMN build_status_history.ctime IS 'Stage change time'");
 
-$conn->do("CREATE TABLE build_status_properties (
+    $conn->do(<<'EOS');
+CREATE TABLE build_status_properties (
 	source text NOT NULL,
 	arch text NOT NULL,
 	source suite NOT NULL,
@@ -612,29 +659,33 @@ $conn->do("CREATE TABLE build_status_properties (
 	  ON DELETE CASCADE,
 	CONSTRAINT build_status_properties_unique
 	  UNIQUE (source, arch, prop_name)
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE build_status_properties IS 'Additional package-specific properties (e.g. For PermBuildPri/BuildPri/Binary-NMU-(Version|ChangeLog)/Notes)'");
-$conn->do("COMMENT ON COLUMN build_status_properties.source IS 'Source package name'");
-$conn->do("COMMENT ON COLUMN build_status_properties.arch IS 'Architecture name'");
-$conn->do("COMMENT ON COLUMN build_status_properties.suite IS 'Suite name'");
-$conn->do("COMMENT ON COLUMN build_status_properties.prop_name IS 'Property name'");
-$conn->do("COMMENT ON COLUMN build_status_properties.prop_value IS 'Property value'");
+    $conn->do("COMMENT ON TABLE build_status_properties IS 'Additional package-specific properties (e.g. For PermBuildPri/BuildPri/Binary-NMU-(Version|ChangeLog)/Notes)'");
+    $conn->do("COMMENT ON COLUMN build_status_properties.source IS 'Source package name'");
+    $conn->do("COMMENT ON COLUMN build_status_properties.arch IS 'Architecture name'");
+    $conn->do("COMMENT ON COLUMN build_status_properties.suite IS 'Suite name'");
+    $conn->do("COMMENT ON COLUMN build_status_properties.prop_name IS 'Property name'");
+    $conn->do("COMMENT ON COLUMN build_status_properties.prop_value IS 'Property value'");
 
--- Make this a table because in the future we may have more fine-grained
--- result states.
-$conn->do("CREATE TABLE build_log_result (
+# Make this a table because in the future we may have more
+# fine-grained result states.
+    $conn->do(<<'EOS');
+CREATE TABLE build_log_result (
 	result text
 	  CONSTRAINT build_log_result_pkey PRIMARY KEY,
 	is_success boolean
 	  DEFAULT 'f'
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE build_log_result IS 'Possible results states of a build log'");
-$conn->do("COMMENT ON COLUMN build_log_result.result IS 'Meaningful and short name for the result'");
-$conn->do("COMMENT ON COLUMN build_log_result.is_success IS 'Whether the result of the build is successful'");
+    $conn->do("COMMENT ON TABLE build_log_result IS 'Possible results states of a build log'");
+    $conn->do("COMMENT ON COLUMN build_log_result.result IS 'Meaningful and short name for the result'");
+    $conn->do("COMMENT ON COLUMN build_log_result.is_success IS 'Whether the result of the build is successful'");
 
-$conn->do("CREATE TABLE build_logs (
+    $conn->do(<<'EOS');
+CREATE TABLE build_logs (
 	source text
 	  NOT NULL,
 	source_version debversion
@@ -654,49 +705,56 @@ $conn->do("CREATE TABLE build_logs (
 	used_space integer,
 	path text
 	  CONSTRAINT build_logs_pkey PRIMARY KEY
-)");
-$conn->do("CREATE INDEX build_logs_source_idx ON build_logs (source)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE build_logs IS 'Available build logs'");
-$conn->do("COMMENT ON COLUMN build_logs.source IS 'Source package name'");
-$conn->do("COMMENT ON COLUMN build_logs.source_version IS 'Source package version'");
-$conn->do("COMMENT ON COLUMN build_logs.arch IS 'Architecture name'");
-$conn->do("COMMENT ON COLUMN build_logs.suite IS 'Suite name'");
-$conn->do("COMMENT ON COLUMN build_logs.date IS 'Date of the log'");
-$conn->do("COMMENT ON COLUMN build_logs.result IS 'Result state'");
-$conn->do("COMMENT ON COLUMN build_logs.build_time IS 'Time needed by the build'");
-$conn->do("COMMENT ON COLUMN build_logs.used_space IS 'Space needed by the build'");
-$conn->do("COMMENT ON COLUMN build_logs.path IS 'Relative path to the log file'");
+    $conn->do("CREATE INDEX build_logs_source_idx ON build_logs (source)");
 
-$conn->do("CREATE TABLE log (
+    $conn->do("COMMENT ON TABLE build_logs IS 'Available build logs'");
+    $conn->do("COMMENT ON COLUMN build_logs.source IS 'Source package name'");
+    $conn->do("COMMENT ON COLUMN build_logs.source_version IS 'Source package version'");
+    $conn->do("COMMENT ON COLUMN build_logs.arch IS 'Architecture name'");
+    $conn->do("COMMENT ON COLUMN build_logs.suite IS 'Suite name'");
+    $conn->do("COMMENT ON COLUMN build_logs.date IS 'Date of the log'");
+    $conn->do("COMMENT ON COLUMN build_logs.result IS 'Result state'");
+    $conn->do("COMMENT ON COLUMN build_logs.build_time IS 'Time needed by the build'");
+    $conn->do("COMMENT ON COLUMN build_logs.used_space IS 'Space needed by the build'");
+    $conn->do("COMMENT ON COLUMN build_logs.path IS 'Relative path to the log file'");
+
+    $conn->do(<<'EOS');
+CREATE TABLE log (
 	time timestamp with time zone
 	  NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	username text NOT NULL DEFAULT CURRENT_USER,
 	message text NOT NULL
-)");
+)
+EOS
 
-$conn->do("CREATE INDEX log_idx ON log (time)");
+    $conn->do("CREATE INDEX log_idx ON log (time)");
 
-$conn->do("COMMENT ON TABLE log IS 'Log messages'");
-$conn->do("COMMENT ON COLUMN log.time IS 'Log entry time'");
-$conn->do("COMMENT ON COLUMN log.username IS 'Log user name'");
-$conn->do("COMMENT ON COLUMN log.message IS 'Log entry message'");
+    $conn->do("COMMENT ON TABLE log IS 'Log messages'");
+    $conn->do("COMMENT ON COLUMN log.time IS 'Log entry time'");
+    $conn->do("COMMENT ON COLUMN log.username IS 'Log user name'");
+    $conn->do("COMMENT ON COLUMN log.message IS 'Log entry message'");
 
-$conn->do("CREATE TABLE people (
+    $conn->do(<<'EOS');
+CREATE TABLE people (
 	login text
 	  CONSTRAINT people_pkey PRIMARY KEY,
 	full_name text
 	  NOT NULL,
 	address text
 	  NOT NULL
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE people IS 'People wanna-build should know about'");
-$conn->do("COMMENT ON COLUMN people.login IS 'Debian login'");
-$conn->do("COMMENT ON COLUMN people.full_name IS 'Full name'");
-$conn->do("COMMENT ON COLUMN people.address IS 'E-mail address'");
+    $conn->do("COMMENT ON TABLE people IS 'People wanna-build should know about'");
+    $conn->do("COMMENT ON COLUMN people.login IS 'Debian login'");
+    $conn->do("COMMENT ON COLUMN people.full_name IS 'Full name'");
+    $conn->do("COMMENT ON COLUMN people.address IS 'E-mail address'");
 
-$conn->do("CREATE TABLE buildd_admins (
+    $conn->do(<<'EOS');
+CREATE TABLE buildd_admins (
 	builder text
 	  CONSTRAINT buildd_admin_builder_fkey REFERENCES builders(builder)
 	  ON DELETE CASCADE
@@ -708,15 +766,17 @@ $conn->do("CREATE TABLE buildd_admins (
 	backup boolean
 	  DEFAULT 'f',
 	UNIQUE (builder, admin)
-)");
+)
+EOS
 
-$conn->do("COMMENT ON TABLE buildd_admins IS 'Admins for each buildd'");
-$conn->do("COMMENT ON COLUMN buildd_admins.builder IS 'The buildd'");
-$conn->do("COMMENT ON COLUMN buildd_admins.admin IS 'The admin login'");
-$conn->do("COMMENT ON COLUMN buildd_admins.backup IS 'Whether this is only a backup admin'");
+    $conn->do("COMMENT ON TABLE buildd_admins IS 'Admins for each buildd'");
+    $conn->do("COMMENT ON COLUMN buildd_admins.builder IS 'The buildd'");
+    $conn->do("COMMENT ON COLUMN buildd_admins.admin IS 'The admin login'");
+    $conn->do("COMMENT ON COLUMN buildd_admins.backup IS 'Whether this is only a backup admin'");
 
 
-$conn->do("CREATE OR REPLACE FUNCTION merge_release(nsuitenick text,
+    $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION merge_release(nsuitenick text,
                     	   		 nsuite text,
 			      		 ncodename text,
 	  		      		 nversion debversion,
@@ -745,9 +805,11 @@ BEGIN
     END LOOP;
 END;
 $$
-LANGUAGE plpgsql");
+LANGUAGE plpgsql
+EOS
 
-$conn->do("CREATE OR REPLACE FUNCTION merge_architecture(narchitecture text)
+    $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION merge_architecture(narchitecture text)
 RETURNS VOID AS
 $$
 BEGIN
@@ -769,9 +831,11 @@ BEGIN
     END LOOP;
 END;
 $$
-LANGUAGE plpgsql");
+LANGUAGE plpgsql
+EOS
 
-$conn->do("CREATE OR REPLACE FUNCTION merge_component(ncomponent text)
+    $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION merge_component(ncomponent text)
 RETURNS VOID AS
 $$
 BEGIN
@@ -793,10 +857,12 @@ BEGIN
     END LOOP;
 END;
 $$
-LANGUAGE plpgsql");
+LANGUAGE plpgsql
+EOS
 
 
-$conn->do("CREATE OR REPLACE FUNCTION merge_suite_architecture(nsuitenick text,
+    $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION merge_suite_architecture(nsuitenick text,
                                                     narchitecture text)
 RETURNS VOID AS
 $$
@@ -821,10 +887,12 @@ BEGIN
     END LOOP;
 END;
 $$
-LANGUAGE plpgsql");
+LANGUAGE plpgsql
+EOS
 
 
-$conn->do("CREATE OR REPLACE FUNCTION merge_suite_component(nsuitenick text,
+    $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION merge_suite_component(nsuitenick text,
                                                  ncomponent text)
 RETURNS VOID AS
 $$
@@ -849,10 +917,12 @@ BEGIN
     END LOOP;
 END;
 $$
-LANGUAGE plpgsql");
+LANGUAGE plpgsql
+EOS
 
 
-$conn->do("CREATE OR REPLACE FUNCTION merge_suite_source_detail(nsuitenick text,
+    $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION merge_suite_source_detail(nsuitenick text,
 					             ncomponent text)
 RETURNS VOID AS
 $$
@@ -877,9 +947,11 @@ BEGIN
     END LOOP;
 END;
 $$
-LANGUAGE plpgsql");
+LANGUAGE plpgsql
+EOS
 
-$conn->do("CREATE OR REPLACE FUNCTION merge_suite_binary_detail(nsuitenick text,
+    $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION merge_suite_binary_detail(nsuitenick text,
                                                      narchitecture text,
 					             ncomponent text)
 RETURNS VOID AS
@@ -907,10 +979,12 @@ BEGIN
     END LOOP;
 END;
 $$
-LANGUAGE plpgsql");
+LANGUAGE plpgsql
+EOS
 
 
-$conn->do("CREATE OR REPLACE FUNCTION merge_package_type(ntype text)
+    $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION merge_package_type(ntype text)
 RETURNS VOID AS
 $$
 BEGIN
@@ -932,10 +1006,12 @@ BEGIN
     END LOOP;
 END;
 $$
-LANGUAGE plpgsql");
+LANGUAGE plpgsql
+EOS
 
 
-$conn->do("CREATE OR REPLACE FUNCTION merge_source_architecture(narchitecture text)
+    $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION merge_source_architecture(narchitecture text)
 RETURNS VOID AS
 $$
 BEGIN
@@ -957,9 +1033,11 @@ BEGIN
     END LOOP;
 END;
 $$
-LANGUAGE plpgsql");
+LANGUAGE plpgsql
+EOS
 
-$conn->do("CREATE OR REPLACE FUNCTION merge_binary_architecture(narchitecture text)
+    $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION merge_binary_architecture(narchitecture text)
 RETURNS VOID AS
 $$
 BEGIN
@@ -981,10 +1059,12 @@ BEGIN
     END LOOP;
 END;
 $$
-LANGUAGE plpgsql");
+LANGUAGE plpgsql
+EOS
 
 
-$conn->do("CREATE OR REPLACE FUNCTION merge_package_priority(npriority text)
+    $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION merge_package_priority(npriority text)
 RETURNS VOID AS
 $$
 BEGIN
@@ -1006,10 +1086,12 @@ BEGIN
     END LOOP;
 END;
 $$
-LANGUAGE plpgsql");
+LANGUAGE plpgsql
+EOS
 
 
-$conn->do("CREATE OR REPLACE FUNCTION merge_package_section(nsection text)
+    $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION merge_package_section(nsection text)
 RETURNS VOID AS
 $$
 BEGIN
@@ -1031,10 +1113,12 @@ BEGIN
     END LOOP;
 END;
 $$
-LANGUAGE plpgsql");
+LANGUAGE plpgsql
+EOS
 
 
-$conn->do("CREATE OR REPLACE FUNCTION merge_sources(nsuite text,
+    $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION merge_sources(nsuite text,
 					 ncomponent text,
 					 nsha256 text)
 RETURNS VOID AS
@@ -1105,10 +1189,12 @@ EXCEPTION WHEN OTHERS THEN
     RAISE;
 END;
 $$
-LANGUAGE plpgsql");
+LANGUAGE plpgsql
+EOS
 
 
-$conn->do("-- Add dummy source package for binaries lacking sources.
+    $conn->do(<<'EOS');
+-- Add dummy source package for binaries lacking sources.
 CREATE OR REPLACE FUNCTION merge_dummy_source(nsource_package text,
                                               nsource_version debversion)
 RETURNS VOID AS
@@ -1134,10 +1220,12 @@ BEGIN
     END LOOP;
 END;
 $$
-LANGUAGE plpgsql");
+LANGUAGE plpgsql
+EOS
 
 
-$conn->do("CREATE OR REPLACE FUNCTION merge_source_architecture(narchitecture text)
+    $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION merge_source_architecture(narchitecture text)
 RETURNS VOID AS
 $$
 BEGIN
@@ -1159,10 +1247,12 @@ BEGIN
     END LOOP;
 END;
 $$
-LANGUAGE plpgsql");
+LANGUAGE plpgsql
+EOS
 
 
-$conn->do("CREATE OR REPLACE FUNCTION merge_binaries(nsuite text,
+    $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION merge_binaries(nsuite text,
 					  ncomponent text,
 					  narchitecture text,
 					  nsha256 text)
@@ -1251,9 +1341,11 @@ EXCEPTION WHEN OTHERS THEN
     RAISE;
 END;
 $$
-LANGUAGE plpgsql");
+LANGUAGE plpgsql
+EOS
 
-$conn->do("CREATE OR REPLACE FUNCTION clean_binaries()
+    $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION clean_binaries()
 RETURNS integer AS
 $$
 DECLARE
@@ -1279,9 +1371,11 @@ BEGIN
      RETURN deleted;
 END;
 $$
-LANGUAGE plpgsql");
+LANGUAGE plpgsql
+EOS
 
-$conn->do("CREATE OR REPLACE FUNCTION clean_sources()
+     $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION clean_sources()
 RETURNS integer AS
 $$
 DECLARE
@@ -1305,13 +1399,15 @@ BEGIN
      RETURN deleted;
 END;
 $$
-LANGUAGE plpgsql");
+LANGUAGE plpgsql
+EOS
 
 
 
 # Triggers to insert missing sections and priorities
 
-$conn->do("CREATE OR REPLACE FUNCTION source_fkey_deps () RETURNS trigger AS $fkey_deps$
+     $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION source_fkey_deps () RETURNS trigger AS $fkey_deps$
 BEGIN
     IF NEW.component IS NOT NULL THEN
         PERFORM merge_component(NEW.component);
@@ -1324,32 +1420,32 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$fkey_deps$ LANGUAGE plpgsql");
-$conn->do("COMMENT ON FUNCTION source_fkey_deps ()
-  IS 'Check foreign key references exist'");
+$fkey_deps$ LANGUAGE plpgsql
+EOS
 
-$conn->do("CREATE TRIGGER source_fkey_deps BEFORE INSERT OR UPDATE ON sources
-  FOR EACH ROW EXECUTE PROCEDURE source_fkey_deps()");
-$conn->do("COMMENT ON TRIGGER source_fkey_deps ON sources
-  IS 'Check foreign key references exist'");
+     $conn->do("COMMENT ON FUNCTION source_fkey_deps () IS 'Check foreign key references exist'");
 
-$conn->do("CREATE OR REPLACE FUNCTION source_package_architecture_fkey_deps () RETURNS trigger AS $fkey_deps$
+     $conn->do("CREATE TRIGGER source_fkey_deps BEFORE INSERT OR UPDATE ON sources FOR EACH ROW EXECUTE PROCEDURE source_fkey_deps()");
+     $conn->do("COMMENT ON TRIGGER source_fkey_deps ON sources IS 'Check foreign key references exist'");
+
+     $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION source_package_architecture_fkey_deps () RETURNS trigger AS $fkey_deps$
 BEGIN
     IF NEW.architecture IS NOT NULL THEN
         PERFORM merge_source_architecture(NEW.architecture);
     END IF;
     RETURN NEW;
 END;
-$fkey_deps$ LANGUAGE plpgsql;
-COMMENT ON FUNCTION source_package_architecture_fkey_deps ()
-  IS 'Check foreign key references exist'");
+$fkey_deps$ LANGUAGE plpgsql
+EOS
 
-$conn->do("CREATE TRIGGER source_package_architecture_fkey_deps BEFORE INSERT OR UPDATE ON sources
-  FOR EACH ROW EXECUTE PROCEDURE source_package_architecture_fkey_deps();
-COMMENT ON TRIGGER source_package_architecture_fkey_deps ON sources
-  IS 'Check foreign key references exist'");
+     $conn->do("COMMENT ON FUNCTION source_package_architecture_fkey_deps () IS 'Check foreign key references exist'");
 
-$conn->do("CREATE OR REPLACE FUNCTION binary_fkey_deps () RETURNS trigger AS $fkey_deps$
+     $conn->do("CREATE TRIGGER source_package_architecture_fkey_deps BEFORE INSERT OR UPDATE ON sources FOR EACH ROW EXECUTE PROCEDURE source_package_architecture_fkey_deps()");
+     $conn->do("COMMENT ON TRIGGER source_package_architecture_fkey_deps ON sources IS 'Check foreign key references exist'");
+
+     $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION binary_fkey_deps () RETURNS trigger AS $fkey_deps$
 BEGIN
     IF NEW.source_package IS NOT NULL AND NEW.source_version IS NOT NULL THEN
         PERFORM merge_dummy_source(NEW.source_package, NEW.source_version);
@@ -1368,23 +1464,18 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$fkey_deps$ LANGUAGE plpgsql");
-$conn->do("COMMENT ON FUNCTION binary_fkey_deps ()
-  IS 'Check foreign key references exist'");
+$fkey_deps$ LANGUAGE plpgsql
+EOS
 
-$conn->do("CREATE TRIGGER binary_fkey_deps BEFORE INSERT OR UPDATE ON binaries
-  FOR EACH ROW EXECUTE PROCEDURE binary_fkey_deps()");
-$conn->do("COMMENT ON TRIGGER binary_fkey_deps ON binaries
-  IS 'Check foreign key references exist'");
+     $conn->do("COMMENT ON FUNCTION binary_fkey_deps () IS 'Check foreign key references exist'");
 
-
-
-
+     $conn->do("CREATE TRIGGER binary_fkey_deps BEFORE INSERT OR UPDATE ON binaries FOR EACH ROW EXECUTE PROCEDURE binary_fkey_deps()");
+     $conn->do("COMMENT ON TRIGGER binary_fkey_deps ON binaries IS 'Check foreign key references exist'");
 
 # Triggers to insert missing package architectures
 
-
-$conn->do("CREATE OR REPLACE FUNCTION package_check_arch() RETURNS trigger AS $package_check_arch$
+     $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION package_check_arch() RETURNS trigger AS $package_check_arch$
 BEGIN
   PERFORM arch FROM package_architectures WHERE (arch = NEW.arch);
   IF FOUND = 'f' THEN
@@ -1392,35 +1483,34 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$package_check_arch$ LANGUAGE plpgsql");
+$package_check_arch$ LANGUAGE plpgsql
+EOS
 
-$conn->do("COMMENT ON FUNCTION package_check_arch ()
-  IS 'Insert missing values into package_architectures (from NEW.arch)'");
+     $conn->do("COMMENT ON FUNCTION package_check_arch () IS 'Insert missing values into package_architectures (from NEW.arch)'");
 
-$conn->do("CREATE TRIGGER check_arch BEFORE INSERT OR UPDATE ON source_architectures
-  FOR EACH ROW EXECUTE PROCEDURE package_check_arch()");
-$conn->do("COMMENT ON TRIGGER check_arch ON source_architectures
-  IS 'Ensure foreign key references (arch) exist'");
+     $conn->do("CREATE TRIGGER check_arch BEFORE INSERT OR UPDATE ON source_architectures FOR EACH ROW EXECUTE PROCEDURE package_check_arch()");
+     $conn->do("COMMENT ON TRIGGER check_arch ON source_architectures IS 'Ensure foreign key references (arch) exist'");
 
-$conn->do("CREATE TRIGGER check_arch BEFORE INSERT OR UPDATE ON binaries
-  FOR EACH ROW EXECUTE PROCEDURE package_check_arch()");
-$conn->do("COMMENT ON TRIGGER check_arch ON binaries
-  IS 'Ensure foreign key references (arch) exist'");
+     $conn->do("CREATE TRIGGER check_arch BEFORE INSERT OR UPDATE ON binaries FOR EACH ROW EXECUTE PROCEDURE package_check_arch()");
+     $conn->do("COMMENT ON TRIGGER check_arch ON binaries IS 'Ensure foreign key references (arch) exist'");
 
 # Triggers on build_status:
 # - unconditionally update ctime
 # - verify bin_nmu is a positive integer (and change 0 to NULL)
 # - insert a record into status_history for every change in build_status
 
-$conn->do("CREATE OR REPLACE FUNCTION set_ctime()
+     $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION set_ctime()
 RETURNS trigger AS $set_ctime$
 BEGIN
   NEW.ctime = CURRENT_TIMESTAMP;
   RETURN NEW;
 END;
-$set_ctime$ LANGUAGE plpgsql");
+$set_ctime$ LANGUAGE plpgsql
+EOS
 
-$conn->do("CREATE OR REPLACE FUNCTION check_bin_nmu_number()
+     $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION check_bin_nmu_number()
 RETURNS trigger AS $check_bin_nmu_number$
 BEGIN
   IF NEW.bin_nmu = 0 THEN
@@ -1430,19 +1520,17 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$check_bin_nmu_number$ LANGUAGE plpgsql");
+$check_bin_nmu_number$ LANGUAGE plpgsql
+EOS
 
-$conn->do("CREATE TRIGGER check_bin_nmu BEFORE INSERT OR UPDATE ON build_status
-  FOR EACH ROW EXECUTE PROCEDURE check_bin_nmu_number()");
-COMMENT ON TRIGGER check_bin_nmu ON build_status
-  IS 'Ensure "bin_nmu" is a positive integer, or set it to NULL if 0'");
+     $conn->do("CREATE TRIGGER check_bin_nmu BEFORE INSERT OR UPDATE ON build_status FOR EACH ROW EXECUTE PROCEDURE check_bin_nmu_number()");
+     $conn->do("COMMENT ON TRIGGER check_bin_nmu ON build_status IS 'Ensure \"bin_nmu\" is a positive integer, or set it to NULL if 0'");
 
-$conn->do("CREATE TRIGGER set_or_update_ctime BEFORE INSERT OR UPDATE ON build_status
-  FOR EACH ROW EXECUTE PROCEDURE set_ctime()");
-COMMENT ON TRIGGER set_or_update_ctime ON build_status
-  IS 'Set or update the "ctime" column to now()'");
+     $conn->do("CREATE TRIGGER set_or_update_ctime BEFORE INSERT OR UPDATE ON build_status FOR EACH ROW EXECUTE PROCEDURE set_ctime()");
+     $conn->do("COMMENT ON TRIGGER set_or_update_ctime ON build_status IS 'Set or update the \"ctime\" column to now()'");
 
-$conn->do("CREATE OR REPLACE FUNCTION update_status_history()
+     $conn->do(<<'EOS');
+CREATE OR REPLACE FUNCTION update_status_history()
 RETURNS trigger AS $update_status_history$
 BEGIN
   INSERT INTO build_status_history
@@ -1453,16 +1541,14 @@ BEGIN
        NEW.bin_nmu, NEW.user_name, NEW.builder, NEW.status, NEW.ctime);
   RETURN NULL;
 END;
-$update_status_history$ LANGUAGE plpgsql");
+$update_status_history$ LANGUAGE plpgsql
+EOS
 
-$conn->do("CREATE TRIGGER update_history AFTER INSERT OR UPDATE ON build_status
-  FOR EACH ROW EXECUTE PROCEDURE update_status_history()");
-$conn->do("COMMENT ON TRIGGER update_history ON build_status
-  IS 'Insert a record of the status change into build_status_history'");
+     $conn->do("CREATE TRIGGER update_history AFTER INSERT OR UPDATE ON build_status FOR EACH ROW EXECUTE PROCEDURE update_status_history()");
+     $conn->do("COMMENT ON TRIGGER update_history ON build_status IS 'Insert a record of the status change into build_status_history'");
 
-
-
-$conn->do("INSERT INTO package_states (name) VALUES
+     $conn->do(<<'EOS');
+INSERT INTO package_states (name) VALUES
   ('build-attempted'),
   ('building'),
   ('built'),
@@ -1477,19 +1563,17 @@ $conn->do("INSERT INTO package_states (name) VALUES
   ('old-failed'),
   ('reupload-wait'),
   ('state'),
-  ('uploaded')");
+  ('uploaded')
+EOS
 
-$conn->do("INSERT INTO build_log_result (result, is_success) VALUES
+     $conn->do(<<'EOS');
+INSERT INTO build_log_result (result, is_success) VALUES
   ('maybe-failed', 'f'),
   ('maybe-successful', 't'),
-  ('skipped', 'f')");
-
+  ('skipped', 'f')
+EOS
 
     $conn->commit();
-
-
-
-
 }
 
 1;
