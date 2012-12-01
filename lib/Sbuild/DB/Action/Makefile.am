@@ -24,6 +24,7 @@ include $(top_srcdir)/scripts/global.mk
 perlmodsbuilddbdir = $(perlmoddir)/Sbuild/DB/Action
 
 MODULES =			\
+	Admin.pm		\
 	Clean.pm		\
 	Key.pm			\
 	Suite.pm
