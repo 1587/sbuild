@@ -150,19 +150,19 @@ if [ "$1" = "setup-start" ] || [ "$1" = "setup-recover" ]; then
                 elif [ ${SUITE_VARIANT%%-sloppy} = 'backports' ]; then
                         : > ${APT_LIST_AUTO}
                     if [ -n "${backports_mirror}" ]; then
-                        echo deb ${backports_mirror} ${SUITE_BASE}-backports main contrib non-free >> ${APT_LIST_AUTO}
+                        echo deb ${backports_mirror} ${SUITE_BASE}-backports main contrib >> ${APT_LIST_AUTO}
                         echo deb-src ${backports_mirror} ${SUITE_BASE}-backports main contrib non-free >> ${APT_LIST_AUTO}
                     fi
-                    echo deb http://backports.debian.org/debian-backports/ ${SUITE_BASE}-backports main contrib non-free >> ${APT_LIST_AUTO}
+                    echo deb http://backports.debian.org/debian-backports/ ${SUITE_BASE}-backports main contrib >> ${APT_LIST_AUTO}
                     echo deb-src http://backports.debian.org/debian-backports/ ${SUITE_BASE}-backports main contrib non-free >> ${APT_LIST_AUTO}
                     echo deb http://backports-master.debian.org/buildd/${SUITE_BASE}-backports / >> ${APT_LIST_AUTO}
                     echo deb-src http://backports-master.debian.org/buildd/${SUITE_BASE}-backports / >> ${APT_LIST_AUTO}
                     if [ "$(echo ${SUITE_VARIANT} | cut -d - -f 2)" = "sloppy" ]; then
                         if [ -n "${backports_mirror}" ]; then
-                            echo deb ${backports_mirror} ${SUITE_BASE}-backports-sloppy main contrib non-free >> ${APT_LIST_AUTO}
+                            echo deb ${backports_mirror} ${SUITE_BASE}-backports-sloppy main contrib >> ${APT_LIST_AUTO}
                             echo deb-src ${backports_mirror} ${SUITE_BASE}-backports-sloppy main contrib non-free >> ${APT_LIST_AUTO}
                         fi
-                        echo deb http://backports.debian.org/debian-backports/ ${SUITE_BASE}-backports-sloppy main contrib non-free >> ${APT_LIST_AUTO}
+                        echo deb http://backports.debian.org/debian-backports/ ${SUITE_BASE}-backports-sloppy main contrib >> ${APT_LIST_AUTO}
                         echo deb-src http://backports.debian.org/debian-backports/ ${SUITE_BASE}-backports-sloppy main contrib non-free >> ${APT_LIST_AUTO}
                         echo deb http://backports-master.debian.org/buildd/${SUITE_BASE}-backports-sloppy / >> ${APT_LIST_AUTO}
                         echo deb-src http://backports-master.debian.org/buildd/${SUITE_BASE}-backports-sloppy / >> ${APT_LIST_AUTO}
@@ -170,12 +170,12 @@ if [ "$1" = "setup-start" ] || [ "$1" = "setup-recover" ]; then
                 elif [ ${SUITE_VARIANT} = 'experimental' ]; then
                     : > ${APT_LIST_AUTO}
                     if [ -n "${debian_mirror}" ]; then
-                        echo deb ${debian_mirror} experimental main contrib non-free >> ${APT_LIST_AUTO}
+                        echo deb ${debian_mirror} experimental main contrib >> ${APT_LIST_AUTO}
                         echo deb-src ${debian_mirror} experimental main contrib non-free >> ${APT_LIST_AUTO}
                     fi
-                    echo deb     http://ftp.debian.org/debian experimental main contrib non-free >> ${APT_LIST_AUTO}
+                    echo deb     http://ftp.debian.org/debian experimental main contrib >> ${APT_LIST_AUTO}
                     echo deb-src http://ftp.debian.org/debian experimental main contrib non-free >> ${APT_LIST_AUTO}
-                    echo deb     http://incoming.debian.org/debian-buildd buildd-experimental main contrib non-free >> ${APT_LIST_AUTO}
+                    echo deb     http://incoming.debian.org/debian-buildd buildd-experimental main contrib >> ${APT_LIST_AUTO}
                     echo deb-src http://incoming.debian.org/debian-buildd buildd-experimental main contrib non-free >> ${APT_LIST_AUTO}
 		fi
 	fi
