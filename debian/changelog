@@ -1,3 +1,11 @@
+sbuild (0.61.0-1+buildd20130106.0) squeeze-buildd; urgency=low
+
+  * etc/99builddsourceslist: do not fetch binaries from non-free
+  * etc/99builddsourceslist: remove code referring to volatile
+  * etc/99builddsourceslist: adjust to new incoming layout
+
+ -- Philipp Kern <pkern@debian.org>  Sun, 06 Jan 2013 20:18:43 +0100
+
 sbuild (0.61.0-1+buildd20120619.0) squeeze-buildd; urgency=low
 
   * bin/create-chroot: switch /dev/shm to a real directory
