@@ -114,7 +114,7 @@ if [ "$1" = "setup-start" ] || [ "$1" = "setup-recover" ]; then
             [ -n "${debian_mirror}" ] && domirror "${debian_mirror} SUITE COMPONENT" ${APT_LIST}
             if [ "${debian_incoming}" != 'no' ]; then
                 domirror "http://incoming.debian.org/debian SUITE COMPONENT" ${APT_LIST}
-                domirror "http://incoming.debian.org/buildd-SUITE /" ${APT_LIST}
+                domirror "http://incoming.debian.org/debian-buildd buildd-SUITE COMPONENT" ${APT_LIST}
             fi
 
         else
@@ -194,8 +194,8 @@ if [ "$1" = "setup-start" ] || [ "$1" = "setup-recover" ]; then
                     fi
                     echo deb     http://ftp.debian.org/debian experimental main contrib non-free >> ${APT_LIST_AUTO}
                     echo deb-src http://ftp.debian.org/debian experimental main contrib non-free >> ${APT_LIST_AUTO}
-                    echo deb     http://incoming.debian.org/buildd-experimental / >> ${APT_LIST_AUTO}
-                    echo deb-src http://incoming.debian.org/buildd-experimental / >> ${APT_LIST_AUTO}
+                    echo deb     http://incoming.debian.org/debian-buildd buildd-experimental main contrib non-free >> ${APT_LIST_AUTO}
+                    echo deb-src http://incoming.debian.org/debian-buildd buildd-experimental main contrib non-free >> ${APT_LIST_AUTO}
 		fi
 	fi
     fi
