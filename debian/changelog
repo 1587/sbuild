@@ -1,3 +1,111 @@
+sbuild (0.63.2-1) unstable; urgency=low
+
+  [ Roger Leigh ]
+  * New release.
+  * Sbuild::Conf: Fix typo sucess (Closes: #663089).
+  * Sbuild::Options:
+    - Add --no-run-lintian and --no-run-piuparts options
+      (Closes: #665372).  If lintian or piuparts are configured to run
+      automatically following a successful build, there options disable
+      this behaviour for the build.
+    - Add --purge-build option (Closes: #629109).  This behaves
+      identically to the old --purge option.  --purge now purges
+      everything (build directory, build dependencies and schroot
+      session) and is equivalent to using --purge-build, --purge-deps
+      and --purge-session together.  Thanks to Jan-Marek Glogowski for
+      this patch.
+  * Sbuild::Conf:
+    - Don't create the log directory unless logging is enabled or
+      using buildd mode (Closes: #673009).
+  * Sbuild::Build:
+    - Don't pass $key_id to the shell unescaped (Closes: #676475).
+    - Use _all.changes rather than _arch.changes if -A is passed to
+      dpkg-buildpackage (Closes: #674669).  Thanks to Daniel Dehennin
+      for this patch.
+  * Sbuild::Utility: Fix logging in download function (Closes: #637931).
+  * sbuild:
+    - If running sbuild from inside a build tree (like
+      dpkg-buildpackage), place the build logs outside the tree
+      (Closes: #676834).  Logs will be created in '..' rather than '.'.
+    - When packing source trees with "dpkg-source -b", always pass
+      "." as the directory to pack, so the orig.tar can be found
+      (Closes: #662785).
+  * sbuild-createchroot:
+    - Use profile=sbuild in place of script-config= in generated
+      schroot.conf configuration (Closes: #665215, #675861).
+    - Don't pass --keyring to dpkg-buildpackage unless explicitly set
+      by the user (Closes: #673676).
+
+ -- Roger Leigh <rleigh@debian.org>  Sat, 18 Aug 2012 13:46:45 +0100
+
+sbuild (0.63.1-1) unstable; urgency=low
+
+  [ Roger Leigh ]
+  * New release.
+  * Don't require xapt.  Remove duplicate and incorrect check.  Thanks
+    to Andres Mejia and Jakub Wilk (Closes: #675332, #675354).
+  * Remove /etc/schroot/setup.d/99builddsourceslist which was
+    provided with earlier versions of sbuild, but no longer works with
+    current schroot versions (Closes: #675349).
+
+ -- Roger Leigh <rleigh@debian.org>  Thu, 31 May 2012 21:59:16 +0100
+
+sbuild (0.63.0-1) unstable; urgency=low
+
+  [ Wookey ]
+  * Support for cross-compiling has been added.  This includes the
+    addition of $host and $build configuration variables, with
+    corresponding --host and --build command-line options.  This
+    includes the addition of a new 'xapt' dependency resolver.
+    - Merge cross-build support (thanks to Hector Oron,
+      Closes: #610689).
+    - Add multiarch cross-build support.
+
+  [ Roger Leigh ]
+  * The deprecated 'internal' dependency resolver has been removed,
+    along with the configuration variables $apt_policy,
+    $check_depends_algorithm and $resolve_virtual, and the
+    command-line option --check-depends-algorithm.  The 'apt'
+    resolver is the default replacement for 'internal'.
+    (Closes: #622788)
+  * Support for watches has been removed.  The configuration
+    variables $check_watches, $ignore_watches_no_build_deps and
+    $watches (and obsolete variables @ignore_watches_no_build_deps
+    and %watches) have also been removed.
+  * sbuild-stats and support for build time and space statistics
+    recording has been removed.  These statistics are recorded in
+    both the build log and are available as build metadata
+    internally.  The statistics recorded in the database were not
+    particularly informative; storing the statistics in a proper
+    relational database is recommended.  The configuration variables
+    $avg_time_db and $avg_space_db have been removed.
+  * Drop 25nssdatabases schroot setup script used on compatibility
+    mode (on buildds).  This has been replaced by the schroot
+    20nssdatabases for many years.
+
+ -- Roger Leigh <rleigh@debian.org>  Wed, 30 May 2012 22:49:18 +0100
+
+sbuild (0.62.6-1) unstable; urgency=low
+
+  * New release.
+  * All changes backported from buildd-0.61.0 branch.
+  * sbuild.1: Add --chroot to synopsis (Closes: #635203).
+  * sbuild:
+    - --jobs is an alias for -j, to match documented behaviour
+      (Closes: #635250).
+    - The use of alternatives in Build-Depends and Build-Depends-Indep
+      may be turned on or off by the configuration variable
+      $resolve_alternatives.  It may also be enabled or disabled at
+      build time using the --resolve-alternatives and
+      --no-resolve-alternatives options, respectively.
+    - Correctly support chroot namespaces, to work with schroot 1.5.x
+      (Closes: #612630).
+    - Support Build-Depends-Arch and Build-Conflicts-Arch fields in
+      debian/control.  These may be manually set with
+      --add-depends-arch and --add-conflicts-arch, respectively.
+
+ -- Roger Leigh <rleigh@debian.org>  Wed, 07 Dec 2011 20:41:43 +0000
+
 sbuild (0.62.5-1~bpo60+1) squeeze-backports; urgency=low
 
   * Rebuild for squeeze-backports.

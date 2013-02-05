@@ -27,7 +27,10 @@ sbuild \- build debian packages from source
 .RB [ \-A \[or] \-\-arch\-all ]
 .RB [ \-\-archive=\fIarchive\fP ]
 .RB [ \-d \[or] \-\-dist=\fIdistribution\fP ]
+.RB [ \-c \[or] \-\-chroot=\fIchroot\fP ]
 .RB [ \-\-arch=\fIarchitecture\fP ]
+.RB [ \-\-build=\fIarchitecture\fP ]
+.RB [ \-\-host=\fIarchitecture\fP ]
 .RB [ \-s \[or] \-\-source ]
 .RB [ \-\-force\-orig\-source ]
 .RB [ \-\-make\-binNMU=\fIchangelog-entry\fP ]
@@ -35,6 +38,8 @@ sbuild \- build debian packages from source
 .RB [ \-\-append\-to\-version=\fIstring\fP ]
 .RB [ \-\-add-depends=\fIdependency\fP ]
 .RB [ \-\-add-conflicts=\fIdependency\fP ]
+.RB [ \-\-add-depends\-arch=\fIdependency\fP ]
+.RB [ \-\-add-conflicts\-arch=\fIdependency\fP ]
 .RB [ \-\-add-depends\-indep=\fIdependency\fP ]
 .RB [ \-\-add-conflicts\-indep=\fIdependency\fP ]
 .RB [ \-m \[or] \-\-maintainer=\fImaintainer\fP ]
@@ -46,14 +51,17 @@ sbuild \- build debian packages from source
 .RB [ \-\-dpkg-source-opt=\fIoptions\fP ]
 .RB [ \-\-dpkg-source-opts=\fIoptions\fP ]
 .RB [ \-p \[or] \-\-purge=\fPpurge-mode\fP ]
+.RB [ \-\-purge\-build=\fPpurge-mode\fP ]
 .RB [ \-\-purge\-deps=\fPpurge-mode\fP ]
 .RB [ \-\-purge\-session=\fPpurge-mode\fP ]
 .RB [ \-b \[or] \-\-batch]
 .RB [ \-n \[or] \-\-nolog ]
 .RB [ \-\-run\-lintian ]
+.RB [ \-\-no\-run\-lintian ]
 .RB [ \-\-lintian\-opt=\fIoptions\fP ]
 .RB [ \-\-lintian\-opts=\fIoptions\fP ]
 .RB [ \-\-run\-piuparts ]
+.RB [ \-\-no-run\-piuparts ]
 .RB [ \-\-piuparts\-opt=\fIoptions\fP ]
 .RB [ \-\-piuparts\-opts=\fIoptions\fP ]
 .RB [ \-\-piuparts\-root\-arg=\fIoptions\fP ]
@@ -66,6 +74,7 @@ sbuild \- build debian packages from source
 .RB [ \-\-log\-external\-command\-error ]
 .RB [ \-\-setup\-hook=\fIhook-script\fP ]
 .RB [ \-\-build\-dep\-resolver=\fIresolver\fP ]
+.RB [ \-\-resolve\-alternatives \[or] \-\-no\-resolve\-alternatives ]
 .RB [ PACKAGE [ .dsc ]]
 .SH DESCRIPTION
 \fBsbuild\fR rebuilds Debian binary packages from the corresponding Debian
@@ -121,22 +130,38 @@ Print version information.
 .TP
 .BR "\-\-add\-conflicts=\fIdependency\fP"
 .TP
+.BR "\-\-add\-depends\-arch=\fIdependency\fP"
+.TP
+.BR "\-\-add\-conflicts\-arch=\fIdependency\fP"
+.TP
 .BR "\-\-add\-depends\-indep=\fIdependency\fP"
 .TP
 .BR "\-\-add\-conflicts\-indep=\fIdependency\fP"
 These options add a build dependencies to the source package being built, in
 addition to the build dependency information specified in debian/control.
 These dependencies will be concatenated directly to the Build-Depends,
-Build-Conflicts, Build-Depends-Indep and Build-Conflicts-Indep dependencies,
-respectively.  The options may be used any number of times to add multiple
-dependencies.  The format is identical to the format used in debian/control.
+Build-Conflicts, Build-Depends-Arch, Build-Conflicts-Arch, Build-Depends-Indep
+and Build-Conflicts-Indep dependencies, respectively.  The options may be used
+any number of times to add multiple dependencies.  The format is identical to
+the format used in debian/control.
 .TP
 .BR "\-\-arch=\fIarchitecture\fP"
 Build using the architecture specified.  A chroot named
 \fI$distribution\-$arch-sbuild\fP or \fI$distribution\-arch\fP is searched for,
 in that order of preference.  The chroot must be installed and configured
 appropriately to build as that architecture, e.g. using
-\fIpersonality=linux32\fP to build i386 packages on an amd64 system.
+\fIpersonality=linux32\fP to build i386 packages on an amd64 system.  Note that
+this option is equivalent to "\-\-host=architecture \-\-build=architecture".
+.TP
+.BR "\-\-host=\fIarchitecture\fP"
+Build using the host architecture specified.  A chroot named
+\fI$distribution\-$arch-sbuild\fP or \fI$distribution\-arch\fP is searched for,
+in that order of preference.  This option is only useful for cross-building
+when used together with \-\-build.
+.TP
+.BR "\-\-build=\fIarchitecture\fP"
+Build using the build architecture specified.  This option is only useful for
+cross-building when used together with \-\-host.
 .TP
 .BR \-A ", " "\-\-arch\-all"
 Also build Architecture: all packages, i.e. use dpkg\-buildpackage \-b
@@ -150,17 +175,10 @@ instead of \-b. This option is the opposite of \-\-arch\-all.
 Operate in batchmode, i.e. write a build-progress file during execution
 and files on shutdown to facilitate a clean restart.
 .TP
-.BR \-c ", " "\-\-chroot"
+.BR \-c ", " "\-\-chroot=\fIchroot\fP"
 Use the specified chroot. If not specified, the default is the first of
 \fI$distribution\-$arch\-sbuild\fP, \fI$distribution\-sbuild\fP,
 \fI$distribution\-$arch\fP or \fI$distribution\fP that exists.
-.TP
-.BR \-C ", " "\-\-check\-depends\-algorithm=\fIalgorithm\fP"
-Selects the algorithm to check for build dependencies. The default algorithm
-(\[oq]first-only\[cq]) just checks the first package, even if there are
-alternative dependencies available. The second algorithm
-(\[oq]alternatives\[cq]) also tries to satisfy the build dependencies using
-these alternatives.
 .TP
 .BR \-d ", " "\-\-dist=\fIdistribution\fP"
 Fetch source packages from specified distribution.
@@ -237,6 +255,10 @@ Do not create a package log file in the \fI$log_dir\fP directory and no build
 log file, but print everything to stdout. Also do not send any log mails.
 .TP
 .BR \-p ", " "\-\-purge=\fIpurge-mode\fP"
+Convenience option to set \fIpurge-mode\fR for build directory, build
+dependencies and session.
+.TP
+.BR "\-\-purge\-build=\fIpurge-mode\fP"
 \fIpurge-mode\fR determines if the build directory will be deleted after a
 build. Possible values are \fBalways\fR (default), \fBnever\fR, and
 \fBsuccessful\fR.
@@ -248,9 +270,9 @@ build. Possible values are \fBalways\fR (default), \fBnever\fR, and
 .TP
 .BR "\-\-purge\-session=\fIpurge-mode\fP"
 Purge the schroot session following a build.  This is useful in conjunction
-with the \fI\-\-purge\fP and \fI\-\-purge\-deps\fP options when using snapshot
-chroots, since by default the snapshot will be deleted.  Possible values are
-\fBalways\fR (default), \fBnever\fR, and \fBsuccessful\fR.
+with the \fI\-\-purge\-build\fP and \fI\-\-purge\-deps\fP options when using
+snapshot chroots, since by default the snapshot will be deleted.  Possible
+values are \fBalways\fR (default), \fBnever\fR, and \fBsuccessful\fR.
 .TP
 .BR \-s ", " "\-\-source"
 Also build source package, i.e. use dpkg\-buildpackage without \-B.
@@ -298,6 +320,10 @@ before the '+' in the Debian revision if --make-binNMU is also provided).
 .BR \-\-run\-lintian
 Run lintian after a successful build.
 .TP
+.BR \-\-no\-run\-lintian
+Don't run lintian after a successful build.  If sbuild is configured to run
+lintian by default, this option will prevent lintian being run.
+.TP
 .BR \-\-lintian\-opt=\fIoptions\fP
 Run lintian with the specified options.
 .TP
@@ -306,6 +332,10 @@ Append extra options to existing options passed to lintian.
 .TP
 .BR \-\-run\-piuparts
 Run piuparts after a successful build.
+.TP
+.BR \-\-run\-piuparts
+Don't run piuparts after a successful build.  If sbuild is configured to run
+piuparts by default, this option will prevent piuparts being run.
 .TP
 .BR \-\-piuparts\-opt=\fIoptions\fP
 Run piuparts with the specified options.
@@ -349,21 +379,29 @@ external commands to run via \fIchroot-setup-commands\fP.
 .TP
 .BR "\-\-build\-dep\-resolver=\fIresolver\fP"
 Use the specified resolver to handle selecting the build dependencies.
-Supported resolvers are \fIapt\fP (the default), \fIaptitude\fP and
-\fIinternal\fP (deprecated).  The apt resolver is the most appropriate resolver
-for most users, for building for unstable, stable and other distributions.  If
-alternative build dependencies are used (excluding architecture restrictions),
-only the first alternative will be used; the others will be ignored.  The
-aptitude resolver is very similar, but smarter and slower, and it will consider
-all alternatives by default; it is suited to more complex situations, such as
-building packages for the experimental distribution, where packages need
-installing from multiple suites (\fIunstable\fP and \fIexperimental\fP).  Due
-to performance and other issues (bug #139615), aptitude is not recommended for
-use by default.  The internal resolver is much older, contains several
-significant deficiencies such as not being able to handle complex alternative
-and virtual dependencies, and is deprecated.  Like apt, it only uses the first
-alternative build dependency when multiple alternatives exist.  It is not
-recommended for future use, and will be removed in the future.
+Supported resolvers are \fIapt\fP (the default), \fIaptitude\fP and \fIxapt\fP.
+The apt resolver is the most appropriate resolver for most users, for building
+for unstable, stable and other distributions.  If alternative build
+dependencies are used (excluding architecture restrictions), only the first
+alternative will be used; the others will be ignored.  The aptitude resolver is
+very similar, but smarter and slower, and it will consider all alternatives by
+default; it is suited to more complex situations, such as building packages for
+the experimental distribution, where packages need installing from multiple
+suites (\fIunstable\fP and \fIexperimental\fP).  Due to performance and other
+issues (bug #139615), aptitude is not recommended for use by default.  The xapt
+resolver is intended only for cross-building, and is a temporary transitional
+feature which will be removed following the complete introduction of multi-arch
+support.
+.TP
+.BR \-\-resolve\-alternatives
+Allow the use of alternatives in Build-Depends, Build-Depends-Arch and
+Build-Depends-Indep.  This is the default for the aptitude dependency resolver.
+.TP
+.BR \-\-no\-resolve\-alternatives
+Do not allow the use of alternatives in Build-Depends, Build-Depends-Arch and
+Build-Depends-Indep.  Note that alternatives for the same package
+(e.g. different versions) are still allowed.  This is the default for the
+apt and xapt dependency resolvers.
 .SH EXTERNAL COMMANDS
 Support to run external commands during an sbuild run is provided. A set of
 external commands can be run at various stages of a build. Providing commands to
@@ -443,8 +481,9 @@ used to store the dummy dependency packages created for a single build.
 The dependency resolvers do the following:
 .IP \[bu]
 Create a dummy dependency package.  This contains the Build-Depends (and
-optionally Build-Depends-Indep) as Depends, and Build-Conflicts (and optionally
-Build-Conflicts-Indep) as Conflicts.
+optionally Build-Depends-Arch and Build-Depends-Indep) as Depends, and
+Build-Conflicts (and optionally Build-Conflicts-Arch and Build-Conflicts-Indep)
+as Conflicts.
 .IP \[bu]
 Install the dummy dependency package into the local archive,
 .IP \[bu]
@@ -519,7 +558,6 @@ Copyright \[co] 2005-2009 Roger Leigh <rleigh\@debian.org>
 .BR sbuild\-hold (1),
 .BR sbuild\-setup (7).
 .BR sbuild\-shell (1),
-.BR sbuild\-stats (1),
 .BR sbuild\-unhold (1),
 .BR sbuild\-update (1),
 .BR sbuild\-upgrade (1),

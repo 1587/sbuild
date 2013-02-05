@@ -1,11 +1,72 @@
 NEWS                                                            -*- outline -*-
 ----
 
-Welcome to sbuild 0.62.5.  Please read these release notes carefully.
+Welcome to sbuild 0.63.2.  Please read these release notes carefully.
 
 Full installation instructions are provided in the INSTALL file.  The
 README file also contains more specific notes regarding building and
 configuration.
+
+* Major changes in 0.63.2:
+
+  1) New options --no-run-lintian and --no-run-piuparts.  If lintian
+     or piuparts are configured to run automatically following a
+     successful build, there options disable this behaviour for the
+     build.
+
+  2) New option --purge-build.  This behaves identically to the old
+     --purge option.  --purge now purges everything (build directory,
+     build dependencies and schroot session) and is equivalent to
+     using --purge-build, --purge-deps and --purge-session together.
+
+  3) If building from unpacked sources in the current working
+     directory, logs will be created in '..' rather than '.'.
+
+* Major changes in 0.63.1:
+
+  None.
+
+* Major changes in 0.63.0:
+
+  1) Support for cross-compiling has been added.  This includes the
+     addition of $host and $build configuration variables, with
+     corresponding --host and --build command-line options.  This
+     includes the addition of a new 'xapt' dependency resolver.
+
+  2) The deprecated 'internal' dependency resolver has been removed,
+     along with the configuration variables $apt_policy,
+     $check_depends_algorithm and $resolve_virtual, and the
+     command-line option --check-depends-algorithm.  The 'apt'
+     resolver is the default replacement for 'internal'.
+
+  3) Support for watches has been removed.  The configuration
+     variables $check_watches, $ignore_watches_no_build_deps and
+     $watches (and obsolete variables @ignore_watches_no_build_deps
+     and %watches) have also been removed.
+
+  3) sbuild-stats and support for build time and space statistics
+     recording has been removed.  These statistics are recorded in
+     both the build log and are available as build metadata
+     internally.  The statistics recorded in the database were not
+     particularly informative; storing the statistics in a proper
+     relational database is recommended.  The configuration variables
+     $avg_time_db and $avg_space_db have been removed.
+
+* Major changes in 0.62.6:
+
+  1) The use of alternatives in Build-Depends and Build-Depends-Indep
+     may be turned on or off by the configuration variable
+     $resolve_alternatives.  It may also be enabled or disabled at
+     build time using the --resolve-alternatives and
+     --no-resolve-alternatives options, respectively.
+
+  2) The new Build-Depends-Arch and Build-Conflicts-Arch fields in
+     debian/control are now supported.  These may be manually set
+     with --add-depends-arch and --add-conflicts-arch,
+     respectively.
+
+  3) schroot namespaces are now fully supported, meaning that
+     current 1.5.x schroot versions now work with sbuild.
 
 * Major changes in 0.62.5:
 

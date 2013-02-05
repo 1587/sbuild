@@ -32,7 +32,6 @@ use Fcntl;
 use File::Basename qw(basename dirname);
 use File::Temp qw(tempdir);
 use FileHandle;
-use GDBM_File;
 use File::Copy qw(); # copy is already exported from Sbuild, so don't export
 		     # anything.
 use Dpkg::Arch;
@@ -74,7 +73,6 @@ sub new {
 
     $self->set('ABORT', undef);
     $self->set('Job', $dsc);
-    $self->set('Arch', undef);
     $self->set('Chroot Dir', '');
     $self->set('Chroot Build Dir', '');
     $self->set('Build Dir', '');
@@ -91,7 +89,6 @@ sub new {
     $self->set('Install End Time', 0);
     $self->set('This Time', 0);
     $self->set('This Space', 0);
-    $self->set('This Watches', {});
     $self->set('Sub Task', 'initialisation');
     $self->set('Host', Sbuild::ChrootRoot->new($self->get('Config')));
     # Host execution defaults
@@ -273,8 +270,9 @@ sub run {
 	$self->set('Pkg Start Time', time);
 	$self->set('Pkg End Time', $self->get('Pkg Start Time'));
 
-	# Acquire the architecture we're building for.
-	$self->set('Arch', $self->get_conf('ARCH'));
+	# Acquire the architectures we're building for and on.
+	$self->set('Host Arch', $self->get_conf('HOST_ARCH'));
+	$self->set('Build Arch', $self->get_conf('BUILD_ARCH'));
 
 	my $dist = $self->get_conf('DISTRIBUTION');
 	if (!defined($dist) || !$dist) {
@@ -370,7 +368,7 @@ sub run_chroot_session {
 	my $session = $chroot_info->create('chroot',
 					   $self->get_conf('DISTRIBUTION'),
 					   $self->get_conf('CHROOT'),
-					   $self->get_conf('ARCH'));
+					   $self->get_conf('BUILD_ARCH'));
 
 	# Run pre build external commands
 	$self->check_abort();
@@ -389,12 +387,14 @@ sub run_chroot_session {
 
 	$self->check_abort();
 	my $chroot_arch =  $self->chroot_arch();
-	if ($self->get('Arch') ne $chroot_arch) {
-	    Sbuild::Exception::Build->throw(error => "Build architecture (" . $self->get('Arch') .
-					    ") is not the same as the chroot architecture (" .
-					    $chroot_arch . ")",
-					    info => "Please specify the correct architecture with --arch, or use a chroot of the correct architecture",
-					    failstage => "create-session");
+	if ($self->get_conf('BUILD_ARCH') ne $chroot_arch) {
+	    Sbuild::Exception::Build->throw(
+		error => "Requested build architecture (" .
+		$self->get_conf('BUILD_ARCH') .
+		") and chroot architecture (" . $chroot_arch .
+		") do not match.  Skipping build.",
+		info => "Please specify the correct architecture with --build-arch, or use a chroot of the correct architecture",
+		failstage => "create-session");
 	}
 
 	$self->set('Chroot Dir', $session->get('Location'));
@@ -412,6 +412,7 @@ sub run_chroot_session {
 	$self->build_log_colour('green', '^I: ');
 	$self->build_log_colour('red', '^Status:');
 	$self->build_log_colour('green', '^Status: successful$');
+	$self->build_log_colour('yellow', '^Keeping session: ');
 	$self->build_log_colour('red', '^Lintian:');
 	$self->build_log_colour('green', '^Lintian: pass$');
 
@@ -466,7 +467,9 @@ sub run_chroot_session {
 
 	my $resolver = get_resolver($self->get('Config'), $session, $host);
 	$resolver->set('Log Stream', $self->get('Log Stream'));
-	$resolver->set('Arch', $self->get('Arch'));
+	$resolver->set('Arch', $self->get_conf('ARCH'));
+	$resolver->set('Host Arch', $self->get_conf('HOST_ARCH'));
+	$resolver->set('Build Arch', $self->get_conf('BUILD_ARCH'));
 	$resolver->set('Chroot Build Dir', $self->get('Chroot Build Dir'));
 	$self->set('Dependency Resolver', $resolver);
 
@@ -573,25 +576,21 @@ sub run_chroot_update {
     # Upgrade using APT.
     $self->check_abort();
     if ($self->get_conf('APT_DISTUPGRADE')) {
-	if ($self->get_conf('APT_DISTUPGRADE')) {
-	    if ($resolver->distupgrade()) {
-		# Since apt-distupgrade was requested specifically, fail on
-		# error when not in buildd mode.
-		if ($self->get_conf('SBUILD_MODE') ne 'buildd') {
-		    Sbuild::Exception::Build->throw(error => "apt-get dist-upgrade failed",
-						    failstage => "apt-get-dist-upgrade");
-		}
+	if ($resolver->distupgrade()) {
+	    # Since apt-distupgrade was requested specifically, fail on
+	    # error when not in buildd mode.
+	    if ($self->get_conf('SBUILD_MODE') ne 'buildd') {
+		Sbuild::Exception::Build->throw(error => "apt-get dist-upgrade failed",
+						failstage => "apt-get-dist-upgrade");
 	    }
 	}
     } elsif ($self->get_conf('APT_UPGRADE')) {
-	if ($self->get_conf('APT_UPGRADE')) {
-	    if ($resolver->upgrade()) {
-		# Since apt-upgrade was requested specifically, fail on
-		# error when not in buildd mode.
-		if ($self->get_conf('SBUILD_MODE') ne 'buildd') {
-		    Sbuild::Exception::Build->throw(error => "apt-get upgrade failed",
-						    failstage => "apt-get-upgrade");
-		}
+	if ($resolver->upgrade()) {
+	    # Since apt-upgrade was requested specifically, fail on
+	    # error when not in buildd mode.
+	    if ($self->get_conf('SBUILD_MODE') ne 'buildd') {
+		Sbuild::Exception::Build->throw(error => "apt-get upgrade failed",
+						failstage => "apt-get-upgrade");
 	    }
 	}
     }
@@ -631,47 +630,71 @@ sub run_fetch_install_packages {
 	$self->check_abort();
 	$self->set('Install Start Time', time);
 	$self->set('Install End Time', $self->get('Install Start Time'));
-	$resolver->add_dependencies('CORE', join(", ", @{$self->get_conf('CORE_DEPENDS')}) , "", "", "");
+	my @coredeps = @{$self->get_conf('CORE_DEPENDS')};
+	if ($self->get('Host Arch') ne $self->get('Build Arch')) {
+	    my $crosscoredeps = $self->get_conf('CROSSBUILD_CORE_DEPENDS');
+	    push(@coredeps, @{$crosscoredeps->{$self->get('Host Arch')}})
+		if defined($crosscoredeps->{$self->get('Host Arch')});
+	}
+	$resolver->add_dependencies('CORE', join(", ", @coredeps) , "", "", "", "", "");
+
 	if (!$resolver->install_deps('core', 'CORE')) {
 	    Sbuild::Exception::Build->throw(error => "Core build dependencies not satisfied; skipping",
 					    failstage => "install-deps");
 	}
 
-	$resolver->add_dependencies('ESSENTIAL', $self->read_build_essential(), "", "", "");
+	$resolver->add_dependencies('ESSENTIAL', $self->read_build_essential(), "", "", "", "", "");
 
 	my $snapshot = "";
 	$snapshot = "gcc-snapshot" if ($self->get_conf('GCC_SNAPSHOT'));
-	$resolver->add_dependencies('GCC_SNAPSHOT', $snapshot , "", "", "");
+	$resolver->add_dependencies('GCC_SNAPSHOT', $snapshot , "", "", "", "", "");
 
 	# Add additional build dependencies specified on the command-line.
 	# TODO: Split dependencies into an array from the start to save
 	# lots of joining.
 	$resolver->add_dependencies('MANUAL',
 				    join(", ", @{$self->get_conf('MANUAL_DEPENDS')}),
+				    join(", ", @{$self->get_conf('MANUAL_DEPENDS_ARCH')}),
 				    join(", ", @{$self->get_conf('MANUAL_DEPENDS_INDEP')}),
 				    join(", ", @{$self->get_conf('MANUAL_CONFLICTS')}),
+				    join(", ", @{$self->get_conf('MANUAL_CONFLICTS_ARCH')}),
 				    join(", ", @{$self->get_conf('MANUAL_CONFLICTS_INDEP')}));
 
-	$resolver->add_dependencies($self->get('Package'),
-				    $self->get('Build Depends'),
-				    $self->get('Build Depends Indep'),
-				    $self->get('Build Conflicts'),
-				    $self->get('Build Conflicts Indep'));
+	if ($self->get('Host Arch') eq $self->get('Build Arch')) {
+	# for native building make and install dummy-deps package
+		$resolver->add_dependencies($self->get('Package'),
+						$self->get('Build Depends'),
+						$self->get('Build Depends Arch'),
+						$self->get('Build Depends Indep'),
+						$self->get('Build Conflicts'),
+						$self->get('Build Conflicts Arch'),
+						$self->get('Build Conflicts Indep'));
 
-	$self->check_abort();
-	if (!$resolver->install_deps($self->get('Package'),
-				     'ESSENTIAL', 'GCC_SNAPSHOT', 'MANUAL',
-				     $self->get('Package'))) {
-	    Sbuild::Exception::Build->throw(error => "Package build dependencies not satisfied; skipping",
-					    failstage => "install-deps");
+		$self->check_abort();
+		if (!$resolver->install_deps($self->get('Package'),
+						'ESSENTIAL', 'GCC_SNAPSHOT', 'MANUAL',
+						$self->get('Package'))) {
+			Sbuild::Exception::Build->throw(error => "Package build dependencies not satisfied; skipping",
+							failstage => "install-deps");
+						}
+	} else { # cross-building
+		# install cross-deps. Hacked for now - need to generate dummy package
+		$self->log_subsection('Install cross build-dependencies (apt-get -a)');
+		$self->log('Cross-deps: Running apt-get -a' . $self->get('Host Arch') . ' build-dep ' . $self->get('Package') . "\n");
+		$resolver->run_apt_command(
+			{ COMMAND => [$self->get_conf('APT_GET'),  '-a' . $self->get('Host Arch'), 'build-dep', '-yf', $self->get('Package')],
+			ENV => {'DEBIAN_FRONTEND' => 'noninteractive'},
+			USER => 'root',
+			DIR => '/' });
+		if ($?) {
+			$self->log("Failed to get cross build-deps\n");
+			return 1;
+		}
 	}
 	$self->set('Install End Time', time);
 
 	$self->check_abort();
 	$resolver->dump_build_environment();
-
-	$self->check_abort();
-	$self->prepare_watches(keys %{$resolver->get('Changes')->{'installed'}});
 
 	$self->check_abort();
 	if ($self->build()) {
@@ -793,13 +816,15 @@ sub fetch_source_files {
     my $build_dir = $self->get('Chroot Build Dir');
     my $pkg = $self->get('Package');
     my $ver = $self->get('OVersion');
-    my $arch = $self->get('Arch');
+    my $host_arch = $self->get('Host Arch');
 
     my ($dscarchs, $dscpkg, $dscver, @fetched);
 
     my $build_depends = "";
+    my $build_depends_arch = "";
     my $build_depends_indep = "";
     my $build_conflicts = "";
+    my $build_conflicts_arch = "";
     my $build_conflicts_indep = "";
     local( *F );
 
@@ -950,8 +975,10 @@ sub fetch_source_files {
     }
 
     $build_depends = $pdsc->{'Build-Depends'};
+    $build_depends_arch = $pdsc->{'Build-Depends-Arch'};
     $build_depends_indep = $pdsc->{'Build-Depends-Indep'};
     $build_conflicts = $pdsc->{'Build-Conflicts'};
+    $build_conflicts_arch = $pdsc->{'Build-Conflicts-Arch'};
     $build_conflicts_indep = $pdsc->{'Build-Conflicts-Indep'};
     $dscarchs = $pdsc->{'Architecture'};
     $dscpkg = $pdsc->{'Source'};
@@ -960,8 +987,10 @@ sub fetch_source_files {
     $self->set_version("${dscpkg}_${dscver}");
 
     $build_depends =~ s/\n\s+/ /g if defined $build_depends;
+    $build_depends_arch =~ s/\n\s+/ /g if defined $build_depends_arch;
     $build_depends_indep =~ s/\n\s+/ /g if defined $build_depends_indep;
     $build_conflicts =~ s/\n\s+/ /g if defined $build_conflicts;
+    $build_conflicts_arch =~ s/\n\s+/ /g if defined $build_conflicts_arch;
     $build_conflicts_indep =~ s/\n\s+/ /g if defined $build_conflicts_indep;
 
     $self->log_subsubsection("Check arch");
@@ -970,27 +999,29 @@ sub fetch_source_files {
     } else {
 	my $valid_arch;
 	for my $a (split(/\s+/, $dscarchs)) {
-	    if (Dpkg::Arch::debarch_is($arch, $a)) {
+	    if (Dpkg::Arch::debarch_is($host_arch, $a)) {
 		$valid_arch = 1;
 		last;
 	    }
 	}
 	if ($dscarchs ne "any" && !($valid_arch) &&
 	    !($dscarchs eq "all" && $self->get_conf('BUILD_ARCH_ALL')) )  {
-	    my $msg = "$dsc: $arch not in arch list or does not match any arch wildcards: $dscarchs -- skipping\n";
+	    my $msg = "$dsc: $host_arch not in arch list or does not match any arch wildcards: $dscarchs -- skipping\n";
 	    $self->log($msg);
-	    Sbuild::Exception::Build->throw(error => "$dsc: $arch not in arch list or does not match any arch wildcards: $dscarchs -- skipping",
+	    Sbuild::Exception::Build->throw(error => "$dsc: $host_arch not in arch list or does not match any arch wildcards: $dscarchs -- skipping",
 					    status => "skipped",
 					    failstage => "arch-check");
 	    return 0;
 	}
     }
 
-    debug("Arch check ok ($arch included in $dscarchs)\n");
+    debug("Arch check ok ($host_arch included in $dscarchs)\n");
 
     $self->set('Build Depends', $build_depends);
+    $self->set('Build Depends Arch', $build_depends_arch);
     $self->set('Build Depends Indep', $build_depends_indep);
     $self->set('Build Conflicts', $build_conflicts);
+    $self->set('Build Conflicts Arch', $build_conflicts_arch);
     $self->set('Build Conflicts Indep', $build_conflicts_indep);
 
     return 1;
@@ -1190,7 +1221,8 @@ sub build {
     my $dscdir = $self->get('DSC Dir');
     my $pkg = $self->get('Package');
     my $build_dir = $self->get('Chroot Build Dir');
-    my $arch = $self->get('Arch');
+    my $host_arch = $self->get('Host Arch');
+    my $build_arch = $self->get('Build Arch');
 
     my( $rv, $changes );
     local( *PIPE, *F, *F2 );
@@ -1329,7 +1361,7 @@ sub build {
 		    " to version number; no source changes\n";
 	    }
 	    if ($self->get_conf('BIN_NMU')) {
-		print F "  * Binary-only non-maintainer upload for $arch; ",
+		print F "  * Binary-only non-maintainer upload for $host_arch; ",
 		    "no source changes.\n";
 		print F "  * ", join( "    ", split( "\n", $self->get_conf('BIN_NMU') )), "\n";
 	    }
@@ -1353,17 +1385,15 @@ sub build {
 	open( FILES, "<$dscdir/debian/files" );
 	chomp( @lines = <FILES> );
 	close( FILES );
-	@lines = map { my $ind = 76-length($_);
-		       $ind = 0 if $ind < 0;
-		       "│ $_".(" " x $ind). " │\n"; } @lines;
 
 	$self->log_warning("After unpacking, there exists a file debian/files with the contents:\n");
 
-	$self->log('┌', '─'x78, '┐', "\n");
+	$self->log_sep();
 	foreach (@lines) {
 	    $self->log($_);
 	}
-	$self->log('└', '─'x78, '┘', "\n");
+	$self->log_sep();
+	$self->log("\n");
 
 	$self->log_info("This should be reported as a bug.\n");
 	$self->log_info("The file has been removed to avoid dpkg-genchanges errors.\n");
@@ -1408,6 +1438,10 @@ sub build {
 	    $self->get_conf('BUILD_ENV_CMND'));
     push (@{$buildcmd}, 'dpkg-buildpackage');
 
+    if ($host_arch ne $build_arch) {
+	push (@{$buildcmd}, '-a' . $host_arch);
+    }
+
     if (defined($self->get_conf('PGP_OPTIONS')) &&
 	$self->get_conf('PGP_OPTIONS')) {
 	if (ref($self->get_conf('PGP_OPTIONS')) eq 'ARRAY') {
@@ -1439,6 +1473,16 @@ sub build {
     $buildenv{'PATH'} = $self->get_conf('PATH');
     $buildenv{'LD_LIBRARY_PATH'} = $self->get_conf('LD_LIBRARY_PATH')
 	if defined($self->get_conf('LD_LIBRARY_PATH'));
+
+	# Add cross environment config
+	if ($host_arch ne $build_arch) {
+		$buildenv{'CONFIG_SITE'} = "/etc/dpkg-cross/cross-config." . $host_arch;
+		if (defined($buildenv{'DEB_BUILD_OPTIONS'})) {
+			$buildenv{'DEB_BUILD_OPTIONS'} .= " nocheck";
+		} else {
+			$buildenv{'DEB_BUILD_OPTIONS'} = "nocheck";
+		}
+	}
 
     # Explicitly add any needed environment to the environment filter
     # temporarily for dpkg-buildpackage.
@@ -1573,7 +1617,6 @@ sub build {
 	    }
 	}
 
-
 	# Restore write access to build tree now build is complete.
 	$self->get('Session')->run_command(
 	    { COMMAND => ['chmod', '-R', 'g+w', $self->get('Build Dir')],
@@ -1585,7 +1628,7 @@ sub build {
 	}
 
 	$self->log_subsection("Changes");
-	$changes = $self->get('Package_SVersion') . "_$arch.changes";
+	$changes = $self->get_changes();
 	my @cfiles;
 	if (-r "$build_dir/$changes") {
 	    my(@do_dists, @saved_dists);
@@ -1639,7 +1682,7 @@ sub build {
 	my @debcfiles = @cfiles;
 	foreach (@debcfiles) {
 	    my $deb = "$build_dir/$_";
-	    next if $deb !~ /(\Q$arch\E|all)\.[\w\d.-]*$/;
+	    next if $deb !~ /(\Q$host_arch\E|all)\.[\w\d.-]*$/;
 
 	    $self->log_subsubsection("$_");
 	    if (!open( PIPE, "dpkg --info $deb 2>&1 |" )) {
@@ -1667,7 +1710,6 @@ sub build {
 	}
     }
 
-    $self->check_watches();
     $self->check_space(@space_files);
 
     return $rv == 0 ? 1 : 0;
@@ -1695,6 +1737,20 @@ sub get_env ($$) {
     _env_loop($envlist, $self, $self, $prefix);
     _env_loop($envlist, $self->get('Config'), $self->get('Config')->{'KEYS'}, "${prefix}CONF_");
     return $envlist;
+}
+
+sub get_changes {
+    my $self=shift;
+    my $changes;
+
+    if ( (grep {$_ eq "-A"} @{$self->get_conf('DPKG_BUILDPACKAGE_USER_OPTIONS')})
+	 && -r $self->get('Chroot Build Dir') . '/' . $self->get('Package_SVersion') . $self->get('Package_SVersion') . "_all.changes") {
+	$changes = $self->get('Package_SVersion') . "_all.changes";
+    }
+    else {
+	$changes = $self->get('Package_SVersion') . '_' . $self->get('Host Arch') . '.changes';
+    }
+    return $changes;
 }
 
 sub read_build_essential {
@@ -1778,58 +1834,6 @@ sub check_space {
     $self->set('This Space', $sum);
 }
 
-sub prepare_watches {
-    my $self = shift;
-    my @instd = @_;
-    my($pkg, $prg);
-
-    # init %this_watches to names of packages which have not been
-    # installed as source dependencies
-    $self->set('This Watches', {});
-    foreach $pkg (keys %{$self->get_conf('WATCHES')}) {
-	if (isin( $pkg, @instd )) {
-	    debug("Excluding from watch: $pkg\n");
-	    next;
-	}
-	foreach $prg (@{$self->get_conf('WATCHES')->{$pkg}}) {
-	    # Add /usr/bin to programs without a path
-	    $prg = "/usr/bin/$prg" if $prg !~ m,^/,;
-	    $self->get('This Watches')->{"$self->{'Chroot Dir'}$prg"} = $pkg;
-	    debug("Will watch for $prg ($pkg)\n");
-	}
-    }
-}
-
-sub check_watches {
-    my $self = shift;
-    my($prg, @st, %used);
-
-    return if (!$self->get_conf('CHECK_WATCHES'));
-
-    foreach $prg (keys %{$self->get('This Watches')}) {
-	if (!(@st = stat( $prg ))) {
-	    debug("Watch: $prg: stat failed\n");
-	    next;
-	}
-	if ($st[8] > $self->get('Build Start Time')) {
-	    my $pkg = $self->get('This Watches')->{$prg};
-	    my $prg2 = $self->get('Session')->strip_chroot_path($prg);
-	    push( @{$used{$pkg}}, $prg2 );
-	}
-	else {
-	    debug("Watch: $prg: untouched\n");
-	}
-    }
-    return if !%used;
-
-    $self->log_warning("NOTE: Binaries from the following packages (access time changed) used\nwithout a source dependency:");
-
-    foreach (keys %used) {
-	$self->log("  $_: @{$used{$_}}\n");
-    }
-    $self->log("\n");
-}
-
 sub lock_file {
     my $self = shift;
     my $file = shift;
@@ -1902,7 +1906,9 @@ sub generate_stats {
     $self->add_stat('Package', $self->get('Package'));
     $self->add_stat('Version', $self->get('Version'));
     $self->add_stat('Source-Version', $self->get('OVersion'));
-    $self->add_stat('Architecture', $self->get('Arch'));
+    $self->add_stat('Machine Architecture', $self->get_conf('ARCH'));
+    $self->add_stat('Host Architecture', $self->get('Host Arch'));
+    $self->add_stat('Build Architecture', $self->get('Build Arch'));
     $self->add_stat('Distribution', $self->get_conf('DISTRIBUTION'));
     $self->add_stat('Space', $self->get('This Space'));
     $self->add_stat('Build-Time',
@@ -2032,9 +2038,9 @@ sub open_build_log {
     $self->set('COLOUR_PREFIX', $colour_prefix);
 
     my $filename = $self->get_conf('LOG_DIR') . '/' .
-	$self->get('Package_SVersion') . '-' .
-	$self->get('Arch') .
-	"-$date";
+	$self->get('Package_SVersion') . '_' .
+	$self->get('Host Arch') . "-$date";
+    $filename .= ".build" if $self->get_conf('SBUILD_MODE') ne 'buildd';
 
     open($saved_stdout, ">&STDOUT") or warn "Can't redirect stdout\n";
     open($saved_stderr, ">&STDERR") or warn "Can't redirect stderr\n";
@@ -2051,10 +2057,11 @@ sub open_build_log {
 	$SIG{'QUIT'} = 'IGNORE';
 	$SIG{'PIPE'} = 'IGNORE';
 
-	$PROGRAM_NAME = 'package log for ' . $self->get('Package_SVersion') . '_' . $self->get('Arch');
+	$PROGRAM_NAME = 'package log for ' . $self->get('Package_SVersion') . '_' . $self->get('Host Arch');
 
 	if (!$self->get_conf('NOLOG') &&
 	    $self->get_conf('LOG_DIR_AVAILABLE')) {
+	    unlink $filename; # To prevent opening symlink to elsewhere
 	    open( CPLOG, ">$filename" ) or
 		Sbuild::Exception::Build->throw(error => "Failed to open build log $filename: $!",
 						failstage => "init");
@@ -2070,7 +2077,7 @@ sub open_build_log {
 		$self->log_symlink($filename,
 				   $self->get_conf('BUILD_DIR') . '/' .
 				   $self->get('Package_SVersion') . '_' .
-				   $self->get('Arch') . '.build');
+				   $self->get('Host Arch') . ".build");
 	    }
 	}
 
@@ -2153,8 +2160,12 @@ sub open_build_log {
     my $hostname = $self->get_conf('HOSTNAME');
     $self->log("sbuild (Debian sbuild) $version ($release_date) on $hostname\n");
 
+    my $arch_string = $self->get('Build Arch');
+    $arch_string = 'CROSS host=' . $self->get('Host Arch') .
+	'/build=' . $self->get('Build Arch')
+	if ($self->get('Host Arch') ne $self->get('Build Arch'));
     my $head1 = $self->get('Package') . ' ' . $self->get('Version') .
-	' (' . $self->get('Arch') . ') ';
+	' (' . $arch_string . ') ';
     my $head2 = strftime("%d %b %Y %H:%M",
 			 localtime($self->get('Pkg Start Time')));
     my $head = $head1 . ' ' x (80 - 4 - length($head1) - length($head2)) .
@@ -2165,7 +2176,9 @@ sub open_build_log {
     $self->log("Version: " . $self->get('Version') . "\n");
     $self->log("Source Version: " . $self->get('OVersion') . "\n");
     $self->log("Distribution: " . $self->get_conf('DISTRIBUTION') . "\n");
-    $self->log("Architecture: " . $self->get('Arch') . "\n");
+    $self->log("Machine Architecture: " . $self->get_conf('ARCH') . "\n");
+    $self->log("Host Architecture: " . $self->get('Host Arch') . "\n");
+    $self->log("Build Architecture: " . $self->get('Build Arch') . "\n");
     $self->log("\n");
 }
 
@@ -2177,11 +2190,6 @@ sub close_build_log {
         $time = time;
     }
     my $date = strftime("%Y%m%d-%H%M", localtime($time));
-
-    if ($self->get_status() eq "successful") {
-	$self->add_time_entry($self->get('Package_Version'), $self->get('This Time'));
-	$self->add_space_entry($self->get('Package_Version'), $self->get('This Space'));
-    }
 
     my $hours = int($self->get('This Time')/3600);
     my $minutes = int(($self->get('This Time')%3600)/60),
@@ -2207,16 +2215,17 @@ sub close_build_log {
     if ($self->get_status() eq "successful") {
 	if (defined($self->get_conf('KEY_ID')) && $self->get_conf('KEY_ID')) {
 	    my $key_id = $self->get_conf('KEY_ID');
+	    my $changes;
 	    $self->log(sprintf("Signature with key '%s' requested:\n", $key_id));
-	    my $changes = $self->get('Package_SVersion') . '_' . $self->get('Arch') . '.changes';
-	    system (sprintf('debsign -k%s %s', $key_id, $changes));
+	    $changes = $self->get_changes();
+	    system "debsign", "-k$key_id", $changes;
 	}
     }
 
     my $subject = "Log for " . $self->get_status() .
 	" build of " . $self->get('Package_Version');
-    if ($self->get('Arch')) {
-	$subject .= " on " . $self->get('Arch');
+    if ($self->get('Host Arch')) {
+	$subject .= " on " . $self->get('Host Arch');
     }
     if ($self->get_conf('ARCHIVE')) {
 	$subject .= " (" . $self->get_conf('ARCHIVE') . "/" . $self->get_conf('DISTRIBUTION') . ")";
@@ -2314,14 +2323,15 @@ sub send_mime_build_log {
 		Filename => basename($filename) . '.gz'
 		);
     }
-
-    my $changes = $self->get('Package_SVersion') . '_' . $self->get('Arch') . '.changes';
+    my $changes = $self->get_changes();
     if ($self->get_status() eq 'successful' && -r $changes) {
-	$msg->attach(
+	my $log_part = MIME::Lite->new(
 		Type     => 'text/plain',
 		Path     => $changes,
 		Filename => basename($changes)
 		);
+	$log_part->attr('content-type.charset' => 'UTF-8');
+	$msg->attach($log_part);
     }
 
     my $stats = '';
@@ -2358,67 +2368,6 @@ sub log_symlink {
 
     unlink $dest; # Don't return on failure, since the symlink will fail.
     symlink $log, $dest;
-}
-
-sub add_time_entry {
-    my $self = shift;
-    my $pkg = shift;
-    my $t = shift;
-
-    return if !$self->get_conf('AVG_TIME_DB');
-    my %db;
-    if (!tie %db, 'GDBM_File', $self->get_conf('AVG_TIME_DB'), GDBM_WRCREAT, 0664) {
-	$self->log_warning("Can't open average time db " . $self->get_conf('AVG_TIME_DB') . "\n");
-	return;
-    }
-    $pkg =~ s/_.*//;
-
-    if (exists $db{$pkg}) {
-	my @times = split( /\s+/, $db{$pkg} );
-	push( @times, $t );
-	my $sum = 0;
-	foreach (@times[1..$#times]) { $sum += $_; }
-	$times[0] = $sum / (@times-1);
-	$db{$pkg} = join( ' ', @times );
-    }
-    else {
-	$db{$pkg} = "$t $t";
-    }
-    untie %db;
-}
-
-sub add_space_entry {
-    my $self = shift;
-    my $pkg = shift;
-    my $space = shift;
-
-    my $keepvals = 4;
-
-    return if !$self->get_conf('AVG_SPACE_DB') || $space == 0;
-    my %db;
-    if (!tie %db, 'GDBM_File', $self->get_conf('AVG_SPACE_DB'), &GDBM_WRCREAT, 0664) {
-	$self->log_warning("Can't open average space db " . $self->get_conf('AVG_SPACE_DB') . "\n");
-	return;
-    }
-    $pkg =~ s/_.*//;
-
-    if (exists $db{$pkg}) {
-	my @values = split( /\s+/, $db{$pkg} );
-	shift @values;
-	unshift( @values, $space );
-	pop @values if @values > $keepvals;
-	my ($sum, $n, $weight, $i) = (0, 0, scalar(@values));
-	for( $i = 0; $i < @values; ++$i) {
-	    $sum += $values[$i] * $weight;
-	    $n += $weight;
-	}
-	unshift( @values, $sum/$n );
-	$db{$pkg} = join( ' ', @values );
-    }
-    else {
-	$db{$pkg} = "$space $space";
-    }
-    untie %db;
 }
 
 1;

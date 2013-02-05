@@ -40,7 +40,14 @@ sub set_options {
     my $self = shift;
 
     $self->add_options("arch=s" => sub {
-			   $self->set_conf('ARCH', $_[1]);
+			   $self->set_conf('HOST_ARCH', $_[1]);
+			   $self->set_conf('BUILD_ARCH', $_[1]);
+		       },
+		       "build=s" => sub {
+			   $self->set_conf('BUILD_ARCH', $_[1]);
+		       },
+		       "host=s" => sub {
+			   $self->set_conf('HOST_ARCH', $_[1]);
 		       },
 		       "A|arch-all" => sub {
 			   $self->set_conf('BUILD_ARCH_ALL', 1);
@@ -54,14 +61,17 @@ sub set_options {
 		       "add-conflicts=s" => sub {
 			   push(@{$self->get_conf('MANUAL_CONFLICTS')}, $_[1]);
 		       },
+		       "add-depends-arch=s" => sub {
+			   push(@{$self->get_conf('MANUAL_DEPENDS_ARCH')}, $_[1]);
+		       },
+		       "add-conflicts-arch=s" => sub {
+			   push(@{$self->get_conf('MANUAL_CONFLICTS_ARCH')}, $_[1]);
+		       },
 		       "add-depends-indep=s" => sub {
 			   push(@{$self->get_conf('MANUAL_DEPENDS_INDEP')}, $_[1]);
 		       },
 		       "add-conflicts-indep=s" => sub {
 			   push(@{$self->get_conf('MANUAL_CONFLICTS_INDEP')}, $_[1]);
-		       },
-		       "C|check-depends-algorithm=s" => sub {
-			   $self->set_conf('CHECK_DEPENDS_ALGORITHM', $_[1]);
 		       },
 		       "b|batch" => sub {
 			   $self->set_conf('BATCH_MODE', 1);
@@ -138,7 +148,7 @@ sub set_options {
 			   push(@{$self->get_conf('DPKG_BUILDPACKAGE_USER_OPTIONS')},
 				$_[1]);
 		       },
-		       "j=i" => sub {
+		       "j|jobs=i" => sub {
 			   push(@{$self->get_conf('DPKG_BUILDPACKAGE_USER_OPTIONS')},
 				'-j'.$_[1])
 		       },
@@ -158,6 +168,11 @@ sub set_options {
 			   $self->set_conf('NOLOG', 1);
 		       },
 		       "p|purge=s" => sub {
+			   $self->set_conf('PURGE_BUILD_DEPS', $_[1]);
+			   $self->set_conf('PURGE_BUILD_DIRECTORY', $_[1]);
+			   $self->set_conf('PURGE_SESSION', $_[1]);
+		       },
+		       "purge-build=s" => sub {
 			   $self->set_conf('PURGE_BUILD_DIRECTORY', $_[1]);
 		       },
 		       "purge-deps=s" => sub {
@@ -200,8 +215,17 @@ sub set_options {
 		       "build-dep-resolver=s" => sub {
 			   $self->set_conf('BUILD_DEP_RESOLVER', $_[1]);
 		       },
+		       "resolve-alternatives" => sub {
+			   $self->set_conf('RESOLVE_ALTERNATIVES', 1);
+		       },
+		       "no-resolve-alternatives" => sub {
+			   $self->set_conf('RESOLVE_ALTERNATIVES', 0);
+		       },
 			"run-lintian" => sub {
 			    $self->set_conf('RUN_LINTIAN', 1);
+		       },
+		       "no-run-lintian" => sub {
+			    $self->set_conf('RUN_LINTIAN', 0);
 		       },
 		       "lintian-opts=s" => sub {
 			   push(@{$self->get_conf('LINTIAN_OPTIONS')},
@@ -213,6 +237,9 @@ sub set_options {
 		       },
 		       "run-piuparts" => sub {
 			    $self->set_conf('RUN_PIUPARTS', 1);
+		       },
+		       "no-run-piuparts" => sub {
+			    $self->set_conf('RUN_PIUPARTS', 0);
 		       },
 		       "piuparts-opts=s" => sub {
 			   push(@{$self->get_conf('PIUPARTS_OPTIONS')},

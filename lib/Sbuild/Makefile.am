@@ -39,11 +39,10 @@ MODULES =			\
 	ResolverBase.pm		\
 	AptitudeResolver.pm	\
 	AptResolver.pm		\
-	InternalResolver.pm	\
+	XaptResolver.pm		\
 	Resolver.pm		\
 	Conf.pm			\
 	ConfBase.pm		\
-	Log.pm			\
 	LogBase.pm		\
 	Options.pm		\
 	OptionsBase.pm		\

@@ -29,7 +29,6 @@ use POSIX qw(getgroups getgid);
 use Sbuild qw(isin);
 use Sbuild::ConfBase;
 use Sbuild::Sysconfig;
-use Sbuild::Log;
 
 BEGIN {
     use Exporter ();
@@ -138,6 +137,13 @@ sub setup ($) {
 	    GROUP => 'Build options',
 	    DEFAULT => 0,
 	    HELP => 'Build architecture: all packages by default'
+	},
+	'BUILD_ARCH_ANY'			=> {
+	    TYPE => 'BOOL',
+	    VARNAME => 'build_arch_any',
+	    GROUP => 'Build options',
+	    DEFAULT => 1,
+	    HELP => 'Build architecture: any packages by default'
 	},
 	'NOLOG'					=> {
 	    TYPE => 'BOOL',
@@ -253,6 +259,22 @@ sub setup ($) {
 	    DEFAULT => 'aptitude',
 	    HELP => 'Path to aptitude binary'
 	},
+	'XAPT'				=> {
+	    TYPE => 'STRING',
+	    VARNAME => 'xapt',
+	    GROUP => 'Programs',
+	    CHECK => sub {
+		my $conf = shift;
+		my $entry = shift;
+		my $key = $entry->{'NAME'};
+
+		# Only validate if needed.
+		if ($conf->get('BUILD_DEP_RESOLVER') eq 'xapt') {
+		    $validate_program->($conf, $entry);
+		}
+	    },
+	    DEFAULT => 'xapt'
+	},
 	'DPKG_BUILDPACKAGE_USER_OPTIONS'	=> {
 	    TYPE => 'ARRAY:STRING',
 	    GROUP => '__INTERNAL',
@@ -289,20 +311,6 @@ sub setup ($) {
 	    CHECK => $validate_program,
 	    DEFAULT => 'md5sum',
 	    HELP => 'Path to md5sum binary'
-	},
-	'AVG_TIME_DB'				=> {
-	    TYPE => 'STRING',
-	    VARNAME => 'avg_time_db',
-	    GROUP => 'Statistics',
-	    DEFAULT => "$Sbuild::Sysconfig::paths{'SBUILD_LOCALSTATE_DIR'}/avg-build-times",
-	    HELP => 'Name of a database for logging package build times (optional, no database is written if empty)'
-	},
-	'AVG_SPACE_DB'				=> {
-	    TYPE => 'STRING',
-	    VARNAME => 'avg_space_db',
-	    GROUP => 'Statistics',
-	    DEFAULT => "$Sbuild::Sysconfig::paths{'SBUILD_LOCALSTATE_DIR'}/avg-build-space",
-	    HELP => 'Name of a database for logging package space requirement (optional, no database is written if empty)'
 	},
 	'STATS_DIR'				=> {
 	    TYPE => 'STRING',
@@ -341,12 +349,25 @@ sub setup ($) {
 		my $entry = shift;
 		my $key = $entry->{'NAME'};
 		my $directory = $conf->get($key);
-
-		# Trigger creation
-		$conf->get('LOG_DIR_AVAILABLE');
 	    },
-	    DEFAULT => "$HOME/logs",
-	    HELP => 'Directory for storing build logs'
+	    GET => sub {
+		my $conf = shift;
+		my $entry = shift;
+
+		my $retval = $conf->_get($entry->{'NAME'});
+
+		# user mode defaults to the build directory, while buildd mode
+		# defaults to $HOME/logs.
+		if (!defined($retval)) {
+		    $retval = $conf->get('BUILD_DIR');
+		    if ($conf->get('SBUILD_MODE') eq 'buildd') {
+			$retval = "$HOME/logs";
+		    }
+		}
+
+		return $retval;
+	    },
+	    HELP => 'Directory for storing build logs.  This defaults to \'.\' when SBUILD_MODE is set to \'user\' (the default), and to \'$HOME/logs\' when SBUILD_MODE is set to \'buildd\'.'
 	},
 	'LOG_COLOUR'				=> {
 	    TYPE => 'BOOL',
@@ -367,7 +388,7 @@ sub setup ($) {
 	    VARNAME => 'log_colour',
 	    GROUP => 'Logging options',
 	    DEFAULT => 1,
-	    HELP => 'Colour log messages such as critical failures, warnings and sucess'
+	    HELP => 'Colour log messages such as critical failures, warnings and success'
 	},
 	'LOG_DIR_AVAILABLE'			=> {
 	    TYPE => 'BOOL',
@@ -376,11 +397,19 @@ sub setup ($) {
 		my $conf = shift;
 		my $entry = shift;
 
+		my $nolog = $conf->get('NOLOG');
 		my $directory = $conf->get('LOG_DIR');
-
 		my $log_dir_available = 1;
-		if ($directory && ! -d $directory &&
-		    !mkdir $directory) {
+
+		if ($nolog) {
+			$log_dir_available = 0;
+		} elsif ($conf->get('SBUILD_MODE') ne "buildd") {
+		    if ($directory && ! -d $directory) {
+			$log_dir_available = 0;
+		    }
+		} elsif ($directory && ! -d $directory &&
+			 !mkdir $directory) {
+		    # Only create the log dir in buildd mode
 		    warn "Could not create '$directory': $!\n";
 		    $log_dir_available = 0;
 		}
@@ -524,7 +553,7 @@ sub setup ($) {
 			'hurd-dev$',
 			'kfreebsd-kernel-headers$'
 		],
-	    HELP => 'Regular expressions identifying toolchain packages.  Note that for backward compatible, this is also settable using the array @toolchain_regex (deprecated), rather than an array reference.'
+	    HELP => 'Regular expressions identifying toolchain packages.  Note that for backward compatibility, this is also settable using the array @toolchain_regex (deprecated), rather than an array reference.'
 	},
 	'STALLED_PKG_TIMEOUT'			=> {
 	    TYPE => 'NUMERIC',
@@ -570,40 +599,12 @@ sub setup ($) {
 	    DEFAULT => 0,
 	    HELP => 'Run in split mode?  In split mode, apt-get and dpkg are run on the host system, rather than inside the chroot.'
 	},
-	'APT_POLICY'				=> {
-	    TYPE => 'BOOL',
-	    VARNAME => 'apt_policy',
-	    GROUP => 'Dependency resolution',
-	    DEFAULT => 1,
-	    HELP => 'APT policy.  1 to enable additional checking of package versions available in the APT cache, or 0 to disable.  0 is the traditional sbuild behaviour; 1 is needed to build from additional repositories such as sarge-backports or experimental, and has a small performance cost.  Note that this is only used by the internal resolver.'
-	},
 	'CHECK_SPACE'				=> {
 	    TYPE => 'BOOL',
 	    VARNAME => 'check_space',
 	    GROUP => 'Build options',
 	    DEFAULT => 1,
 	    HELP => 'Check free disk space prior to starting a build.  sbuild requires the free space to be at least twice the size of the unpacked sources to allow a build to proceed.  Can be disabled to allow building if space is very limited, but the threshold to abort a build has been exceeded despite there being sufficient space for the build to complete.'
-	},
-	'CHECK_WATCHES'				=> {
-	    TYPE => 'BOOL',
-	    VARNAME => 'check_watches',
-	    GROUP => 'Watch options',
-	    DEFAULT => 1,
-	    HELP => 'Check watched packages to discover missing build dependencies.  This can be disabled to increase the speed of builds.'
-	},
-	'IGNORE_WATCHES_NO_BUILD_DEPS'		=> {
-	    TYPE => 'ARRAY:STRING',
-	    VARNAME => 'ignore_watches_no_build_deps',
-	    GROUP => 'Watch options',
-	    DEFAULT => [],
-	    HELP => 'Ignore watches on the following packages if the package doesn\'t have its own build dependencies in the .dsc.  Note that for backward compatibility, this is also settable using the array @ignore_watches_no_build_deps (deprecated), rather than an array reference.'
-	},
-	'WATCHES'				=> {
-	    TYPE => 'HASH:ARRAY:STRING',
-	    VARNAME => 'watches',
-	    GROUP => 'Watch options',
-	    DEFAULT => {},
-	    HELP => 'Binaries for which the access time is controlled if they are not listed as source dependencies (note: /usr/bin is added if executable name does not start with \'/\').  Most buildds run with clean chroots at the moment, so the default list is now empty.  This hash is a mapping between a package name and the binaries in the package stored as an array reference.  Note that for backward compatibility, this is also settable using the hash %watches (deprecated), rather than using a hash reference.'
 	},
 	'BUILD_DIR'				=> {
 	    TYPE => 'STRING',
@@ -753,24 +754,6 @@ sub setup ($) {
 	    DEFAULT => 0,
 	    HELP => 'Force APT to accept unauthenticated packages.  By default, unauthenticated packages are not allowed.  This is to keep the build environment secure, using apt-secure(8).  By setting this to 1, APT::Get::AllowUnauthenticated is set to "true" when running apt-get. This is disabled by default: only enable it if you know what you are doing.'
 	},
-	'CHECK_DEPENDS_ALGORITHM'		=> {
-	    TYPE => 'STRING',
-	    VARNAME => 'check_depends_algorithm',
-	    GROUP => 'Dependency resolution',
-	    CHECK => sub {
-		my $conf = shift;
-		my $entry = shift;
-		my $key = $entry->{'NAME'};
-
-		die '$key: Invalid build-dependency checking algorithm \'' .
-		    $conf->get($key) .
-		    "'\nValid algorthms are 'first-only' and 'alternatives'\n"
-		    if !isin($conf->get($key),
-			     qw(first-only alternatives));
-	    },
-	    DEFAULT => 'first-only',
-	    HELP => 'Algorithm for build dependency checks: possible values are "first_only" (used by Debian buildds) or "alternatives". Default: "first_only".  Note that this is only used by the internal resolver.'
-	},
 	'BATCH_MODE'				=> {
 	    TYPE => 'BOOL',
 	    GROUP => '__INTERNAL',
@@ -796,6 +779,18 @@ sub setup ($) {
 	    DEFAULT => [],
 	    HELP => 'Additional per-build dependencies.  Do not set by hand.'
 	},
+	'MANUAL_DEPENDS_ARCH'			=> {
+	    TYPE => 'ARRAY:STRING',
+	    GROUP => '__INTERNAL',
+	    DEFAULT => [],
+	    HELP => 'Additional per-build dependencies.  Do not set by hand.'
+	},
+	'MANUAL_CONFLICTS_ARCH'			=> {
+	    TYPE => 'ARRAY:STRING',
+	    GROUP => '__INTERNAL',
+	    DEFAULT => [],
+	    HELP => 'Additional per-build dependencies.  Do not set by hand.'
+	},
 	'MANUAL_DEPENDS_INDEP'			=> {
 	    TYPE => 'ARRAY:STRING',
 	    GROUP => '__INTERNAL',
@@ -808,7 +803,21 @@ sub setup ($) {
 	    DEFAULT => [],
 	    HELP => 'Additional per-build dependencies.  Do not set by hand.'
 	},
-	'BUILD_SOURCE'				=> {
+	'CROSSBUILD_CORE_DEPENDS'				=> {
+	    TYPE => 'HASH:ARRAY:STRING',
+	    VARNAME => 'crossbuild_core_depends',
+	    GROUP => 'Multiarch support (transitional)',
+	    DEFAULT => { arm64 => ['crossbuild-essential-arm64'],
+			 armel => ['crossbuild-essential-armel'],
+			 armhf => ['crossbuild-essential-armhf'],
+			 ia64 => ['crossbuild-essential-ia64'],
+			 mips => ['crossbuild-essential-mips'],
+			 mipsel => ['crossbuild-essential-mipsel'],
+			 powerpc => ['crossbuild-essential-powerpc'],
+			 sparc => ['crossbuild-essential-sparc']
+	    	       },
+	    HELP => 'Per-architecture dependencies required for cross-building.'
+	},	'BUILD_SOURCE'				=> {
 	    TYPE => 'BOOL',
 	    VARNAME => 'build_source',
 	    GROUP => 'Build options',
@@ -868,16 +877,18 @@ sub setup ($) {
 		my $entry = shift;
 		my $key = $entry->{'NAME'};
 
-		warn "W: Build dependency resolver 'internal' is deprecated; please switch to 'apt'\n"
-		    if $conf->get($key) eq 'internal';
+		if ($conf->get($key) eq 'internal') {
+		    warn "W: Build dependency resolver 'internal' has been removed; defaulting to 'apt'.  Please update your configuration.\n";
+		    $conf->set('BUILD_DEP_RESOLVER', 'apt');
+		}
 
 		die '$key: Invalid build-dependency resolver \'' .
 		    $conf->get($key) .
-		    "'\nValid algorthms are 'internal', 'apt' and 'aptitude'\n"
+		    "'\nValid algorithms are 'apt', 'aptitude' and 'xapt'\n"
 		    if !isin($conf->get($key),
-			     qw(internal apt aptitude));
+			     qw(apt aptitude xapt));
 	    },
-	    HELP => 'Build dependency resolver.  The \'apt\' resolver is currently the default, and recommended for most users.  This resolver uses apt-get to resolve dependencies.  Alternative resolvers are \'apt\' and \'aptitude\', which use a built-in resolver module and aptitude to resolve build dependencies, respectively.  The internal resolver is not capable of resolving complex alternative and virtual package dependencies, but is otherwise equivalent to apt.  The aptitude resolver is similar to apt, but is useful in more complex situations, such as where multiple distributions are required, for example when building from experimental, where packages are needed from both unstable and experimental, but defaulting to unstable.'
+	    HELP => 'Build dependency resolver.  The \'apt\' resolver is currently the default, and recommended for most users.  This resolver uses apt-get to resolve dependencies.  Alternative resolvers are \'apt\' and \'aptitude\', which use a built-in resolver module and aptitude to resolve build dependencies, respectively.  The aptitude resolver is similar to apt, but is useful in more complex situations, such as where multiple distributions are required, for example when building from experimental, where packages are needed from both unstable and experimental, but defaulting to unstable.'
 	},
 	'LINTIAN'				=> {
 	    TYPE => 'STRING',
@@ -1001,13 +1012,6 @@ sub setup ($) {
 	    DEFAULT => 1,
 	    HELP => 'Log standard error of commands run by sbuild?'
 	},
-	'RESOLVE_VIRTUAL'				=> {
-	    TYPE => 'BOOL',
-	    VARNAME => 'resolve_virtual',
-	    GROUP => 'Dependency resolution',
-	    DEFAULT => 0,
-	    HELP => 'Attempt to resolve virtual dependencies?  This option is only used by the internal resolver.'
-	},
 	'RESOLVE_ALTERNATIVES'				=> {
 	    TYPE => 'BOOL',
 	    VARNAME => 'resolve_alternatives',
@@ -1027,7 +1031,8 @@ sub setup ($) {
 
 		return $retval;
 	    },
-	    HELP => 'Should the dependency resolver use alternatives in Build-Depends and Build-Depends-Indep?  By default, only the first alternative will be used; all other alternatives will be removed.  Note that this does not include architecture-specific alternatives, which are reduced to the build architecture prior to alternatives removal.  This should be left disabled when building for unstable; it may be useful when building backports.'
+	    EXAMPLE => '$resolve_alternatives = 0;',
+	    HELP => 'Should the dependency resolver use alternatives in Build-Depends, Build-Depends-Arch and Build-Depends-Indep?  By default, using \'apt\' resolver, only the first alternative will be used; all other alternatives will be removed.  When using the \'aptitude\' resolver, it will default to using all alternatives.  Note that this does not include architecture-specific alternatives, which are reduced to the build architecture prior to alternatives removal.  This should be left disabled when building for unstable; it may be useful when building for experimental or backports.  Set to undef to use the default, 1 to enable, or 0 to disable.'
 	},
 	'SBUILD_BUILD_DEPENDS_SECRET_KEY'		=> {
 	    TYPE => 'STRING',
@@ -1069,10 +1074,6 @@ my \%mailto;
 undef \%mailto;
 my \@toolchain_regex;
 undef \@toolchain_regex;
-my \@ignore_watches_no_build_deps;
-undef \@ignore_watches_no_build_deps;
-my \%watches;
-undef \%watches;
 my \%individual_stalled_pkg_timeout;
 undef \%individual_stalled_pkg_timeout;
 END
@@ -1087,15 +1088,6 @@ if (\@toolchain_regex) {
     warn 'W: \@toolchain_regex is deprecated; please use the array reference \$toolchain_regexp[]\n';
     \$conf->set('TOOLCHAIN_REGEX', \\\@toolchain_regex);
 }
-if (\@ignore_watches_no_build_deps) {
-    warn 'W: \@ignore_watches_no_build_deps is deprecated; please use the array reference \$ignore_watches_no_build_deps[]\n';
-    \$conf->set('IGNORE_WATCHES_NO_BUILD_DEPS',
-		\\\@ignore_watches_no_build_deps);
-}
-if (\%watches) {
-    warn 'W: \%watches is deprecated; please use the hash reference \$watches{}\n';
-    \$conf->set('WATCHES', \\\%watches);
-}
 if (\%individual_stalled_pkg_timeout) {
     warn 'W: \%individual_stalled_pkg_timeout is deprecated; please use the hash reference \$individual_stalled_pkg_timeout{}\n';
     \$conf->set('INDIVIDUAL_STALLED_PKG_TIMEOUT',
@@ -1106,6 +1098,10 @@ END
     my $custom_setup = <<END;
 push(\@{\${\$conf->get('EXTERNAL_COMMANDS')}{"chroot-setup-commands"}},
 \$chroot_setup_script) if (\$chroot_setup_script);
+
+    # Trigger log directory creation if needed
+    \$conf->get('LOG_DIR_AVAILABLE');
+
 END
 
 
