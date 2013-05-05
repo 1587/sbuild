@@ -79,19 +79,17 @@ then
 fi
 
 BASE="$SUITE"
-OLDSTABLE="lenny"
-STABLE="squeeze"
-TESTING="wheezy"
+OLDSTABLE="squeeze"
+STABLE="wheezy"
+TESTING="jessie"
 case "$SUITE" in
     oldstable) BASE=$OLDSTABLE ;;
     oldstable-security) BASE=$OLDSTABLE; VARIANT="security" ;;
     oldstable-backports) BASE=$OLDSTABLE; VARIANT="backports" ;;
-    oldstable-volatile) BASE=$OLDSTABLE; VARIANT="volatile" ;;
     oldstable-edu) BASE=$OLDSTABLE; VARIANT="edu" ;;
     stable) BASE=$STABLE ;;
     stable-security) BASE=$STABLE; VARIANT="security" ;;
     stable-backports) BASE=$STABLE; VARIANT="backports" ;;
-    stable-volatile) BASE=$STABLE; VARIANT="volatile" ;;
     stable-edu) BASE=$STABLE; VARIANT="edu" ;;
     testing) BASE=$TESTING ;;
     testing-security) BASE=$TESTING; VARIANT="security" ;;
