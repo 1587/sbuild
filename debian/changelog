@@ -1,3 +1,9 @@
+sbuild (0.61.0-1+buildd20130505.0) squeeze-buildd; urgency=low
+
+  * bin/create-chroot: adjust for wheezy release
+
+ -- Philipp Kern <pkern@debian.org>  Sun, 05 May 2013 11:13:32 +0200
+
 sbuild (0.61.0-1+buildd20130106.0) squeeze-buildd; urgency=low
 
   * etc/99builddsourceslist: do not fetch binaries from non-free
