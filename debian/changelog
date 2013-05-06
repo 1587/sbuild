@@ -1,3 +1,10 @@
+sbuild (0.61.0-1+buildd20130506.0) squeeze-buildd; urgency=low
+
+  * etc/99builddsourceslist: update for new backports locations
+  * etc/99builddsourceslist: deactivate proposed-updates for backports
+
+ -- Philipp Kern <pkern@debian.org>  Mon, 06 May 2013 13:59:10 +0200
+
 sbuild (0.61.0-1+buildd20130505.0) squeeze-buildd; urgency=low
 
   * bin/create-chroot: adjust for wheezy release
