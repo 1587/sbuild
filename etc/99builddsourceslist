@@ -76,10 +76,9 @@ if [ "$1" = "setup-start" ] || [ "$1" = "setup-recover" ]; then
             domirror "http://security-master.debian.org/buildd-${SUITE_BASE} /" ${APT_LIST}
 
         elif [ "${SUITE_VARIANT%%-sloppy}" = 'backports' ]; then
-            SUITES="${SUITE_BASE} ${SUITE_BASE}-proposed-updates"
+            SUITES="${SUITE_BASE}"
             [ -n "${debian_mirror}" ] && domirror "${debian_mirror} SUITE COMPONENT" ${APT_LIST}
             domirror "http://ftp.debian.org/debian SUITE COMPONENT" ${APT_LIST}
-            SUITES="${SUITE_BASE}"
             [ -n "${backports_mirror}" ] && domirror "${backports_mirror} SUITE-backports COMPONENT" ${APT_LIST}
             domirror "http://backports.debian.org/debian-backports/ SUITE-backports COMPONENT" ${APT_LIST}
             domirror "http://backports-master.debian.org/buildd/${SUITE_BASE}-backports /" ${APT_LIST}
