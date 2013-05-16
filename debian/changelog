@@ -56,6 +56,26 @@ sbuild (0.64.0-1) unstable; urgency=low
 
  -- Roger Leigh <rleigh@debian.org>  Fri, 17 May 2013 23:06:13 +0100
 
+sbuild (0.63.2-1+buildd20130506.0) UNRELEASED; urgency=low
+
+  [ Roger Leigh ]
+  * Forward port buildd patches not previously incorporated from
+    the buildd-0.61.0 branch:
+    - Enable compatibility features with --enable-compat
+    - Add all old changelog entries
+    - debian/buildd.*{inst,rm}: use dpkg-maintscript-helper to drop
+      schroot files
+    - Sbuild::DB::Client: do not change the cwd
+    - buildd: Fix SSH control master restart
+    - etc/99builddsourceslist: Update
+    - bin/create-chroot: Update
+  * buildd:
+    - Remove duplicate stop function from buildd.init
+    - Remove obsolete 25nssdatabases schroot setup script in
+      maintainer scripts
+
+ -- Roger Leigh <rleigh@debian.org>  Thu, 16 May 2013 22:23:31 +0100
+
 sbuild (0.63.2-1.1) unstable; urgency=low
 
   * Non-maintainer upload.
