@@ -1628,7 +1628,7 @@ sub build {
 	}
 
 	$self->log_subsection("Changes");
-	$changes = $self->get('Package_SVersion') . "_$host_arch.changes";
+	$changes = $self->get_changes();
 	my @cfiles;
 	if (-r "$build_dir/$changes") {
 	    my(@do_dists, @saved_dists);
@@ -1737,6 +1737,20 @@ sub get_env ($$) {
     _env_loop($envlist, $self, $self, $prefix);
     _env_loop($envlist, $self->get('Config'), $self->get('Config')->{'KEYS'}, "${prefix}CONF_");
     return $envlist;
+}
+
+sub get_changes {
+    my $self=shift;
+    my $changes;
+
+    if ( (grep {$_ eq "-A"} @{$self->get_conf('DPKG_BUILDPACKAGE_USER_OPTIONS')})
+	 && -r $self->get('Chroot Build Dir') . '/' . $self->get('Package_SVersion') . $self->get('Package_SVersion') . "_all.changes") {
+	$changes = $self->get('Package_SVersion') . "_all.changes";
+    }
+    else {
+	$changes = $self->get('Package_SVersion') . '_' . $self->get('Host Arch') . '.changes';
+    }
+    return $changes;
 }
 
 sub read_build_essential {
@@ -2061,6 +2075,7 @@ sub open_build_log {
 				   $self->get_conf('DISTRIBUTION'));
 	    } else {
 		$self->log_symlink($filename,
+				   $self->get_conf('BUILD_DIR') . '/' .
 				   $self->get('Package_SVersion') . '_' .
 				   $self->get('Host Arch') . ".build");
 	    }
@@ -2200,8 +2215,9 @@ sub close_build_log {
     if ($self->get_status() eq "successful") {
 	if (defined($self->get_conf('KEY_ID')) && $self->get_conf('KEY_ID')) {
 	    my $key_id = $self->get_conf('KEY_ID');
+	    my $changes;
 	    $self->log(sprintf("Signature with key '%s' requested:\n", $key_id));
-	    my $changes = $self->get('Package_SVersion') . '_' . $self->get('Host Arch') . '.changes';
+	    $changes = $self->get_changes();
 	    system "debsign", "-k$key_id", $changes;
 	}
     }
@@ -2307,8 +2323,7 @@ sub send_mime_build_log {
 		Filename => basename($filename) . '.gz'
 		);
     }
-
-    my $changes = $self->get('Package_SVersion') . '_' . $self->get('Host Arch') . '.changes';
+    my $changes = $self->get_changes();
     if ($self->get_status() eq 'successful' && -r $changes) {
 	my $log_part = MIME::Lite->new(
 		Type     => 'text/plain',
