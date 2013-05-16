@@ -21,6 +21,7 @@ then
     # No predepends possible because Lenny needs to be supported.
     dpkg-maintscript-helper rm_conffile /etc/schroot/script-defaults.buildd -- "$@"
     dpkg-maintscript-helper rm_conffile /etc/schroot/mount-defaults.buildd -- "$@"
+    dpkg-maintscript-helper rm_conffile /etc/schroot/setup.d/25nssdatabases -- "$@"
 fi
 
 case "$1" in
