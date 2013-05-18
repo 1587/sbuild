@@ -1,4 +1,4 @@
-sbuild (0.63.2-1++buildd20130506.0) UNRELEASED; urgency=low
+sbuild (0.63.2-1+buildd20130506.0) UNRELEASED; urgency=low
 
   [ Roger Leigh ]
   * Forward port buildd patches not previously incorporated from
