@@ -1,3 +1,10 @@
+sbuild (0.64.0-1+buildd20130518.0) UNRELEASED; urgency=low
+
+  [ Roger Leigh ]
+  * Merge patches from buildd-0.63.2 into the 0.64.0 release.
+
+ -- Roger Leigh <rleigh@debian.org>  Sat, 18 May 2013 10:15:04 +0100
+
 sbuild (0.64.0-1) unstable; urgency=low
 
   [ Thorsten Glaser ]
