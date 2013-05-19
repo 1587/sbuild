@@ -472,6 +472,8 @@ sub read ($$$$) {
 	my $varname = $conf->_get_varname($key);
 	$script .= "my \$$varname = undef;\n";
     }
+    # For compatibility only - not used anymore.
+    $script .= "my \$arch = undef;\n";
 
     # For compatibility only.  Non-scalars are deprecated.
     $script .= $deprecated_init
