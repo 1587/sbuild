@@ -408,6 +408,9 @@ undef \@distributions;
 my \@upload_queues;
 undef \@upload_queues;
 
+# unused now but needed to avoid errors with old config during startup
+my \$max_build = undef;
+
 #legacy fields:
 my \@weak_no_auto_build;
 undef \@weak_no_auto_build;
