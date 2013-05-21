@@ -1,9 +1,27 @@
-sbuild (0.64.0-1+buildd20130518.0) UNRELEASED; urgency=low
+sbuild (0.64.0-1+buildd20130521.0) wheezy; urgency=low
 
   [ Roger Leigh ]
   * Merge patches from buildd-0.63.2 into the 0.64.0 release.
 
- -- Roger Leigh <rleigh@debian.org>  Sat, 18 May 2013 10:15:04 +0100
+  [ Andreas Barth ]
+  * apply various fixes for using on buildds:
+    + install 99builddsourceslist again
+    + fix 99builddsourceslist for new schroot config
+    + auto-upgrade the buildd chroot configuration during upgrade
+    + succesfully (un)install on machines with ud-ldap
+    + adjust for new locations for buildds at incoming / security-master
+    + ignore $arch in .sbuildrc (instead failing to start)
+    + allow to specify minimum age for package on wanna-build side
+    + allow to specify mailto address on wanna-build side (and add more
+      addresses to it)
+    + remove warnings of outdated config for now, as they appear in the
+      cron mail as well
+    + remove suite aliases on chroot creation except for experimental
+    + checks before startup: buildd is in group sbuild, gpg key for apt
+      exists (or autocreate it), we have a proper build place in schroot
+  * bump schroot minimum version to 1.6.0 for the new 99builddsourceslist
+
+ -- Andreas Barth <aba@ayous.org>  Tue, 21 May 2013 20:21:04 +0200
 
 sbuild (0.64.0-1) unstable; urgency=low
 
