@@ -510,7 +510,6 @@ if (\@take_from_dists) {
     push \@dists, \@{\$distributions} if defined \$distributions;
 
     if (\@distributions) {
-	warn 'W: \@distributions is deprecated; please use the array reference \$distributions[]\n';
 	push \@dists, \@distributions;
     }
 
@@ -562,7 +561,6 @@ my \@queues = ();
 push \@queues, \@{\$upload_queues} if defined \$upload_queues;
 
 if (\@upload_queues) {
-    warn 'W: \@upload_queues is deprecated; please use the array reference \$upload_queues[]\n';
     push \@queues, \@upload_queues;
 }
 

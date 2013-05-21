@@ -1081,15 +1081,12 @@ END
     my $deprecated_setup = <<END;
 # Non-scalar values, for backward compatibility.
 if (\%mailto) {
-    warn 'W: \%mailto is deprecated; please use the hash reference \$mailto{}\n';
     \$conf->set('MAILTO_HASH', \\\%mailto);
 }
 if (\@toolchain_regex) {
-    warn 'W: \@toolchain_regex is deprecated; please use the array reference \$toolchain_regexp[]\n';
     \$conf->set('TOOLCHAIN_REGEX', \\\@toolchain_regex);
 }
 if (\%individual_stalled_pkg_timeout) {
-    warn 'W: \%individual_stalled_pkg_timeout is deprecated; please use the hash reference \$individual_stalled_pkg_timeout{}\n';
     \$conf->set('INDIVIDUAL_STALLED_PKG_TIMEOUT',
 		\\\%individual_stalled_pkg_timeout);
 }
