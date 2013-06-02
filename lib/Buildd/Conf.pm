@@ -100,7 +100,7 @@ sub setup ($) {
 	    TYPE => 'STRING',
 	    VARNAME => 'admin_mail',
 	    GROUP => 'Mail',
-	    DEFAULT => 'root',
+	    DEFAULT => 'buildd-porters',
 	    HELP => 'email address for admin'
 	},
 	'APT_GET'				=> {
@@ -171,7 +171,7 @@ sub setup ($) {
 	    TYPE => 'BOOL',
 	    VARNAME => 'log_queued_messages',
 	    GROUP => 'Mail',
-	    DEFAULT => 0,
+	    DEFAULT => 1,
 	    HELP => 'Log success messages from upload queue daemon?'
 	},
 	'MAX_SBUILD_FAILS'				=> {
@@ -229,14 +229,14 @@ sub setup ($) {
 	    TYPE => 'BOOL',
 	    VARNAME => 'should_build_msgs',
 	    GROUP => 'Daemon',
-	    DEFAULT => 1,
+	    DEFAULT => 0,
 	    HELP => 'Should buildd send "Should I build" messages?'
 	},
 	'STATISTICS_MAIL'			=> {
 	    TYPE => 'STRING',
 	    VARNAME => 'statistics_mail',
 	    GROUP => 'Watcher',
-	    DEFAULT => 'root',
+	    DEFAULT => 'buildd-porters',
 	    HELP => 'email address for statistics summaries'
 	},
 	'STATISTICS_PERIOD'			=> {

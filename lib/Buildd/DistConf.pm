@@ -98,7 +98,7 @@ sub setup ($) {
 	    DEFAULT => undef,
 	},
 	'WANNA_BUILD_DB_USER'			=> {
-	    DEFAULT => $Buildd::username
+	    DEFAULT => undef,
 	},
 	'WANNA_BUILD_API'			=> {
 	    DEFAULT => undef,

@@ -4,6 +4,11 @@ sbuild (0.64.0-1+buildd20130602.0) wheezy; urgency=low
     in .builddrc (or in $default), and always set sbuild_mode=buildd, so
     .sbuildrc doesn't need to exist (unless it contains
     %individual_stalled_pkg_timeout )
+  * set default of "should build messages" to 0
+  * set default of "log queued messages" to 1
+  * set default wanna-build username to undef (used to be username,
+    not useful in Debian anyways)
+  * set default of admin-mail and statistics-mail to buildd-porters
 
  -- Andreas Barth <aba@ayous.org>  Tue, 02 Jun 2013 10:46:27 +0200
 
