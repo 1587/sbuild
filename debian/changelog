@@ -1,3 +1,10 @@
+sbuild (0.64.0-1+buildd20130709.0) wheezy; urgency=low
+
+  * etc/99builddsourceslist: fix entry for backports.debian.org
+    (by Ansgar)
+
+ -- Andreas Barth <aba@ayous.org>  Tue, 09 Jul 2013 20:15:06 +0200
+
 sbuild (0.64.0-1+buildd20130602.0) wheezy; urgency=low
 
   * allow to set maintainer_name and mailfrom in the distribution setting
