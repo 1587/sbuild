@@ -1,3 +1,10 @@
+sbuild (0.61.0-1+buildd20130807.0) squeeze-buildd; urgency=low
+
+  * etc/99builddsourceslist: update for new security-master locations
+    (based on patch from Ansgar)
+
+ -- Andreas Barth <aba@ayous.org>  Wed, 07 Aug 2013 23:26:58 +0200
+
 sbuild (0.61.0-1+buildd20130506.0) squeeze-buildd; urgency=low
 
   * etc/99builddsourceslist: update for new backports locations
