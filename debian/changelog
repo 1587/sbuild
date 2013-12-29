@@ -1,3 +1,9 @@
+sbuild (0.64.0-1+buildd20131229.0) wheezy; urgency=medium
+
+  * bin/create-chroot: use ext4 instead of ext3
+
+ -- Philipp Kern <pkern@debian.org>  Sun, 29 Dec 2013 14:58:12 +0100
+
 sbuild (0.64.0-1+buildd20130709.0) wheezy; urgency=low
 
   * etc/99builddsourceslist: fix entry for backports.debian.org
