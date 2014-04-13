@@ -1,3 +1,10 @@
+sbuild (0.64.0-1+buildd20140413.0) wheezy; urgency=medium
+
+  * etc/99builddsourceslist: add support for squeeze-lts
+  * 
+
+ -- Philipp Kern <pkern@debian.org>  Sun, 13 Apr 2014 15:29:55 +0200
+
 sbuild (0.64.0-1+buildd20131229.0) wheezy; urgency=medium
 
   * bin/create-chroot: use ext4 instead of ext3
