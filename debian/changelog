@@ -1,3 +1,10 @@
+sbuild (0.64.0-1+buildd20140816.0) wheezy; urgency=medium
+
+  * etc/99builddsourceslist: integrate kbsd-changes
+  * etc/99builddsourceslist: stop using incoming.d.o/debian
+
+ -- Andreas Barth <aba@ayous.org>  Sat, 16 Aug 2014 13:00:33 +0200
+
 sbuild (0.64.0-1+buildd20140713.0) wheezy; urgency=medium
 
   * etc/99builddsourceslist: don't run for non "buildd" profiles.
