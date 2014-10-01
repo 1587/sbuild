@@ -58,6 +58,8 @@ sub new {
     # Typically set by Sbuild::Build, but not outside a build context.
     $self->set('Host Arch', $self->get_conf('HOST_ARCH'));
     $self->set('Build Arch', $self->get_conf('BUILD_ARCH'));
+    $self->set('Initial Foreign Arches', {});
+    $self->set('Added Foreign Arches', {});
 
     my $dummy_archive_list_file = $session->get('Location') .
         '/etc/apt/sources.list.d/sbuild-build-depends-archive.list';
@@ -134,25 +136,95 @@ sub setup {
     $self->cleanup_apt_archive();
 }
 
+sub get_foreign_architectures {
+    my $self = shift;
+
+    my $session = $self->get('Session');
+
+    my ($tmpfh, $tmpfilename) = tempfile(DIR => $session->get('Location') . "/tmp");
+    $session->run_command({ COMMAND => ['dpkg', '--print-foreign-architectures'],
+                            USER => 'root',
+                            STREAMOUT => $tmpfh});
+    seek $tmpfh, 0, SEEK_SET;
+    my @existing_foreign_arches;
+    while(<$tmpfh>)
+    {
+        chomp;
+        next unless $_;
+        push @existing_foreign_arches, $_;
+    }
+    close $tmpfh;
+
+    if ($?)
+    {
+        $self->log_error("Failed to get dpkg foreign-architecture config\n");
+        return {};
+    }
+
+    my %set;
+    foreach (@existing_foreign_arches) { $set{$_} = 1; }
+    return \%set;
+}
+
+sub add_foreign_architecture {
+
+    my $self = shift;
+    my $arch = shift;
+
+    # if we already have this architecture, we're done
+    my $initial_foreign_arches = $self->get('Initial Foreign Arches');
+    my $added_foreign_arches   = $self->get('Added Foreign Arches');
+    return if $initial_foreign_arches->{$arch} || $added_foreign_arches->{$arch};
+
+    my $session = $self->get('Session');
+
+    # FIXME - allow for more than one foreign arch
+    $session->run_command(
+                          # This is the Debian dpkg >= 1.16.3 interface
+                          { COMMAND => ['dpkg', '--add-architecture', $arch],
+                            USER => 'root' });
+    if ($?)
+    {
+        $self->log_error("Failed to set dpkg foreign-architecture config\n");
+        return 0;
+    }
+    $self->log("Adding dpkg foreign-architecture ".$arch."\n");
+
+    $added_foreign_arches->{$arch} = 1;
+    return 1;
+}
+
+sub cleanup_foreign_architectures {
+    my $self = shift;
+
+    my $added_foreign_arches = $self->get('Added Foreign Arches');
+
+    my $session = $self->get('Session');
+
+    foreach my $arch (keys %{$added_foreign_arches}) {
+        $self->log("Removing foreign architecture $arch\n");
+        $session->run_command({ COMMAND => ['dpkg', '--remove-architecture', $arch],
+                                USER => 'root',
+                                DIR => '/'});
+        if ($?)
+        {
+            $self->log_error("Failed to remove dpkg foreign-architecture $arch\n");
+            return;
+        }
+    }
+}
+
 sub setup_dpkg {
     my $self = shift;
 
     my $session = $self->get('Session');
 
+    # Record initial foreign arch state so it can be restored
+    $self->set('Initial Foreign Arches', $self->get_foreign_architectures());
+
     # If cross-building, set the correct foreign-arch
     if ($self->get('Host Arch') ne $self->get('Build Arch')) {
-	$session->run_command(
-	    # this is the ubuntu dpkg 1.16.2 interface - we need to check (or configure) which to use with check_dpkg_version
-#	    { COMMAND => ['sh', '-c', 'echo "foreign-architecture ' . $self->get('Host Arch') . '" > /etc/dpkg/dpkg.cfg.d/sbuild'],
-#	      USER => 'root' });
-	    # This is the Debian dpkg >= 1.16.3 interface
-	    { COMMAND => ['dpkg', '--add-architecture', $self->get('Host Arch')],
-	      USER => 'root' });
-	if ($?) {
-	    $self->log_error("E: Failed to set dpkg foreign-architecture config\n");
-	    return 0;
-	}
-	$self->log("Adding dpkg foreign-architecture ".$self->get('Host Arch')."\n");
+        add_foreign_architecture($session, $self->get('Host Arch'));
     }
 }
 

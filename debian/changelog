@@ -1,3 +1,9 @@
+sbuild (0.64.0-1+buildd20141009.0) wheezy; urgency=medium
+
+  * sbuild: Add multiarch-build support
+
+ -- Wookey <wookey@debian.org>  Wed, 01 Oct 2014 17:32:42 +0100
+
 sbuild (0.64.0-1+buildd20140816.0) wheezy; urgency=medium
 
   * etc/99builddsourceslist: integrate kbsd-changes

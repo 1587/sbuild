@@ -37,6 +37,8 @@ use File::Copy qw(); # copy is already exported from Sbuild, so don't export
 use Dpkg::Arch;
 use Dpkg::Control;
 use Dpkg::Version;
+use Dpkg::Deps qw(deps_concat deps_parse);
+use Scalar::Util 'refaddr';
 use MIME::Lite;
 use Term::ANSIColor;
 
@@ -798,6 +800,7 @@ sub fetch_source_files {
     my $pkg = $self->get('Package');
     my $ver = $self->get('OVersion');
     my $host_arch = $self->get('Host Arch');
+    my $resolver = $self->get('Dependency Resolver');
 
     my ($dscarchs, $dscpkg, $dscver, @fetched);
 
@@ -956,6 +959,66 @@ sub fetch_source_files {
     $build_conflicts =~ s/\n\s+/ /g if defined $build_conflicts;
     $build_conflicts_arch =~ s/\n\s+/ /g if defined $build_conflicts_arch;
     $build_conflicts_indep =~ s/\n\s+/ /g if defined $build_conflicts_indep;
+
+
+    $self->log_subsubsection("Check foreign Arches");
+    # Check for cross-arch dependencies
+    # parse $build_depends* for explicit :arch and add the foreign arches, as needed
+    sub get_explicit_arches
+    {
+        my $visited_deps = pop;
+        my @deps = @_;
+
+        my %set;
+        for my $dep (@deps)
+        {
+            # Break any recursion in the deps data structure (is this overkill?)
+            next if !defined $dep;
+            my $id = ref($dep) ? refaddr($dep) : "str:$dep";
+            next if $visited_deps->{$id};
+            $visited_deps->{$id} = 1;
+
+            if ( exists( $dep->{archqual} ) )
+            {
+                if ( $dep->{archqual} )
+                {
+                    $set{$dep->{archqual}} = 1;
+                }
+            }
+            else
+            {
+                for my $key (get_explicit_arches($dep->get_deps,
+                                                 $visited_deps)) {
+                    $set{$key} = 1;
+                }
+            }
+        }
+
+        return keys %set;
+    }
+
+    my $merged_depends =
+      deps_parse( deps_concat( grep {defined $_} ($build_depends,
+                                                  $build_depends_arch,
+                                                  $build_depends_indep)));
+    my @explicit_arches = get_explicit_arches($merged_depends, {});
+    my @foreign_arches = grep {$_ !~ /any|all|native/} @explicit_arches;
+    my $added_any_new;
+    for my $foreign_arch(@foreign_arches)
+    {
+        $resolver->add_foreign_architecture($foreign_arch);
+        $added_any_new = 1;
+    }
+
+    my @keylist=keys %{$resolver->get('Initial Foreign Arches')};
+    $self->log( 'Initial Foreign Architectures: ');
+    $self->log( join ' ', @keylist, "\n");
+    $self->log('Foreign Architectures in build-deps: ');
+    $self->log( join ' ', @foreign_arches, "\n\n");
+
+    $self->run_chroot_update() if $added_any_new;
+
+
 
     $self->log_subsubsection("Check arch");
     if (!$dscarchs) {
@@ -1881,6 +1944,7 @@ sub add_stat {
 
 sub generate_stats {
     my $self = shift;
+    my $resolver = $self->get('Dependency Resolver');
 
     $self->add_stat('Job', $self->get('Job'));
     $self->add_stat('Package', $self->get('Package'));
@@ -1889,6 +1953,10 @@ sub generate_stats {
     $self->add_stat('Machine Architecture', $self->get_conf('ARCH'));
     $self->add_stat('Host Architecture', $self->get('Host Arch'));
     $self->add_stat('Build Architecture', $self->get('Build Arch'));
+    my @keylist=keys %{$resolver->get('Initial Foreign Arches')};
+    push @keylist, keys %{$resolver->get('Added Foreign Arches')};
+    my $foreign_arches = join ' ', @keylist;
+    $self->add_stat('Foreign Architectures', $foreign_arches );
     $self->add_stat('Distribution', $self->get_conf('DISTRIBUTION'));
     $self->add_stat('Space', $self->get('This Space'));
     $self->add_stat('Build-Time',
