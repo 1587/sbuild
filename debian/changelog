@@ -1,3 +1,16 @@
+sbuild (0.65.1-1+buildd1) jessie; urgency=medium
+
+  * Upload to buildd.debian.org archive.
+  * debian/buildd.install: Install etc/99builddsourceslist.
+  * Import buildd.debian.org changes as patch series:
+    - new patch: ignore-arch-in-sbuildrc.patch
+    - new patch: ignore-max_build-in-builddrc.patch
+    - new patch: remove-warnings-for-outdated-options.patch
+    - new patch: check-for-group-membership-and-gpg-key.patch
+    - new patch: adjust-several-defaults.patch
+
+ -- Ansgar Burchardt <ansgar@debian.org>  Wed, 25 Feb 2015 00:03:18 +0100
+
 sbuild (0.65.1-1) unstable; urgency=medium
 
   * Team upload.
