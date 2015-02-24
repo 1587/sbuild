@@ -1,0 +1,50 @@
+From: Andreas Barth <aba@not.so.argh.org>
+Date: Tue, 21 May 2013 18:55:22 +0200
+Subject: remove warnings of outdated config for now as they appear
+ in cron mails should be reverted later on
+
+(cherry picked from commit 7748afcf9d343563aeae630fc4cf6ff1e506859e)
+
+diff --git a/lib/Buildd/Conf.pm b/lib/Buildd/Conf.pm
+index 4bdb42a..312614a 100644
+--- a/lib/Buildd/Conf.pm
++++ b/lib/Buildd/Conf.pm
+@@ -510,7 +510,6 @@ if (\@take_from_dists) {
+     push \@dists, \@{\$distributions} if defined \$distributions;
+ 
+     if (\@distributions) {
+-	warn 'W: \@distributions is deprecated; please use the array reference \$distributions[]\n';
+ 	push \@dists, \@distributions;
+     }
+ 
+@@ -562,7 +561,6 @@ my \@queues = ();
+ push \@queues, \@{\$upload_queues} if defined \$upload_queues;
+ 
+ if (\@upload_queues) {
+-    warn 'W: \@upload_queues is deprecated; please use the array reference \$upload_queues[]\n';
+     push \@queues, \@upload_queues;
+ }
+ 
+diff --git a/lib/Sbuild/Conf.pm b/lib/Sbuild/Conf.pm
+index af89f60..4ce6177 100644
+--- a/lib/Sbuild/Conf.pm
++++ b/lib/Sbuild/Conf.pm
+@@ -1100,15 +1100,12 @@ END
+     my $deprecated_setup = <<END;
+ # Non-scalar values, for backward compatibility.
+ if (\%mailto) {
+-    warn 'W: \%mailto is deprecated; please use the hash reference \$mailto{}\n';
+     \$conf->set('MAILTO_HASH', \\\%mailto);
+ }
+ if (\@toolchain_regex) {
+-    warn 'W: \@toolchain_regex is deprecated; please use the array reference \$toolchain_regexp[]\n';
+     \$conf->set('TOOLCHAIN_REGEX', \\\@toolchain_regex);
+ }
+ if (\%individual_stalled_pkg_timeout) {
+-    warn 'W: \%individual_stalled_pkg_timeout is deprecated; please use the hash reference \$individual_stalled_pkg_timeout{}\n';
+     \$conf->set('INDIVIDUAL_STALLED_PKG_TIMEOUT',
+ 		\\\%individual_stalled_pkg_timeout);
+ }
+-- 
+2.1.4
+

@@ -1,0 +1,22 @@
+From: Andreas Barth <aba@not.so.argh.org>
+Date: Sun, 19 May 2013 21:53:54 +0200
+Subject: ignore $arch in .sbuildrc (instead of failing to start)
+
+(cherry picked from commit 7a3667a440ae536b9c8c0ebb715ed0bc52a1c928)
+
+diff --git a/lib/Sbuild/ConfBase.pm b/lib/Sbuild/ConfBase.pm
+index 47441e1..07eea34 100644
+--- a/lib/Sbuild/ConfBase.pm
++++ b/lib/Sbuild/ConfBase.pm
+@@ -479,6 +479,8 @@ sub read ($$$$) {
+ 	my $varname = $conf->_get_varname($key);
+ 	$script .= "my \$$varname = undef;\n";
+     }
++    # For compatibility only - not used anymore.
++    $script .= "my \$arch = undef;\n";
+ 
+     # For compatibility only.  Non-scalars are deprecated.
+     $script .= $deprecated_init
+-- 
+2.1.4
+
