@@ -1,3 +1,20 @@
+sbuild (0.65.2-1) unstable; urgency=medium
+
+  * Team upload.
+
+  [ Ansgar Burchardt ]
+  * Sort keys in hashes dumped to sbuild.conf and sbuild.conf.man.
+    Thanks to Reiner Herrmann for the patch.
+    (Closes: #778482, #764504)
+  * sbuild-createchroot: set profile=sbuild also for tar-based chroots.
+    (Closes: #769289)
+
+  [ Aurelien Jarno ]
+  * lib/Sbuild/Build.pm: only list content for deb/udeb files. (Closes:
+    #781075)
+
+ -- Aurelien Jarno <aurel32@debian.org>  Tue, 24 Mar 2015 14:37:46 +0100
+
 sbuild (0.65.1-1+buildd1) jessie; urgency=medium
 
   * Upload to buildd.debian.org archive.
