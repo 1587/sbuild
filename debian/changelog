@@ -1,3 +1,14 @@
+sbuild (0.65.2-1+buildd2) UNRELEASED; urgency=medium
+
+  [ Aurelien Jarno ]
+  * Remove the following patches as none of the DSAed buildds use the
+    corresponding features:
+    - ignore-arch-in-sbuildrc.patch
+    - ignore-max_build-in-builddrc.patch
+    - remove-warnings-for-outdated-options.patch
+
+ -- Aurelien Jarno <aurel32@debian.org>  Sun, 10 May 2015 19:00:28 +0200
+
 sbuild (0.65.2-1+buildd1) jessie; urgency=medium
 
   * Upload to buildd.debian.org archive.

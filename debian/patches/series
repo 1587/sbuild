@@ -1,5 +1,2 @@
-ignore-arch-in-sbuildrc.patch
-ignore-max_build-in-builddrc.patch
-remove-warnings-for-outdated-options.patch
 check-for-group-membership-and-gpg-key.patch
 adjust-several-defaults.patch
