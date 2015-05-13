@@ -26,6 +26,15 @@ index 312614a..df97ecd 100644
  	    HELP => 'Log success messages from upload queue daemon?'
  	},
  	'MAX_SBUILD_FAILS'				=> {
+@@ -192,7 +192,7 @@ sub setup ($) {
+ 	    TYPE => 'NUMERIC',
+ 	    VARNAME => 'nice_level',
+ 	    GROUP => 'Build options',
+-	    DEFAULT => 10,
++	    DEFAULT => 0,
+ 	    HELP => 'Nice level to run sbuild.  Dedicated build daemons should not be niced.'
+ 	},
+ 	'NO_DETACH'				=> {
 @@ -229,14 +229,14 @@ sub setup ($) {
  	    TYPE => 'BOOL',
  	    VARNAME => 'should_build_msgs',
