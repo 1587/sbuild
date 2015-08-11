@@ -7,6 +7,13 @@ sbuild (0.65.2-1+buildd2) UNRELEASED; urgency=medium
     - ignore-max_build-in-builddrc.patch
     - remove-warnings-for-outdated-options.patch
   * Set default nice level to 0 in adjust-several-defaults.patch.
+  * Pass the correct architecture to wanna-build when uploading packages.
+
+  [ Colin Watson ]
+  * sbuild: Fix handling of exceptions while setting up chroot.
+
+  [ Hector Oron ]
+  * Add support for jessie-kfreebsd suites.
 
  -- Aurelien Jarno <aurel32@debian.org>  Sun, 10 May 2015 19:00:28 +0200
 
