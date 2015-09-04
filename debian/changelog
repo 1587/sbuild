@@ -1,9 +1,16 @@
-sbuild (0.65.2-1+buildd3) UNRELEASED; urgency=medium
+sbuild (0.65.2-1+buildd3) jessie; urgency=medium
 
+  [ Aurelien Jarno ]
   * Remove adjust-several-defaults.patch as the DSAed buildds now get
     the default values through puppet.
 
- -- Aurelien Jarno <aurel32@debian.org>  Sat, 22 Aug 2015 01:16:56 +0200
+  [ Johannes 'josch' Schauer ]
+  * add aspcud based resolver
+
+  [ Hector Oron ]
+  * New release
+
+ -- Hector Oron <zumbi@debian.org>  Fri, 04 Sep 2015 01:37:06 +0200
 
 sbuild (0.65.2-1+buildd2) jessie; urgency=medium
 
