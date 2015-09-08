@@ -1,3 +1,9 @@
+sbuild (0.65.2-1+buildd4) UNRELEASED; urgency=medium
+
+  * Fix incoming URLs.
+
+ -- Samuel Thibault <sthibault@debian.org>  Tue, 08 Sep 2015 21:42:30 +0200
+
 sbuild (0.65.2-1+buildd3) jessie; urgency=medium
 
   [ Aurelien Jarno ]
