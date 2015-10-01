@@ -1,8 +1,13 @@
-sbuild (0.65.2-1+buildd4) UNRELEASED; urgency=medium
+sbuild (0.65.2-1+buildd4) jessie; urgency=medium
 
+  [ Samuel Thibault ]
   * Fix incoming URLs.
 
- -- Samuel Thibault <sthibault@debian.org>  Tue, 08 Sep 2015 21:42:30 +0200
+  [ Johannes 'josch' Schauer ]
+  * Change aspcud optimization preference.
+  * Consider stderr as well as stdout before timeout (Closes: #731940).
+
+ -- Aurelien Jarno <aurel32@debian.org>  Thu, 01 Oct 2015 23:13:32 +0200
 
 sbuild (0.65.2-1+buildd3) jessie; urgency=medium
 
