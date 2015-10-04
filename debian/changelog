@@ -1,11 +1,12 @@
-sbuild (0.65.3-1) UNRELEASED; urgency=medium
+sbuild (0.66.0-1) unstable; urgency=medium
 
-  * libsbuild-perl: demote Depends: exim | mail-transport-agend to Recommends
-    as both are now optional and only required if MAILTO is set
-    (Closes: #774310)
-  * sbuild: add --arch-all-only option (Closes: #657392)
+  * new upstream version (Closes: #774310, #793561, #790354, #793951, #774359,
+    #782672, #798568, #790547, #731062, #665847, #796539, #657392, #798323,
+    #797783, #775091, #619048, #783091, #783335, #731940, #685416, #765886,
+    #745851, #783135, #774521, #793560, #793359, #770407, #792100, #792092,
+    #790868)
 
- -- Johannes Schauer <josch@debian.org>  Mon, 31 Aug 2015 11:26:30 +0200
+ -- Johannes Schauer <josch@debian.org>  Sun, 04 Oct 2015 09:50:02 +0200
 
 sbuild (0.65.2-1) unstable; urgency=medium
 
