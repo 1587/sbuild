@@ -69,7 +69,7 @@ Description: Tool for building Debian binary packages from Debian sources
  simultaneously on the same machines, for example stable, testing,
  unstable and experimental.  When coupled with schroot to create
  snapshots of chroots, sbuild may be used to build many packages in
- parallel.  A chroot envionment allows packages to be built in a
+ parallel.  A chroot environment allows packages to be built in a
  controlled, clean environment.  sbuild installs only essential and
  build-essential packages, plus those in the package build
  dependencies.
