@@ -1,10 +1,53 @@
+sbuild (0.66.0-2) UNRELEASED; urgency=medium
+
+  * make changelog entry for 0.66.0-1 more explicit wrt the closed bugs.
+
+ -- Johannes Schauer <josch@debian.org>  Mon, 05 Oct 2015 09:23:13 +0200
+
 sbuild (0.66.0-1) unstable; urgency=medium
 
-  * new upstream version (Closes: #774310, #793561, #790354, #793951, #774359,
-    #782672, #798568, #790547, #731062, #665847, #796539, #657392, #798323,
-    #797783, #775091, #619048, #783091, #783335, #731940, #685416, #765886,
-    #745851, #783135, #774521, #793560, #793359, #770407, #792100, #792092,
-    #790868)
+  * new upstream version
+  * demote exim4 to Recommends (Closes: #774310)
+  * use dpkg --assert-multi-arch to check for multi-arch support (Closes:
+    #793561)
+  * allow to set custom configuration file through $SBUILD_CONFIG environment
+    variable (Closes: #790354)
+  * look for a BUILD_ARCH chroot instead of HOST_ARCH (Closes: #793951)
+  * Move running of pre-build-commands until after 'Chroot Dir' is defined
+    to prevent the %SBUILD_CHROOT_DIR percentage escape being empty when
+    running the pre-build-commands hook (Closes: #774359)
+  * external commands are now unparsed strings (Closes: #782672)
+  * properly setup buildd unstable chroot (Closes: #731062)
+  * Replaced all unicode-printed chars with plain ASCII (Closes: #665847,
+    #765886)
+  * Add --extra-repository-key flag for extra apt keys (Closes: #796539)
+  * Add a new --arch-all-only option (Closes: #657392)
+  * Instead of explicitly requesting core packages of the build architecture,
+    use :native (Closes: #798323)
+  * Report a proper error message in case /var/lib/sbuild inside the chroot is
+    not writable (Closes: #797783)
+  * close and unlink temporary files created by File::Temp::tempfile() (Closes:
+    #775091)
+  * external command %SBUILD_SHELL produces an interactive shell (Closes:
+    #783091)
+  * If Build-Depends can't be parsed, I now error loudly (Closes: #783335)
+  * consider stderr as well as stdout before timeout (Closes: #731940)
+  * make symlink to build log relative if in same directory (Closes: #685416)
+  * Handle $session being undefined properly (Closes: #745851, #798568,
+    #790547)
+  * man/sbuild.1.in: update docs for --dist option (Closes: #783135)
+  * sbuild-createchroot(8): default suffix is -sbuild, not -chroot (Closes:
+    #774521)
+  * Correct inaccurate dpkg Multi-Arch support comment (Closes: #793560)
+  * Fix call to add_foreign_architecture to actually have an effect (Closes:
+    #793359)
+  * Fix crossbuild dependency resolution for apt and aptitude (Closes: #770407)
+  * create ~/.gnupg if it did not exist before when running sbuild-update
+    (Closes: #792100)
+  * use httpredir.debian.org instead of ftp.debian.org or ftp.uk.debian.org
+    (Closes: #792092)
+  * add --build-path option and  configuration variable to set a deterministic
+    build path (Closes: #790868)
 
  -- Johannes Schauer <josch@debian.org>  Sun, 04 Oct 2015 09:50:02 +0200
 
