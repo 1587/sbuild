@@ -1,0 +1,25 @@
+commit 91229d5a62f4e71bc99348e3c8979ca8f1c0d294
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Tue Oct 13 12:59:46 2015 +0200
+
+    lib/Sbuild/Build.pm: use deps_parse() with build_dep => 1 (closes: #801637, #801400)
+
+diff --git a/lib/Sbuild/Build.pm b/lib/Sbuild/Build.pm
+index c83888e..d03401c 100644
+--- a/lib/Sbuild/Build.pm
++++ b/lib/Sbuild/Build.pm
+@@ -1078,7 +1078,13 @@ sub fetch_source_files {
+       deps_concat( grep {defined $_} ($build_depends,
+                                       $build_depends_arch,
+                                       $build_depends_indep));
+-    my $merged_depends = deps_parse( $build_depends_concat );
++    my $merged_depends = deps_parse( $build_depends_concat,
++		reduce_arch => 1,
++		host_arch => $self->get('Host Arch'),
++		build_arch => $self->get('Build Arch'),
++		build_dep => 1,
++		reduce_profiles => 1,
++		build_profiles => [ split / /, $self->get('Build Profiles') ]);
+     if( !defined $merged_depends ) {
+         my $msg = "Error! deps_parse() couldn't parse the Build-Depends '$build_depends_concat'";
+         $self->log("$msg\n");

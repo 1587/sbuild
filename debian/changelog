@@ -1,3 +1,10 @@
+sbuild (0.66.0-3) unstable; urgency=medium
+
+  * backport commit 91229d5a calling deps_parse() with build_dep => 1 (closes:
+    #801637, #801400)
+
+ -- Johannes Schauer <josch@debian.org>  Tue, 13 Oct 2015 13:08:47 +0200
+
 sbuild (0.66.0-2) unstable; urgency=medium
 
   * make changelog entry for 0.66.0-1 more explicit wrt the closed bugs.
