@@ -1,3 +1,11 @@
+sbuild (0.66.0-4) unstable; urgency=medium
+
+  * Backport commit 297dc84a fixing a regression in parsing the output of
+    `schroot --info` introduced by commit 8a3e12c3 and leading to
+    sbuild-update not updating the schroot. (closes: #801572)
+
+ -- Johannes Schauer <josch@debian.org>  Wed, 14 Oct 2015 10:32:58 +0200
+
 sbuild (0.66.0-3) unstable; urgency=medium
 
   * backport commit 91229d5a calling deps_parse() with build_dep => 1 (closes:
