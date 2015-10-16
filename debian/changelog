@@ -1,3 +1,10 @@
+sbuild (0.66.0-5) unstable; urgency=medium
+
+  * Backport commit 6456b3da to make sbuild binary packages reproducible
+    independent of the build architecture and the build user (closes: #801882)
+
+ -- Johannes Schauer <josch@debian.org>  Fri, 16 Oct 2015 07:26:52 +0200
+
 sbuild (0.66.0-4) unstable; urgency=medium
 
   * Backport commit 297dc84a fixing a regression in parsing the output of
