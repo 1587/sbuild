@@ -1,3 +1,10 @@
+sbuild (0.66.0-6) UNRELEASED; urgency=medium
+
+  * fix Vcs-Browser and Vcs-Git fields to point at the debian/unstable branch
+    (closes: #805063)
+
+ -- Johannes Schauer <josch@debian.org>  Fri, 25 Dec 2015 17:12:26 +0100
+
 sbuild (0.66.0-5) unstable; urgency=medium
 
   * Backport commit 6456b3da to make sbuild binary packages reproducible
