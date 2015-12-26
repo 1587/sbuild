@@ -1,3 +1,237 @@
+commit 12582197079aaed20c5bac626333b4d328e45be5
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sat Dec 26 14:32:59 2015 +0100
+
+    Bump version to 0.67.0
+
+commit 6c7788954e41ef9cf2474b3ca60ad281282f1b07
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sat Dec 26 09:34:52 2015 +0100
+
+    lib/Sbuild/Build.pm: print $@ after eval() when debug is on
+
+commit b63588e7c68d1320eec37d77b452e9e5ed793983
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Wed Dec 23 14:46:44 2015 +0100
+
+    lib/Sbuild/Build.pm: make sure regex only matches lines in the Files field (closes: #808560)
+    
+    Previously, the regex would also match lines in the Checksums-Sha1 and
+    Checksums-Sha256 field. This was no problem because prior to Perl 5.22 because
+    the following list slicing would return an empty array when it found an
+    out-of-bounds index. Since Perl 5.22 an array of one undef element is returned
+    instead. More info can be found at:
+    
+    https://rt.perl.org/Public/Bug/Display.html?id=114498
+    
+    To fix this we modify the regex such that it only matches the lines containing
+    a 32 character checksum which should only happen in the lines of the Files
+    section where the result of calling split() should return an array of
+    sufficient size to not yield an undef when retrieving element 5 from it.
+
+commit fff86d4249552d3b668104c98f4d7c408af8c8bc
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Thu Dec 24 11:38:20 2015 +0100
+
+    lib/Sbuild/ChrootInfo.pm: fix error handling (closes: #808290)
+
+commit e3946385202ff2d580d134582ad48e5f730d6b10
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Fri Dec 25 22:55:00 2015 +0100
+
+    lib/Sbuild/Chroot.pm: apply environment filter *before* setting environment variables set by sbuild itself (closes: #807488)
+    
+    Before this commit the ENVIRONMENT_FILTER configuration option was able
+    to unset environment variables that were set by the sbuild code itself.
+    This for example undid the setting of the APT_CONFIG environment
+    variable for apt in ResolverBase.pm. The ENVIRONMENT_FILTER variable
+    should be to filter the user environment when they call sbuild. It
+    should still be possible for sbuild itself to enforce an environment
+    variable to be set when calling run_command() or pipe_command(). If an
+    environment variable set by sbuild is wrong or undesirable then
+    ENVIRONMENT_FILTER would be the wrong place to control it.
+
+commit c71112dc23843421ba31996d3ecb65f69a6373fa
+Author: Helmut Grohne <helmut@subdivi.de>
+Date:   Thu Dec 3 06:27:44 2015 +0100
+
+    have a default for CROSSBUILD_CORE_DEPENDS (closes: #806931)
+    
+    The current defaults are per-arch and need to be updated for every new
+    architecture. Rather have an architecture-generic default here.
+
+commit c1ec0b2439d15a476b10793a05e7fd9a73a186c8
+Author: Dima Kogan <dima@secretsauce.net>
+Date:   Fri Nov 13 20:01:19 2015 -0800
+
+    run_external_commands(): small cleanup to reduce boilerplate
+    
+    Prior to this patch all calls to run_external_commands() looked like this:
+    
+      $self->run_external_commands("post-build-commands",
+                                   $self->get_conf('LOG_EXTERNAL_COMMAND_OUTPUT'),
+                                   $self->get_conf('LOG_EXTERNAL_COMMAND_ERROR'));
+    
+    In particular, the last two arguments were ALWAYS these. This patch moves the
+    get_conf() calls to inside run_external_commands(), so the same call now looks
+    like this:
+    
+      $self->run_external_commands("post-build-commands");
+
+commit aea9a4d9546a2398f8ba0b71c6101d8237d447eb
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Fri Dec 25 12:02:31 2015 +0100
+
+    Set [trusted=yes] for internal dummy repository to make key generation optional (closes: #801798)
+
+commit d15d5ea67b81cde811207ff6853b381c3ebe4b41
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Fri Dec 25 17:01:23 2015 +0100
+
+    bin/sbuild: turn path to input dsc or source directory into an absolute path (closes: #801436)
+
+commit 0a267a956edb1af5b8a8589715001137fa5ca17d
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Fri Dec 25 13:02:01 2015 +0100
+
+    lib/Sbuild.pm: improve error message about sbuild group membership (closes: #800317)
+
+commit 654432f598c647d49ce47471e276fd72f4bda42d
+Author: Miguel A. Colón Vélez <debian.micove@gmail.com>
+Date:   Tue Sep 29 07:13:11 2015 -0400
+
+    Successfully handle a source only build. (Closes: #799056)
+    
+     - Get the *_source.changes file.
+     - Format the email subject like:
+       Log for successful build of foo_1.0 source on i386 (dist=unstable)
+
+commit 61ce4a694e463551a582e90f310b8fa6a1e09ece
+Author: Miguel A. Colón Vélez <debian.micove@gmail.com>
+Date:   Tue Sep 29 07:09:53 2015 -0400
+
+    Add the --no-arch-any and --arch-any options.
+    
+     - Add the --no-arch-any and --arch-any options.
+     - Update the documentation.
+
+commit e3bb6d082a1ab00bf0fea492aa9ac4368f7691f8
+Author: Felipe Sateler <fsateler@debian.org>
+Date:   Thu May 21 17:21:01 2015 -0300
+
+    Print better message when no chroot is specified (closes: #786456)
+
+commit cf25323869a8969d5c8e9f64500042dad7834ba0
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Thu Dec 24 10:49:34 2015 +0100
+
+    bin/sbuild-createchroot: check if chroot already exists before creating a new one (closes: #782534)
+
+commit c33e0040724d2e351fa30482e4b4cb39113fd052
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Wed Dec 23 23:28:07 2015 +0100
+
+    Quit processing when external commands fail (closes: #774351)
+
+commit 2aea210b179901f70777e73777e1088590049cc5
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Wed Dec 23 15:37:30 2015 +0100
+
+    sbuild-createchroot: run debootstrap with --no-check-gpg if --keyring="" is passed (closes: #760832)
+
+commit 6b644bb83e58c79f40572860f0c3b4110fe6c5ee
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Fri Dec 25 12:36:24 2015 +0100
+
+    sbuild-createchroot: use union-type=overlay for directory chroot and promote tarball chroot in the manpage (closes: #751732)
+
+commit 8a2f3ff87b94633def3c0f2a90ec7e0b309feb0f
+Author: Jochen Sprickerhof <git@jochen.sprickerhof.de>
+Date:   Fri Nov 27 10:48:16 2015 +0100
+
+    Fix permission of public key (closes: #726866)
+
+commit c3e0e5e55f9f383d52905bb1831f6f91c87a3d4a
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Thu Dec 24 00:48:16 2015 +0100
+
+    man/sbuild-setup.7.in: correct section 8 for sbuild-createchroot and sbuild-adduser (closes: #713033)
+
+commit f2ed2b29c5724c5bad59eaf25a4c1514971ed7b8
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Wed Dec 23 18:09:51 2015 +0100
+
+    bin/sbuild-createchroot: honor --foreign (closes: #709864)
+
+commit bb356e9d3f2f177163b01447af46bcabf6294f9c
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Thu Dec 24 00:42:04 2015 +0100
+
+    lib/Sbuild/Build.pm: say --build instead of incorrect --build-arch (closes: #709270)
+
+commit 9162dd0d727facb2ebab0ab7008603c5fa8c36a1
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Wed Dec 23 17:39:52 2015 +0100
+
+    Check architecture wildcard matching with dpkg inside the chroot to avoid situations in which dpkg outside the chroot doesn't know about a new architecture yet (closes: #691539)
+
+commit 3c26878b38de5f934d1365ec39b137dbc8f3a309
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Thu Dec 24 08:55:38 2015 +0100
+
+    allow changing the user running dpkg-buildpackage inside the chroot (closes: #661037)
+
+commit 6697d08101c86968316fe8976e7350caaf8df050
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Thu Dec 24 12:50:42 2015 +0100
+
+    bin/sbuild: add --clean-source and --no-clean-source to allow building a package from an unpacked directory without calling debian/rules clean (closes: #655215)
+
+commit a13ed6856287bd42dc87686502f3c04010fe065a
+Author: Luca Falavigna <dktrkranz@debian.org>
+Date:   Tue Dec 1 11:10:00 2015 +0100
+
+    Add crossbuild-essential-ppc64el to the list of crossbuild packages
+
+commit 3545e1a72b5f89abfd256b7819d2cd00e5e3e340
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Fri Oct 23 07:05:51 2015 +0200
+
+    ./man/sbuild.1.in: improve documentation of external commands
+
+commit 6456b3da1bf7f3e68b08f62d5d0cb33f4d8caea2
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Fri Oct 16 07:17:29 2015 +0200
+
+    Make the results of building sbuild itself equal across different architectures (closes: #801882)
+    
+     - tools/sbuild-dumpconfig: extend the handling of IGNORE_DEFAULT to
+       still print the variable name but not the value
+     - man/defs.man.in: do not add build system specific information into
+       the man pages
+     - lib/Sbuild/ConfBase.pm: add IGNORE_DEFAULT to build_arch and
+       host_arch so that the architecture of the build system does not spill
+       into the created binaries
+     - lib/Buildd/ClientConf.pm: add IGNORE_DEFAULT to
+       wanna_build_built_architecture for the same reason as above and to
+       wanna_build_db_user so that the username of the user building sbuild
+       does not spill into the created binaries
+
+commit 297dc84acd5fcb1f981b171cff6e7b63624db0c1
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Wed Oct 14 10:23:07 2015 +0200
+
+    Fix regex parsing `schroot --info` output (closes: #801572)
+    
+     - this was a regression introduced by commit 8a3e12c3
+     - this commit fixes the regression and also improves the regex
+
+commit 91229d5a62f4e71bc99348e3c8979ca8f1c0d294
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Tue Oct 13 12:59:46 2015 +0200
+
+    lib/Sbuild/Build.pm: use deps_parse() with build_dep => 1 (closes: #801637, #801400)
+
 commit 7085eef8ca39bc9de8ccb6ab1b20e68c98c8808c
 Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
 Date:   Sun Oct 4 09:22:33 2015 +0200

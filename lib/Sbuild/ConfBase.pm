@@ -169,6 +169,11 @@ sub init_allowed_keys {
 	    VARNAME => 'host_arch',
 	    GROUP => 'Build options',
 	    DEFAULT => $native_arch,
+	    # the $native_arch is different depending on the machine where
+	    # sbuild is built but arch:all packages must not differ depending on
+	    # the architecture they are built on, so don't show the default for
+	    # example config and man page generation
+	    IGNORE_DEFAULT => 1,
 	    HELP => 'Host architecture (Arch we are building for)'
 	},
 	'BUILD_ARCH'				=> {
@@ -176,6 +181,11 @@ sub init_allowed_keys {
 	    VARNAME => 'build_arch',
 	    GROUP => 'Build options',
 	    DEFAULT => $native_arch,
+	    # the $native_arch is different depending on the machine where
+	    # sbuild is built but arch:all packages must not differ depending on
+	    # the architecture they are built on, so don't show the default for
+	    # example config and man page generation
+	    IGNORE_DEFAULT => 1,
 	    HELP => 'Build architecture (Arch we are building on).'
 	},
 	'BUILD_PROFILES'        => {
@@ -211,9 +221,11 @@ sub init_allowed_keys {
 	},
 	'BUILD_USER'				=> {
 	    TYPE => 'STRING',
-	    GROUP => '__INTERNAL',
+	    VARNAME => 'build_user',
+	    GROUP => 'Core options',
 	    DEFAULT => $username,
-	    HELP => 'Username used for building.  Should not require setting.'
+	    IGNORE_DEFAULT => 1, # don't write the username into the config
+	    HELP => 'Username used for running dpkg-buildpackage. By default the user running sbuild is used within the chroot as well but that might allow a process from within the chroot to break out of the chroot by attaching to a process running outside the chroot with eg. gdb and then becoming root inside the chroot through schroot and thus be able to leave the chroot.'
 	},
 	'VERBOSE'				=> {
 	    TYPE => 'NUMERIC',

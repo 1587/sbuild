@@ -300,6 +300,8 @@ sub run {
 	$self->run_chroot();
     };
 
+    debug("Error run(): $@") if $@;
+
     my $e;
     if ($e = Exception::Class->caught('Sbuild::Exception::Build')) {
 	if ($e->status) {
@@ -387,7 +389,7 @@ sub run_chroot_session {
 		$self->get_conf('BUILD_ARCH') .
 		") and chroot architecture (" . $chroot_arch .
 		") do not match.  Skipping build.",
-		info => "Please specify the correct architecture with --build-arch, or use a chroot of the correct architecture",
+		info => "Please specify the correct architecture with --build, or use a chroot of the correct architecture",
 		failstage => "create-session");
 	}
 
@@ -445,9 +447,10 @@ sub run_chroot_session {
 
 	# Run pre build external commands
 	$self->check_abort();
-	$self->run_external_commands("pre-build-commands",
-				     $self->get_conf('LOG_EXTERNAL_COMMAND_OUTPUT'),
-				     $self->get_conf('LOG_EXTERNAL_COMMAND_ERROR'));
+	if(!$self->run_external_commands("pre-build-commands")) {
+	    Sbuild::Exception::Build->throw(error => "Failed to execute pre-build-commands",
+		failstage => "run-pre-build-commands");
+	}
 
 	# Log colouring
 	$self->build_log_colour('red', '^E: ');
@@ -529,6 +532,8 @@ sub run_chroot_session {
 	$self->run_chroot_session_locked();
     };
 
+    debug("Error run_chroot_session(): $@") if $@;
+
     # End chroot session
     my $session = $self->get('Session');
     if (defined $session) {
@@ -562,9 +567,10 @@ sub run_chroot_session_locked {
 
 	# Run specified chroot setup commands
 	$self->check_abort();
-	$self->run_external_commands("chroot-setup-commands",
-				     $self->get_conf('LOG_EXTERNAL_COMMAND_OUTPUT'),
-				     $self->get_conf('LOG_EXTERNAL_COMMAND_ERROR'));
+	if(!$self->run_external_commands("chroot-setup-commands")) {
+	    Sbuild::Exception::Build->throw(error => "Failed to execute chroot-setup-commands",
+		failstage => "run-chroot-setup-commands");
+	}
 
 	$self->check_abort();
 
@@ -581,6 +587,8 @@ sub run_chroot_session_locked {
 	$self->check_abort();
 	$self->run_fetch_install_packages();
     };
+
+    debug("Error run_chroot_session_locked(): $@") if $@;
 
     my $session = $self->get('Session');
     my $resolver = $self->get('Dependency Resolver');
@@ -685,8 +693,11 @@ sub run_fetch_install_packages {
 	my @coredeps = @{$self->get_conf('CORE_DEPENDS')};
 	if ($self->get('Host Arch') ne $self->get('Build Arch')) {
 	    my $crosscoredeps = $self->get_conf('CROSSBUILD_CORE_DEPENDS');
-	    push(@coredeps, @{$crosscoredeps->{$self->get('Host Arch')}})
-		if defined($crosscoredeps->{$self->get('Host Arch')});
+	    if (defined($crosscoredeps->{$self->get('Host Arch')})) {
+	        push(@coredeps, @{$crosscoredeps->{$self->get('Host Arch')}});
+	    } else {
+		push(@coredeps, 'crossbuild-essential-' . $self->get('Host Arch') . ':native');
+            }
 	}
 	$resolver->add_dependencies('CORE', join(", ", @coredeps) , "", "", "", "", "");
 
@@ -753,9 +764,10 @@ sub run_fetch_install_packages {
 
 	# Run specified chroot cleanup commands
 	$self->check_abort();
-	$self->run_external_commands("chroot-cleanup-commands",
-				     $self->get_conf('LOG_EXTERNAL_COMMAND_OUTPUT'),
-				     $self->get_conf('LOG_EXTERNAL_COMMAND_ERROR'));
+	if (!$self->run_external_commands("chroot-cleanup-commands")) {
+	    Sbuild::Exception::Build->throw(error => "Failed to execute chroot-cleanup-commands",
+		failstage => "run-chroot-cleanup-commands");
+	}
 
 	if ($self->get('Pkg Status') eq "successful") {
 	    $self->log_subsection("Post Build");
@@ -766,12 +778,15 @@ sub run_fetch_install_packages {
 
 	    # Run post build external commands
 	    $self->check_abort();
-	    $self->run_external_commands("post-build-commands",
-					 $self->get_conf('LOG_EXTERNAL_COMMAND_OUTPUT'),
-					 $self->get_conf('LOG_EXTERNAL_COMMAND_ERROR'));
+	    if(!$self->run_external_commands("post-build-commands")) {
+		Sbuild::Exception::Build->throw(error => "Failed to execute post-build-commands",
+		    failstage => "run-post-build-commands");
+	    }
 
 	}
     };
+
+    debug("Error run_fetch_install_packages(): $@") if $@;
 
     # I catch the exception here and trigger the hook, if needed. Normally I'd
     # do this at the end of the function, but I want the hook to fire before we
@@ -779,14 +794,16 @@ sub run_fetch_install_packages {
     my $e = Exception::Class->caught('Sbuild::Exception::Build');
     if ( defined $self->get('Pkg Fail Stage') &&
          $self->get('Pkg Fail Stage') eq 'build' ) {
-        $self->run_external_commands("build-failed-commands",
-                                     $self->get_conf('LOG_EXTERNAL_COMMAND_OUTPUT'),
-                                     $self->get_conf('LOG_EXTERNAL_COMMAND_ERROR'));
+	if(!$self->run_external_commands("build-failed-commands")) {
+	    Sbuild::Exception::Build->throw(error => "Failed to execute build-failed-commands",
+		failstage => "run-build-failed-commands");
+	}
     } elsif($e) {
 
-        $self->run_external_commands("build-deps-failed-commands",
-                                     $self->get_conf('LOG_EXTERNAL_COMMAND_OUTPUT'),
-                                     $self->get_conf('LOG_EXTERNAL_COMMAND_ERROR'));
+	if(!$self->run_external_commands("build-deps-failed-commands")) {
+	    Sbuild::Exception::Build->throw(error => "Failed to execute build-deps-failed-commands",
+		failstage => "run-build-deps-failed-commands");
+	}
     }
 
 
@@ -1078,7 +1095,13 @@ sub fetch_source_files {
       deps_concat( grep {defined $_} ($build_depends,
                                       $build_depends_arch,
                                       $build_depends_indep));
-    my $merged_depends = deps_parse( $build_depends_concat );
+    my $merged_depends = deps_parse( $build_depends_concat,
+		reduce_arch => 1,
+		host_arch => $self->get('Host Arch'),
+		build_arch => $self->get('Build Arch'),
+		build_dep => 1,
+		reduce_profiles => 1,
+		build_profiles => [ split / /, $self->get('Build Profiles') ]);
     if( !defined $merged_depends ) {
         my $msg = "Error! deps_parse() couldn't parse the Build-Depends '$build_depends_concat'";
         $self->log("$msg\n");
@@ -1112,7 +1135,23 @@ sub fetch_source_files {
     } else {
 	my $valid_arch;
 	for my $a (split(/\s+/, $dscarchs)) {
-	    if (Dpkg::Arch::debarch_is($host_arch, $a)) {
+	    my $command = <<"EOF";
+		use strict;
+		use warnings;
+		use Dpkg::Arch;
+		if (Dpkg::Arch::debarch_is($host_arch, $a)) {
+		    exit 0;
+		}
+		exit 1;
+EOF
+	    $self->get('Session')->run_command(
+		{ COMMAND => ['perl',
+			'-e',
+			$command],
+		    USER => 'root',
+		    PRIORITY => 0,
+		    DIR => '/' });
+	    if ($? == 0) {
 		$valid_arch = 1;
 		last;
 	    }
@@ -1208,8 +1247,9 @@ sub run_command {
 sub run_external_commands {
     my $self = shift;
     my $stage = shift;
-    my $log_output = shift;
-    my $log_error = shift;
+
+    my $log_output = $self->get_conf('LOG_EXTERNAL_COMMAND_OUTPUT');
+    my $log_error  = $self->get_conf('LOG_EXTERNAL_COMMAND_ERROR');
 
     # Return success now unless there are commands to run
     return 1 unless (${$self->get_conf('EXTERNAL_COMMANDS')}{$stage});
@@ -1305,6 +1345,9 @@ sub run_external_commands {
 	$self->log("\n");
 	if (!$returnval) {
 	    $self->log_error("Command '$command_str' failed to run.\n");
+	    # do not run any other commands of this type after the first
+	    # failure
+	    last;
 	} else {
 	    $self->log_info("Finished running '$command_str'.\n");
 	}
@@ -1591,9 +1634,10 @@ sub build {
 	return 0;
     }
 
-    $self->run_external_commands("starting-build-commands",
-				     $self->get_conf('LOG_EXTERNAL_COMMAND_OUTPUT'),
-				     $self->get_conf('LOG_EXTERNAL_COMMAND_ERROR'));
+    if (!$self->run_external_commands("starting-build-commands")) {
+	Sbuild::Exception::Build->throw(error => "Failed to execute starting-build-commands",
+	    failstage => "run-starting-build-commands");
+    }
 
     $self->set('Build Start Time', time);
     $self->set('Build End Time', $self->get('Build Start Time'));
@@ -1786,9 +1830,10 @@ sub build {
     $self->log("Build finished at $finish_date\n");
 
 
-    $self->run_external_commands("finished-build-commands",
-				     $self->get_conf('LOG_EXTERNAL_COMMAND_OUTPUT'),
-				     $self->get_conf('LOG_EXTERNAL_COMMAND_ERROR'));
+    if (!$self->run_external_commands("finished-build-commands")) {
+	Sbuild::Exception::Build->throw(error => "Failed to execute finished-build-commands",
+	    failstage => "run-finished-build-commands");
+    }
 
     my @space_files = ("$dscdir");
 
@@ -1855,7 +1900,7 @@ sub build {
 			    $_ = '        ' . substr ($_,$index+1);
 			}
 			$self->log($_);
-			if (/^ [a-z0-9]{32}/) {
+			if (/^ [a-z0-9]{32} /) {
 			    push(@cfiles, (split( /\s+/, $_ ))[5] );
 			}
 		    }
@@ -1949,7 +1994,10 @@ sub get_changes {
     my $path=shift;
     my $changes;
 
-    if ( -r $path . '/' . $self->get('Package_SVersion') . "_all.changes") {
+    if ( -r $path . '/' . $self->get('Package_SVersion') . "_source.changes") {
+	$changes = $self->get('Package_SVersion') . "_source.changes";
+    }
+    elsif ( -r $path . '/' . $self->get('Package_SVersion') . "_all.changes") {
 	$changes = $self->get('Package_SVersion') . "_all.changes";
     }
     else {
@@ -2393,6 +2441,9 @@ sub close_build_log {
     my $subject = "Log for " . $self->get_status() .
 	" build of " . $self->get('Package_Version');
 
+    if ($self->get_conf('BUILD_SOURCE') && !$self->get_conf('BUILD_ARCH_ALL') && !$self->get_conf('BUILD_ARCH_ANY')) {
+	$subject .= " source";
+    }
     if ($self->get_conf('BUILD_ARCH_ALL') && !$self->get_conf('BUILD_ARCH_ANY')) {
 	$subject .= " on all";
     } elsif ($self->get('Host Arch')) {

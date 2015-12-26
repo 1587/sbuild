@@ -55,6 +55,12 @@ sub set_options {
 		       "no-arch-all" => sub {
 			   $self->set_conf('BUILD_ARCH_ALL', 0);
 		       },
+		       "arch-any" => sub {
+			   $self->set_conf('BUILD_ARCH_ANY', 1);
+		       },
+		       "no-arch-any" => sub {
+			   $self->set_conf('BUILD_ARCH_ANY', 0);
+		       },
 		       "arch-all-only" => sub {
 			   $self->set_conf('BUILD_ARCH_ALL', 1);
 			   $self->set_conf('BUILD_ARCH_ANY', 0);
@@ -233,6 +239,12 @@ sub set_options {
 		       },
 		       "no-resolve-alternatives" => sub {
 			   $self->set_conf('RESOLVE_ALTERNATIVES', 0);
+		       },
+			"clean-source" => sub {
+			    $self->set_conf('CLEAN_SOURCE', 1);
+		       },
+			"no-clean-source" => sub {
+			    $self->set_conf('CLEAN_SOURCE', 0);
 		       },
 			"run-lintian" => sub {
 			    $self->set_conf('RUN_LINTIAN', 1);
