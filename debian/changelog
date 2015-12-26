@@ -43,6 +43,7 @@ sbuild (0.67.0-1) UNRELEASED; urgency=medium
     - lib/Sbuild/ChrootInfo.pm: fix error handling (closes: #808290)
     - lib/Sbuild/Build.pm: make sure regex only matches lines in the Files
       field (closes: #808560)
+  * drop all patches which have now been applied upstream
 
  -- Johannes Schauer <josch@debian.org>  Sat, 26 Dec 2015 14:43:19 +0100
 
