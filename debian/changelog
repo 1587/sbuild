@@ -1,4 +1,4 @@
-sbuild (0.67.0-1) UNRELEASED; urgency=medium
+sbuild (0.67.0-1) unstable; urgency=medium
 
   * fix Vcs-Browser and Vcs-Git fields to point at the debian/unstable branch
     (closes: #805063)
@@ -45,7 +45,7 @@ sbuild (0.67.0-1) UNRELEASED; urgency=medium
       field (closes: #808560)
   * drop all patches which have now been applied upstream
 
- -- Johannes Schauer <josch@debian.org>  Sat, 26 Dec 2015 14:43:19 +0100
+ -- Johannes Schauer <josch@debian.org>  Sat, 26 Dec 2015 15:19:29 +0100
 
 sbuild (0.66.0-5) unstable; urgency=medium
 
