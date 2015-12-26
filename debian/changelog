@@ -1,11 +1,50 @@
-sbuild (0.66.0-6) UNRELEASED; urgency=medium
+sbuild (0.67.0-1) UNRELEASED; urgency=medium
 
   * fix Vcs-Browser and Vcs-Git fields to point at the debian/unstable branch
     (closes: #805063)
   * add Suggests: libwww-perl to libsbuild-perl because it can optionally make
     use of LWP::UserAgent (closes: #703814)
+  * new upstream version
+    - ./man/sbuild.1.in: improve documentation of external commands
+      (closes: #802678)
+    - bin/sbuild: add --clean-source and --no-clean-source to allow building a
+      package from an unpacked directory without calling debian/rules clean
+      (closes: #655215)
+    - allow changing the user running dpkg-buildpackage inside the chroot
+      (closes: #661037)
+    - Check architecture wildcard matching with dpkg inside the chroot to avoid
+      situations in which dpkg outside the chroot doesn't know about a new
+      architecture yet (closes: #691539)
+    - lib/Sbuild/Build.pm: say --build instead of incorrect --build-arch
+      (closes: #709270)
+    - bin/sbuild-createchroot: honor --foreign (closes: #709864)
+    - man/sbuild-setup.7.in: correct section 8 for sbuild-createchroot and
+      sbuild-adduser (closes: #713033)
+    - Fix permission of public key (closes: #726866)
+    - sbuild-createchroot: use union-type=overlay for directory chroot and
+      promote tarball chroot in the manpage (closes: #751732)
+    - sbuild-createchroot: run debootstrap with --no-check-gpg if --keyring=""
+      is passed (closes: #760832)
+    - Quit processing when external commands fail (closes: #774351)
+    - bin/sbuild-createchroot: check if chroot already exists before creating a
+      new one (closes: #782534)
+    - Print better message when no chroot is specified (closes: #786456)
+    - Add the --no-arch-any and --arch-any options
+    - Successfully handle a source only build. (Closes: #799056)
+    - lib/Sbuild.pm: improve error message about sbuild group membership
+      (closes: #800317)
+    - bin/sbuild: turn path to input dsc or source directory into an absolute
+      path (closes: #801436)
+    - Set [trusted=yes] for internal dummy repository to make key generation
+      optional (closes: #801798)
+    - have a default for CROSSBUILD_CORE_DEPENDS (closes: #806931)
+    - lib/Sbuild/Chroot.pm: apply environment filter *before* setting
+      environment variables set by sbuild itself (closes: #807488)
+    - lib/Sbuild/ChrootInfo.pm: fix error handling (closes: #808290)
+    - lib/Sbuild/Build.pm: make sure regex only matches lines in the Files
+      field (closes: #808560)
 
- -- Johannes Schauer <josch@debian.org>  Fri, 25 Dec 2015 17:17:38 +0100
+ -- Johannes Schauer <josch@debian.org>  Sat, 26 Dec 2015 14:43:19 +0100
 
 sbuild (0.66.0-5) unstable; urgency=medium
 
