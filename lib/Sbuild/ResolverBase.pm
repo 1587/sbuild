@@ -94,6 +94,8 @@ sub setup {
 	    print $F "APT::Get::AllowUnauthenticated true;\n";
 	}
 	print $F "APT::Install-Recommends false;\n";
+	print $F "APT::AutoRemove::SuggestsImportant false;\n";
+	print $F "APT::AutoRemove::RecommendsImportant false;\n";
 
 	if ($self->get('Host Arch') ne $self->get('Build Arch')) {
 	    print $F 'APT::Architecture=' . $self->get('Host Arch');
