@@ -1,3 +1,9 @@
+sbuild (0.67.0-2) unstable; urgency=medium
+
+  * backport patch fix-quoting.patch (closes: #809175)
+
+ -- Johannes Schauer <josch@debian.org>  Mon, 28 Dec 2015 03:23:42 +0100
+
 sbuild (0.67.0-1) unstable; urgency=medium
 
   * fix Vcs-Browser and Vcs-Git fields to point at the debian/unstable branch

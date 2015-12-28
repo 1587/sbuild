@@ -1,0 +1,29 @@
+From 2deb0b121d8ca5dffcdf3b50cefd4a59bbc4554d Mon Sep 17 00:00:00 2001
+From: Niko Tyni <ntyni@debian.org>
+Date: Mon, 28 Dec 2015 00:30:49 +0200
+Subject: [PATCH] Fix quoting when checking architectures (closes: #809175)
+
+The variables got interpolated into $command without any quoting,
+essentially becoming barewords.
+
+Regression introduced in 9162dd0d727facb2ebab0ab7008603c5fa8c36a1
+---
+ lib/Sbuild/Build.pm | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/Sbuild/Build.pm b/lib/Sbuild/Build.pm
+index a6ac74c..95245ca 100644
+--- a/lib/Sbuild/Build.pm
++++ b/lib/Sbuild/Build.pm
+@@ -1139,7 +1139,7 @@ sub fetch_source_files {
+ 		use strict;
+ 		use warnings;
+ 		use Dpkg::Arch;
+-		if (Dpkg::Arch::debarch_is($host_arch, $a)) {
++		if (Dpkg::Arch::debarch_is('$host_arch', '$a')) {
+ 		    exit 0;
+ 		}
+ 		exit 1;
+-- 
+2.5.1
+
