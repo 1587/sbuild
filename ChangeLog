@@ -1,3 +1,210 @@
+commit 75d0b5bc9593a0a8917b0376611914d4b92566a8
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Fri Jan 15 10:10:23 2016 +0100
+
+    Bump version to 0.68.0
+
+commit 0928b3b77e197eeb178f71fd558655eac7120b78
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sun Jan 3 12:17:23 2016 +0100
+
+    Add documentation related to generated build artifacts (closes: #782553)
+    
+     - deprecated --arch-all-only
+     - throw an error if no artifacts are to be created
+     - add references to the command line options to config variables
+       BUILD_ARCH_AND, BUILD_ARCH_ALL and BUILD_SOURCE
+     - add a new section in sbuild man page explaining the
+       --arch-all/no--arch-all, --arch-any/--no-arch-any and
+       --source/--no-source options
+
+commit d6d2db3610fc4d63457dfe223e4a74f23b975e7a
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sun Jan 3 11:06:39 2016 +0100
+
+    Extend explanation of --source and --no-source options (closes: #700317)
+
+commit ac866706fbb633478140ddd175a9c04820eeb596
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Fri Jan 15 09:24:15 2016 +0100
+
+    lib/Sbuild/ChrootInfoSchroot.pm: check if get_info_from_stream() was successful and don't check if closing the pipe was successful if not (closes: #811041)
+
+commit 36ca4ba6b6cb1a6064ddfc79f28ed1c6d0b2c38e
+Author: Martin Michlmayr <tbm@hpe.com>
+Date:   Thu Jan 14 21:57:25 2016 -0800
+
+    Create directory where tarball is stored (closes: #811040)
+    
+    At the moment, sbuild-createchroot silently fails when the directory
+    where the tarball is to be created doesn't exist.  Avoid this by
+    creating the directory.
+
+commit 0a55459f98ededc5ba7c65bab49ef2f9fd8264e1
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Fri Jan 15 09:08:23 2016 +0100
+
+    Some error message, status message and return code cleanup
+    
+     - some new log subsections
+     - update_archive() now returns 0 on failure and 1 on success
+     - check_architectures() doesn't throw an exception anymore but just
+       returns 0
+     - the resolver show an appropriate error message in the log if setting
+       up the apt archive or updating it fails, respectively
+     - make some error message log_error() instead of log()
+
+commit 98f9e0225aac0dec3d8beea3d84364c7072e9c43
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Fri Jan 15 09:00:23 2016 +0100
+
+    Do architecture check after build-essential is installed (closes: #700317)
+    
+    The architecture check is done inside the chroot to not make the
+    architecture check dependent on a possibly outdated libdpkg-perl on the
+    host (useful for porters of new architectures). But this means that
+    libdpkg-perl has to be installed inside the chroot. Thus, the
+    architecture check can only be done after build-essential has been
+    installed.
+
+commit e227c8f3e10edd78bc71350380f559c481634b79
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Wed Jan 6 10:10:39 2016 +0100
+
+    When cross compiling, install dummy binary package instead of using 'apt-get build-dep' (closes: #809730)
+    
+    Three decisions are to be considered:
+    
+     a) does sbuild need to use an internal dummy repository?
+    
+     b) will sbuild use 'apt-get install' or 'apt-get build-dep' or both?
+    
+     c) can advanced apt features like 'apt-get build-dep foo.dsc' not be
+        used?
+    
+    Maintaining an internal dummy repository instead of offloading all the
+    complexity to apt results in complex code required to reside in sbuild
+    itself. The justification is as follows:
+    
+    Moving complexity to apt makes sbuild depend on apt *inside* the chroot.
+    This can have negative effects if building packages in a very old chroot
+    (like old-old-stable). Mangling build dependencies allows us to take
+    care of new features introduced in the archive (like the :native
+    qualifier or build profiles) while the apt inside the chroot does not
+    need to understand them. This means that sbuild is able to build for
+    example a build profile enabled binary package on Squeeze or Wheezy
+    because a newer libdpkg-perl from the host system takes care of mangling
+    the build dependencies correctly. This is for example useful for
+    backports. Apt 1.1 has the feature of being able to call "apt-get
+    build-dep foo.dsc" but this feature cannot be used by sbuild until that
+    apt version is in old-old-stable or otherwise sbuild would not be able
+    to use old chroots.  We cannot control the apt that is used inside the
+    chroot but we can control sbuild by doing new uploads to unstable. So by
+    using sbuild to do the heavy lifting we can make sure that new
+    dependency features (like :native and build profiles) can used even with
+    chroots with an apt version that doesn't support them.
+    
+    Package dependency mangling is required. It is necessary to filter build
+    dependency alternatives as well as support for injecting additional
+    build dependencies via --add-depends and other command line options. So
+    the complexity of using Dpkg::Dep::deps_parse to parse the build
+    dependencies cannot go away. A nice side effect is that as explained
+    above we can take care of newly introduced dependency features so that
+    apt inside the chroot doesn't have to.  One disadvantage of maintaining
+    an internal dummy repository used to be that it requires keys to be
+    generated (which would be too slow on some virtualized machines or
+    containers) but this has been solved with commit aea9a4d9 or closing of
+    bug #801798 using apt-get's feature of [trusted=yes] in sources.list,
+    making key generation optional and only required for chroots of squeeze
+    or older.
+    
+    Building dummy binary packages has been tested for a long time and seems
+    to be a reliable way to install build dependencies. Unless there is a
+    shortcoming of this method, there is no reason to switch to "apt-get
+    build-dep" to install dependencies from a mangled dummy Sources file.
+    If the "apt-get build-dep" method was to be introduced it would have had
+    to be tested with all apt versions down to old-old-stable. The risk of
+    breaking things is too great for little gain. The only gain would be the
+    decreased complexity from not needing to build a dummy binary package.
+    But I do not think this gain is worth the risk of breaking working
+    setups.
+    
+    Maintaining both code paths "apt-get install" as well as "apt-get
+    build-dep" would be too complex because we need to correctly mangle
+    build dependencies for both. Thus we unify build dependency installation
+    using only one method. As explained above we are using the "apt-get
+    install" method to install a dummy binary package because this method
+    has been tried and tested for a long time.
+    
+    In this commit we switch the method of installing cross build
+    dependencies from using "apt-get build-dep" to installing a dummy binary
+    package of the host architecture as it is used for the native case
+    already. Using "apt-get build-dep" to install cross build dependencies
+    should not be necessary because cross build dependency resolution should
+    not be different from cross architecture binary dependency resolution as
+    far as multiarch is concerned. Build-Depends specific constructs are
+    taken care of either by Dpkg::Dep::deps_parse (architecture qualifiers,
+    build profile restriction lists) or by rewriting the ':native' qualifier
+    to the correct architecture in course of commit d4c137190 or fixing of
+    bug #777216.
+    
+    In summary, answering the initial questions:
+    
+     a) we need to keep using an internal dummy repository because we need
+    to mangle dependencies.
+    
+     b) sbuild will continue creating a dummy binary package instead of
+    creating a Sources file because that has been tried and tested with apt
+    versions down to old-old-stable. Only that method will be maintained
+    because having support for "apt-get install" as well as "apt-get
+    build-dep" would add complexity with no reason.
+    
+     c) apt features can only be relied upon once they are part of
+    old-old-stable
+
+commit 1f4b6462610468b6c61eae5608a8ae0c2c9dbac1
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sun Jan 3 14:31:58 2016 +0100
+
+    man/sbuild.1.in: clarify options that can be specified multiple times and how argument options are split by whitespace
+
+commit a5489dadb1fe07824290571a071d91afa31abbf7
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Wed Dec 30 09:47:18 2015 +0100
+
+    bin/sbuild-createchroot: check for defined-ness first before using eq
+
+commit 1a54381f6dbaa6e92aa0cd6027df30b7ca11b20a
+Author: Aurelien Jarno <aurelien@aurel32.net>
+Date:   Sat Jan 2 17:27:23 2016 +0100
+
+    lib/Buildd/Daemon.pm: remove existing .upload file when moving a .changes
+    
+    Signed-off-by: Aurelien Jarno <aurelien@aurel32.net>
+
+commit fb6b27d04b07e03739e9e35047b0d7cc6f6ed4a6
+Author: Jakub Wilk <jwilk@debian.org>
+Date:   Tue Dec 29 16:22:16 2015 +0100
+
+    lib/Sbuild/Build.pm: fix typo s/forein/foreign/
+
+commit 7ebdf89ff4bf040d8d300ed2847501c855b45145
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sun Dec 27 09:48:14 2015 +0100
+
+    sbuild-update: Add apt options that make sure that packages that are only recommended or suggested by still installed packages are also autoremoved.
+
+commit 2deb0b121d8ca5dffcdf3b50cefd4a59bbc4554d
+Author: Niko Tyni <ntyni@debian.org>
+Date:   Mon Dec 28 00:30:49 2015 +0200
+
+    Fix quoting when checking architectures (closes: #809175)
+    
+    The variables got interpolated into $command without any quoting,
+    essentially becoming barewords.
+    
+    Regression introduced in 9162dd0d727facb2ebab0ab7008603c5fa8c36a1
+
 commit 12582197079aaed20c5bac626333b4d328e45be5
 Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
 Date:   Sat Dec 26 14:32:59 2015 +0100

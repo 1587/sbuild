@@ -270,6 +270,13 @@ sub run {
 	$self->set('Build Arch', $self->get_conf('BUILD_ARCH'));
 	$self->set('Build Profiles', $self->get_conf('BUILD_PROFILES'));
 
+	if (!$self->get_conf('BUILD_ARCH_ANY') &&
+	    !$self->get_conf('BUILD_ARCH_ALL') &&
+	    !$self->get_conf('BUILD_SOURCE')) {
+	    Sbuild::Exception::Build->throw(error => "Neither architecture specific nor architecture independent or source package specified to be built.",
+					    failstage => "init");
+	}
+
 	my $dist = $self->get_conf('DISTRIBUTION');
 	if (!defined($dist) || !$dist) {
 	    Sbuild::Exception::Build->throw(error => "No distribution defined",
@@ -687,6 +694,12 @@ sub run_fetch_install_packages {
 	    $self->log_warning($msg);
 	}
 
+	if ($self->get('Host Arch') ne $self->get('Build Arch')) {
+	    $self->log_subsection("Install crossbuild-essential");
+	} else {
+	    $self->log_subsection("Install build-essential");
+	}
+
 	$self->check_abort();
 	$self->set('Install Start Time', time);
 	$self->set('Install End Time', $self->get('Install Start Time'));
@@ -704,6 +717,16 @@ sub run_fetch_install_packages {
 	if (!$resolver->install_core_deps('core', 'CORE')) {
 	    Sbuild::Exception::Build->throw(error => "Core build dependencies not satisfied; skipping",
 					    failstage => "install-deps");
+	}
+
+	# the architecture check has to be done *after* build-essential is
+	# installed because as part of the architecture check a perl script is
+	# run inside the chroot which requires the Dpkg::Arch module which is
+	# in libdpkg-perl which might not exist in the chroot but will get
+	# installed by the build-essential package
+	if(!$self->check_architectures()) {
+	    Sbuild::Exception::Build->throw(error => "Architecture check failed",
+					    failstage => "check-architecture");
 	}
 
 	my $snapshot = "";
@@ -742,6 +765,8 @@ sub run_fetch_install_packages {
 	    }
 	    @build_deps = ('MANUAL', $self->get('Package'));
 	}
+
+	$self->log_subsection("Install package build dependencies");
 
 	$self->check_abort();
 	if (!$resolver->install_main_deps($self->get('Package'),
@@ -1054,8 +1079,25 @@ sub fetch_source_files {
     $build_conflicts_arch =~ s/\n\s+/ /g if defined $build_conflicts_arch;
     $build_conflicts_indep =~ s/\n\s+/ /g if defined $build_conflicts_indep;
 
+    $self->set('Build Depends', $build_depends);
+    $self->set('Build Depends Arch', $build_depends_arch);
+    $self->set('Build Depends Indep', $build_depends_indep);
+    $self->set('Build Conflicts', $build_conflicts);
+    $self->set('Build Conflicts Arch', $build_conflicts_arch);
+    $self->set('Build Conflicts Indep', $build_conflicts_indep);
 
-    $self->log_subsubsection("Check architectures");
+    $self->set('Dsc Architectures', $dscarchs);
+
+    return 1;
+}
+
+sub check_architectures {
+    my $self = shift;
+    my $resolver = $self->get('Dependency Resolver');
+    my $dscarchs = $self->get('Dsc Architectures');
+    my $host_arch = $self->get('Host Arch');
+
+    $self->log_subsection("Check architectures");
     # Check for cross-arch dependencies
     # parse $build_depends* for explicit :arch and add the foreign arches, as needed
     sub get_explicit_arches
@@ -1091,10 +1133,13 @@ sub fetch_source_files {
         return keys %set;
     }
 
+    # we don't need to look at build conflicts here because conflicting with a
+    # package of an explicit architecture does not mean that we need to enable
+    # that architecture in the chroot
     my $build_depends_concat =
-      deps_concat( grep {defined $_} ($build_depends,
-                                      $build_depends_arch,
-                                      $build_depends_indep));
+      deps_concat( grep {defined $_} ($self->get('Build Depends'),
+                                      $self->get('Build Depends Arch'),
+                                      $self->get('Build Depends Indep')));
     my $merged_depends = deps_parse( $build_depends_concat,
 		reduce_arch => 1,
 		host_arch => $self->get('Host Arch'),
@@ -1104,10 +1149,7 @@ sub fetch_source_files {
 		build_profiles => [ split / /, $self->get('Build Profiles') ]);
     if( !defined $merged_depends ) {
         my $msg = "Error! deps_parse() couldn't parse the Build-Depends '$build_depends_concat'";
-        $self->log("$msg\n");
-        Sbuild::Exception::Build->throw(error => $msg,
-                                        status => "skipped",
-                                        failstage => "add-forein-architecture");
+        $self->log_error("$msg\n");
         return 0;
     }
 
@@ -1131,7 +1173,7 @@ sub fetch_source_files {
 
     # Check package arch makes sense to build
     if (!$dscarchs) {
-	$self->log("$dsc has no Architecture: field -- skipping arch check!\n");
+	$self->log("dsc has no Architecture: field -- skipping arch check!\n");
     } else {
 	my $valid_arch;
 	for my $a (split(/\s+/, $dscarchs)) {
@@ -1139,7 +1181,7 @@ sub fetch_source_files {
 		use strict;
 		use warnings;
 		use Dpkg::Arch;
-		if (Dpkg::Arch::debarch_is($host_arch, $a)) {
+		if (Dpkg::Arch::debarch_is('$host_arch', '$a')) {
 		    exit 0;
 		}
 		exit 1;
@@ -1158,25 +1200,16 @@ EOF
 	}
 	if ($dscarchs ne "any" && !($valid_arch) &&
 	    !($dscarchs =~ /\ball\b/ && $self->get_conf('BUILD_ARCH_ALL')) )  {
-	    my $msg = "$dsc: $host_arch not in arch list or does not match any arch wildcards: $dscarchs -- skipping\n";
+	    my $msg = "dsc: $host_arch not in arch list or does not match any arch wildcards: $dscarchs -- skipping\n";
 	    $self->log($msg);
-	    Sbuild::Exception::Build->throw(error => "$dsc: $host_arch not in arch list or does not match any arch wildcards: $dscarchs -- skipping",
+	    Sbuild::Exception::Build->throw(error => "dsc: $host_arch not in arch list or does not match any arch wildcards: $dscarchs -- skipping",
 					    status => "skipped",
 					    failstage => "arch-check");
 	    return 0;
 	}
     }
 
-    debug("Arch check ok ($host_arch included in $dscarchs)\n");
-
-    $self->log_subsubsection("Check dependencies");
-
-    $self->set('Build Depends', $build_depends);
-    $self->set('Build Depends Arch', $build_depends_arch);
-    $self->set('Build Depends Indep', $build_depends_indep);
-    $self->set('Build Conflicts', $build_conflicts);
-    $self->set('Build Conflicts Arch', $build_conflicts_arch);
-    $self->set('Build Conflicts Indep', $build_conflicts_indep);
+    $self->log("Arch check ok ($host_arch included in $dscarchs)\n");
 
     return 1;
 }

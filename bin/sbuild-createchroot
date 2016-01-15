@@ -148,6 +148,7 @@ use Sbuild::ChrootPlain;
 use Sbuild::ChrootRoot;
 use Sbuild::Sysconfig;
 use Sbuild::Conf qw();
+use File::Basename qw(dirname);
 use File::Path qw(mkpath rmtree);
 use File::Temp qw(tempfile);
 use File::Copy;
@@ -210,7 +211,7 @@ push @args, "--exclude=" . $conf->get('EXCLUDE') if $conf->get('EXCLUDE');
 push @args, "--components=" . $conf->get('COMPONENTS')
     if $conf->get('COMPONENTS');
 push @args, "--keyring=" . $conf->get('KEYRING') if $conf->get('KEYRING');
-push @args, "--no-check-gpg" if $conf->get('KEYRING') eq "";
+push @args, "--no-check-gpg" if defined $conf->get('KEYRING') && $conf->get('KEYRING') eq "";
 push @args, $conf->get('RESOLVE_DEPS') ?
     "--resolve-deps" : "--no-resolve-deps";
 push @args, "$suite", "$target", "$mirror";
@@ -442,6 +443,7 @@ if ($conf->get('MAKE_SBUILD_TARBALL')) {
 
     system(@program_list) == 0 or die "Could not create chroot tarball: $?\n";
 
+    makedir(dirname($conf->get('MAKE_SBUILD_TARBALL')), 0755);
     move("$tmpfile", $conf->get('MAKE_SBUILD_TARBALL'));
     chmod 0644, $conf->get('MAKE_SBUILD_TARBALL');
     if (! $conf->get('KEEP_SBUILD_CHROOT_DIR')) {

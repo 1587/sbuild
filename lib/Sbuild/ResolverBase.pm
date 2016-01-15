@@ -97,6 +97,8 @@ sub setup {
 	    print $F "APT::Get::AllowUnauthenticated true;\n";
 	}
 	print $F "APT::Install-Recommends false;\n";
+	print $F "APT::AutoRemove::SuggestsImportant false;\n";
+	print $F "APT::AutoRemove::RecommendsImportant false;\n";
 
 	if ($self->get('Split')) {
 	    print $F "Dir \"$chroot_dir\";\n";
@@ -283,7 +285,6 @@ sub update_archive {
 	      ENV => {'DEBIAN_FRONTEND' => 'noninteractive'},
 	      USER => 'root',
 	      DIR => '/' });
-	return $?;
     } else {
 	my $session = $self->get('Session');
 	my $dummy_archive_list_file = $self->get('Dummy archive list file');
@@ -315,15 +316,22 @@ sub update_archive {
 	      ENV => {'DEBIAN_FRONTEND' => 'noninteractive'},
 	      USER => 'root',
 	      DIR => '/' });
-	return $? if $?;
+	if ($? != 0) {
+	    return 0;
+	}
 
 	$self->run_apt_command(
 	    { COMMAND => [$self->get_conf('APT_CACHE'), 'gencaches'],
 	      ENV => {'DEBIAN_FRONTEND' => 'noninteractive'},
 	      USER => 'root',
 	      DIR => '/' });
-	return $?;
     }
+
+    if ($? != 0) {
+	return 0;
+    }
+
+    return 1;
 }
 
 sub upgrade {
@@ -414,15 +422,14 @@ sub install_core_deps {
     my $self = shift;
     my $name = shift;
 
-    return $self->install_deps($name, 0, @_);
+    return $self->install_deps($name, @_);
 }
 
 sub install_main_deps {
     my $self = shift;
     my $name = shift;
 
-    my $cross = $self->get('Host Arch') ne $self->get('Build Arch');
-    return $self->install_deps($name, $cross, @_);
+    return $self->install_deps($name, @_);
 }
 
 sub uninstall_deps {
