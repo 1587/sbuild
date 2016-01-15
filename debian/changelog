@@ -1,3 +1,25 @@
+sbuild (0.68.0-1) unstable; urgency=medium
+
+  * new upstream version
+    - Fix quoting when checking architectures (closes: #809175)
+    - bin/sbuild-createchroot: check for defined-ness first before using eq
+      (closes: #811042)
+    - When cross compiling, install dummy binary package instead of using
+      'apt-get build-dep'. See upstream commit #e227c8f3 for an extensive
+      rationale. (closes: #809730)
+    - Do architecture check after build-essential is installed (closes: #700317)
+    - Create directory where tarball is stored (closes: #811040)
+    - lib/Sbuild/ChrootInfoSchroot.pm: check if get_info_from_stream() was
+      successful and don't check if closing the pipe was successful if not
+      (closes: #811041)
+    - Extend explanation of --source and --no-source options (closes: #700317)
+    - Add documentation related to generated build artifacts (closes: #782553)
+    - Deprecate command line option --arch-all-only in favour of --arch-all
+      --no-arch-any. This option will be removed in the next upstream release.
+  * drop patch fix-quoting.patch as it has been applied upstream
+
+ -- Johannes Schauer <josch@debian.org>  Fri, 15 Jan 2016 10:18:53 +0100
+
 sbuild (0.67.0-2) unstable; urgency=medium
 
   * backport patch fix-quoting.patch (closes: #809175)
