@@ -73,7 +73,8 @@ sub begin_session {
 	    $self->set('Location', $info->{'Location'});
 	    $self->set('Session Purged', $info->{'Session Purged'});
     } else {
-	die $self->get('Chroot ID') . " chroot does not exist\n";
+	print STDERR $self->get('Chroot ID') . " chroot does not exist\n";
+	return 0;
     }
 
     return 0 if !$self->_setup_options();
