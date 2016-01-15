@@ -40,7 +40,9 @@ bin_SCRIPTS = 				\
 	buildd-uploader			\
 	buildd-vlog			\
 	buildd-update-chroots		\
-	buildd-watcher
+	buildd-watcher			\
+	uchroot				\
+	user-unshare
 
 sbin_SCRIPTS = 			\
 	sbuild-adduser		\

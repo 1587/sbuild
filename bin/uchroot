@@ -1,0 +1,254 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+
+use Getopt::Long;
+use Pod::Usage;
+use Dpkg::Index;
+
+my $userunshare = "/usr/bin/user-unshare";
+
+my @userunshareargs = ( "--ipc", "--pid", "--uts", "--net", "--" );
+
+my ($chroot, $directory, $user, $mode, $noloopback, $hostname, $configfile, $configpartsdir);
+
+if (! defined $ENV{HOME}) {
+    $ENV{HOME} = (getpwuid $>)[7];
+}
+
+my $configdir = $ENV{HOME} . "/.uchroot";
+
+Getopt::Long::Configure ("no_ignore_case");
+GetOptions ("i|info"          => sub { $mode = 0 },
+    "c|chroot=s"         => \$chroot,
+    "d|directory=s"      => \$directory,
+    "b|begin-session"    => sub { $mode = 1 },
+    "r|run-session"      => sub { $mode = 2 },
+    "e|end-session"      => sub { $mode = 3 },
+    "q|quiet",
+    "u|user=s"           => \$user,
+    "p|preserve-environment",
+    "configfile=s"       => \$configfile,
+    "configdir=s"        => \$configdir,
+    "configpartsdir=s"   => \$configpartsdir,
+    "no-enable-loopback" => \$noloopback,
+    "hostname"           => \$hostname,
+    "h|help" => sub { pod2usage(-exitval => 0, -verbose => 2) })
+    or pod2usage(-exitval => 2, -verbose => 1);
+
+if (defined $hostname && $hostname =~ /[`"'{\$;\\]/) {
+    die "illegal characters in --hostname argument";
+}
+
+if (!defined $configfile) {
+    $configfile = "$configdir/config";
+}
+
+if (!defined $configpartsdir) {
+    $configpartsdir = "$configdir/chroot.d";
+}
+
+# FIXME: $PATH workaround
+if (defined $user && $user eq "root") {
+    if (defined $ENV{PATH}) {
+	if (!(grep /^\/sbin$/, (split /:/, $ENV{PATH}))) {
+	    $ENV{PATH} = $ENV{PATH} . ":/sbin"
+	}
+	if (!(grep /^\/usr\/sbin$/, (split /:/, $ENV{PATH}))) {
+	    $ENV{PATH} = $ENV{PATH} . ":/usr/sbin"
+	}
+    } else {
+	$ENV{PATH} = "/usr/sbin:/sbin";
+    }
+}
+
+my $configctrl = Dpkg::Control->new();
+
+$configctrl->load($configfile);
+
+my %parts;
+
+opendir(DIR, $configpartsdir) or die "cannot open $configpartsdir: $!";
+
+while (my $file = readdir DIR) {
+    if (! -f "$configpartsdir/$file") {
+	next;
+    }
+
+    my $partctrl = Dpkg::Control->new();
+    $partctrl->load("$configpartsdir/$file");
+
+    my $name = $partctrl->{Name};
+
+    $parts{$name} = $partctrl;
+}
+
+print STDERR "uchroot is only a proof of concept and highly experimental. Its interface might change anytime. Use at your own risk!\n";
+
+if ($mode eq 0 && !defined($chroot)) {
+    foreach my $name (sort keys %parts) {
+	my $cdata = $parts{$name};
+	my $type = $cdata->{"Type"};
+	my $path = $cdata->{"Path"};
+	my $aliases = $cdata->{"Aliases"};
+	$aliases =~ s/^\s+|\s+$//g;
+	if ($aliases) {
+		$aliases = "\n " . (join "\n ", (split /\s+/, $aliases));
+	}
+	print <<END;
+Name: chroot:$name
+Aliases: $aliases
+
+Name: source:$name
+Aliases: $aliases
+
+END
+    }
+} elsif ($mode eq 0 && defined($chroot)) {
+    my ($namespace, $chroot, $uid) = split /:/, $chroot;
+    if ($namespace ne "session") {
+	die "unknown namespace $namespace, expected session";
+    }
+    my $cdata = $parts{$chroot};
+    my $unpack = $cdata->{"Unpack"};
+    opendir(DIR, $unpack) or die "cannot open $unpack";
+
+    while (my $dir = readdir DIR) {
+	if (! -d "$unpack/$dir") {
+	    next;
+	}
+	if ($dir eq "session:$chroot:$uid") {
+	    print "Name: $chroot\n";
+	    print "Location: $unpack/$dir\n";
+	    exit 0;
+	}
+    }
+    die "cannot find session:$chroot:$uid";
+} elsif ($mode eq 1) {
+    if (!defined($chroot)) {
+	die "must pass --chroot";
+    }
+    my ($namespace, $chroot) = split /:/, $chroot;
+    if ($namespace ne "chroot" && $namespace ne "source") {
+	die "unknown namespace $namespace, expected chroot or source";
+    }
+    my $cdata = $parts{$chroot};
+    my $type = $cdata->{"Type"};
+    if ($type ne "tarball") {
+	die "unsupported type: $type";
+    }
+    my $path = $cdata->{"Path"};
+    if (! -r $path) {
+	die "chroot tarball $path does not exist";
+    }
+    my $unpack = $cdata->{"Unpack"};
+    if ($namespace eq "source") {
+	# move the tarball away to:
+	#   - make sure that no other session is started while this one is
+	#     open
+	#   - indicate to the --end-session call that this was started as a
+	#     source namespace
+	if (-e "$path.orig") {
+	    die "old $path.orig already exists"
+	}
+	rename $path, "$path.orig" or die "renaming $path to $path.orig failed";
+	$path = "$path.orig";
+    }
+    my $uid = sprintf "%08X", rand(2<<31);
+    $chroot = "session:$chroot:$uid";
+    mkdir "$unpack/$chroot";
+    0 == system $userunshare, @userunshareargs, "tar", "-C", "$unpack/$chroot", "-xf", $path or die "tar failed";
+    print $chroot;
+} elsif ($mode eq 2) {
+    if (!defined($chroot)) {
+	die "must pass --chroot";
+    }
+    if (!defined($directory)) {
+	die "must pass --directory";
+    }
+    if (!defined($user)) {
+	die "must pass --user";
+    }
+    my ($namespace, $chroot, $uid) = split /:/, $chroot;
+    if ($namespace ne "session") {
+	die "unknown namespace $namespace, expected session";
+    }
+    my $cdata = $parts{$chroot};
+    my $unpack = $cdata->{"Unpack"};
+    my $enablelo = "";
+    if (!$noloopback) {
+	$enablelo = "ip link set lo up;";
+    }
+    my $sethostname = "";
+    if ($hostname) {
+	$sethostname = "hostname \"$hostname\";";
+    } else {
+	$sethostname = "hostname uchroot-host;";
+    }
+    $chroot = "$unpack/$namespace:$chroot:$uid";
+    my @userunshareprocargs = (
+	$userunshare, "--mount-devpts", "$chroot/dev/pts",
+	"--mount-dev", "$chroot/dev", "--mount-proc", "$chroot/proc",
+	"--mount", "--fork", @userunshareargs,
+	"sh", "-c", "$enablelo $sethostname exec /usr/sbin/chroot \"$chroot\" /sbin/runuser -u $user -- sh -c \"cd \\\"$directory\\\" && \\\"\\\$@\\\"\" exec \"\$@\"", "exec" );
+    #print STDERR "executing: ", (join " ", @userunshareprocargs), " ", (join " ", @ARGV), "\n";
+    exec { $userunshare } @userunshareprocargs, @ARGV;
+} elsif ($mode eq 3) {
+    if (!defined($chroot)) {
+	die "must pass --chroot";
+    }
+    my ($namespace, $chroot, $uid) = split /:/, $chroot;
+    if ($namespace ne "session") {
+	die "unknown namespace $namespace, expected session";
+    }
+    my $cdata = $parts{$chroot};
+    my $unpack = $cdata->{"Unpack"};
+    my $path = $cdata->{"Path"};
+    if (-e $path && -e "$path.orig") {
+	die "both $path and $path.orig exist";
+    }
+    if (! -e $path && ! -e "$path.orig") {
+	die "neither $path nor $path.orig exist"
+    }
+    $chroot = "$unpack/$namespace:$chroot:$uid";
+    if (! -e $path && -e "$path.orig") {
+	# session was started under the source namespace, create a tarball
+	system $userunshare, @userunshareargs, "tar", "-C", $chroot, "-czf", "$path", "." or die "tar failed";
+	unlink "$path.orig";
+    }
+    0 == system $userunshare, @userunshareargs, "rm", "-r", $chroot or die "rm -rf $unpack/$namespace:$chroot:$uid failed";
+} else {
+    die "unknown mode";
+}
+
+__END__
+=head1 NAME
+
+uchroot - chroot management using user-unshare
+
+=head1 SYNOPSIS
+
+uchroot [options] [--] [COMMAND [ ARG1 ...]]
+
+=head1 DESCRIPTION
+
+Description.
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<-h, --help>
+
+Print a brief help message and exits.
+
+=back
+
+=head1 EXAMPLES
+
+=head1 SEE ALSO
+
+    unshare(1), user-unshare(1)
+
+=cut

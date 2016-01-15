@@ -47,6 +47,7 @@ use Sbuild qw($devnull binNMU_version copy isin debug send_mail
               dsc_files dsc_pkgver);
 use Sbuild::Base;
 use Sbuild::ChrootInfoSchroot;
+use Sbuild::ChrootInfoUchroot;
 use Sbuild::ChrootInfoSudo;
 use Sbuild::ChrootInfoADT;
 use Sbuild::ChrootRoot;
@@ -362,6 +363,8 @@ sub run_chroot_session {
 	my $chroot_info;
 	if ($self->get_conf('CHROOT_MODE') eq 'schroot') {
 	    $chroot_info = Sbuild::ChrootInfoSchroot->new($self->get('Config'));
+	} elsif ($self->get_conf('CHROOT_MODE') eq 'uchroot') {
+	    $chroot_info = Sbuild::ChrootInfoUchroot->new($self->get('Config'));
 	} elsif ($self->get_conf('CHROOT_MODE') eq 'adt') {
 	    $chroot_info = Sbuild::ChrootInfoADT->new($self->get('Config'));
 	} else {

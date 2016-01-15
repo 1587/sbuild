@@ -220,6 +220,29 @@ sub setup ($) {
 	    DEFAULT => ['-q'],
 	    HELP => 'Additional command-line options for schroot'
 	},
+	'UCHROOT'				=> {
+	    TYPE => 'STRING',
+	    GROUP => '__INTERNAL',
+	    CHECK => sub {
+		my $conf = shift;
+		my $entry = shift;
+		my $key = $entry->{'NAME'};
+
+		# Only validate if needed.
+		if ($conf->get('CHROOT_MODE') eq 'uchroot') {
+		    $validate_program->($conf, $entry);
+		}
+	    },
+	    DEFAULT => 'uchroot',
+	    HELP => 'Path to uchroot binary'
+	},
+	'UCHROOT_OPTIONS'			=> {
+	    TYPE => 'ARRAY:STRING',
+	    VARNAME => 'uchroot_options',
+	    GROUP => 'Programs',
+	    DEFAULT => ['-q', "--configdir=$HOME/.uchroot"],
+	    HELP => 'Additional command-line options for uchroot'
+	},
 	'ADT_VIRT_SERVER'			=> {
 	    TYPE => 'STRING',
 	    GROUP => '__INTERNAL',
@@ -614,10 +637,10 @@ sub setup ($) {
 
 		die "Bad chroot mode \'" . $conf->get('CHROOT_MODE') . "\'"
 		    if !isin($conf->get('CHROOT_MODE'),
-			     qw(schroot sudo adt));
+			     qw(schroot sudo adt uchroot));
 	    },
 	    DEFAULT => 'schroot',
-	    HELP => 'Mechanism to use for chroot virtualisation.  Possible value are "schroot" (default), "sudo" and "adt".'
+	    HELP => 'Mechanism to use for chroot virtualisation.  Possible value are "schroot" (default), "sudo", "adt" and "uchroot".'
 	},
 	'CHROOT_SPLIT'				=> {
 	    TYPE => 'BOOL',
