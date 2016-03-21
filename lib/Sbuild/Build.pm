@@ -36,6 +36,7 @@ use File::Copy qw(); # copy is already exported from Sbuild, so don't export
 		     # anything.
 use Dpkg::Arch;
 use Dpkg::Control;
+use Dpkg::Index;
 use Dpkg::Version;
 use Dpkg::Deps qw(deps_concat deps_parse);
 use Scalar::Util 'refaddr';
@@ -869,32 +870,17 @@ sub fetch_source_files {
 	    return 0;
 	}
 
-	{
-	    local($/) = "";
-	    my $package;
-	    my $ver;
-	    my $tfile;
-	    while( <$pipe> ) {
-		$package = $1 if /^Package:\s+(\S+)\s*$/mi;
-		$ver = $1 if /^Version:\s+(\S+)\s*$/mi;
-		$tfile = $1 if /^Files:\s*\n((\s+.*\s*\n)+)/mi;
-		if (defined $package && defined $ver && defined $tfile) {
-		    @{$entries{"$package $ver"}} = map { (split( /\s+/, $_ ))[3] }
-		    split( "\n", $tfile );
-		    undef($package);
-		    undef($ver);
-		    undef($tfile);
-		}
-	    }
+	my $key_func = sub {
+	    return $_[0]->{Package} . '_' . $_[0]->{Version};
+	};
 
-	    if (! scalar keys %entries) {
-		$self->log($self->get_conf('APT_CACHE') .
-			   " returned no information about $pkg source\n");
-		$self->log("Are there any deb-src lines in your /etc/apt/sources.list?\n");
-		return 0;
+	my $index = Dpkg::Index->new(get_key_func=>$key_func);
 
-	    }
+	if (!$index->parse($pipe, 'apt-cache showsrc')) {
+	    $self->log_error("Cannot parse output of apt-cache showsrc: $!\n");
+	    return 0;
 	}
+
 	close($pipe);
 
 	if ($?) {
@@ -902,30 +888,61 @@ sub fetch_source_files {
 	    return 0;
 	}
 
-	if (!defined($entries{"$pkg $ver"})) {
-	    if (!$retried) {
-		$self->log_subsubsection("Update APT");
-		# try to update apt's cache if nothing found
-		$self->get('Dependency Resolver')->update();
-		$retried = 1;
-		goto retry;
+	my $highestversion;
+	my $highestdsc;
+
+	foreach my $key ($index->get_keys()) {
+	    my $cdata = $index->get_by_key($key);
+	    my $pkgname = $cdata->{"Package"};
+	    if (not defined($pkgname)) {
+		$self->log_warning("apt-cache output without Package field\n");
+		next;
 	    }
-	    $self->log("Can't find source for " .
-		       $self->get('Package_OVersion') . "\n");
-	    $self->log("(only different version(s) ",
-	    join( ", ", sort keys %entries), " found)\n")
-		if %entries;
+	    if ($pkg ne $pkgname) {
+		$self->log_warning("apt-cache output for different package\n");
+		next;
+	    }
+	    my $pkgversion = $cdata->{"Version"};
+	    if (not defined($pkgversion)) {
+		$self->log_warning("apt-cache output without Version field\n");
+		next;
+	    }
+	    if (defined($ver) and $ver ne $pkgversion) {
+		$self->log_warning("apt-cache output for different version\n");
+		next;
+	    }
+	    my $checksums = Dpkg::Checksums->new();
+	    $checksums->add_from_control($cdata, use_files_for_md5 => 1);
+	    my @files = grep {/\.dsc$/} $checksums->get_files();
+	    if (scalar @files != 1) {
+		$self->log_warning("apt-cache output with more than one .dsc\n");
+		next;
+	    }
+	    if (!defined $highestdsc) {
+		$highestdsc = $files[0];
+		$highestversion = $pkgversion;
+	    } else {
+		if (version_compare($highestversion, $pkgversion) < 0) {
+		    $highestdsc = $files[0];
+		    $highestversion = $pkgversion;
+		}
+	    }
+	}
+
+	if (!defined $highestdsc) {
+	    $self->log_error($self->get_conf('APT_CACHE') .
+		" returned no information about $pkg source\n");
+	    $self->log_error("Are there any deb-src lines in your /etc/apt/sources.list?\n");
 	    return 0;
 	}
 
+	$self->set_dsc($highestdsc);
+	$dsc = $highestdsc;
+
 	$self->log_subsubsection("Download source files with APT");
 
-	foreach (@{$entries{"$pkg $ver"}}) {
-	    push(@fetched, "$build_dir/$_");
-	}
-
 	my $pipe2 = $self->get('Dependency Resolver')->pipe_apt_command(
-	    { COMMAND => [$self->get_conf('APT_GET'), '--only-source', '-q', '-d', 'source', "$pkg=$ver"],
+	    { COMMAND => [$self->get_conf('APT_GET'), '--only-source', '-q', '-d', 'source', "$pkg=$highestversion"],
 	      USER => $self->get_conf('BUILD_USER'),
 	      PRIORITY => 0}) || return 0;
 
@@ -937,7 +954,6 @@ sub fetch_source_files {
 	    $self->log($self->get_conf('APT_GET') . " for sources failed\n");
 	    return 0;
 	}
-	$self->set_dsc((grep { /\.dsc$/ } @fetched)[0]);
     }
 
     my $pdsc = Dpkg::Control->new(type => CTRL_PKG_SRC);
