@@ -5,6 +5,9 @@ sbuild (0.65.2-1+buildd6) UNRELEASED; urgency=medium
     files without MD5Sum entries. (Closes: #818579).
   * lib/Sbuild/ResolverBase.pm: mark the local repository as trusted and
     stop requiring apt keys.
+  * Drop debian/patches/check-for-group-membership-and-gpg-key.patch: GPG
+    key generation is not required anymore, group membership and fstab
+    entries are now ensured by puppet.
 
  -- Aurelien Jarno <aurel32@debian.org>  Mon, 21 Mar 2016 12:16:22 +0100
 
