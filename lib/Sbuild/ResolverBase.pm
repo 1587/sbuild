@@ -96,6 +96,7 @@ sub setup {
 	print $F "APT::Install-Recommends false;\n";
 	print $F "APT::AutoRemove::SuggestsImportant false;\n";
 	print $F "APT::AutoRemove::RecommendsImportant false;\n";
+	print $F "Acquire::Languages none;\n"; # do not download translations
 
 	if ($self->get('Host Arch') ne $self->get('Build Arch')) {
 	    print $F 'APT::Architecture=' . $self->get('Host Arch');
