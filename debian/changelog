@@ -1,3 +1,13 @@
+sbuild (0.65.2-1+buildd7) jessie; urgency=medium
+
+  * Sbuild::ResolverBase: sign dummy archive with SHA-512.
+  * lib/Sbuild/ResolverBase.pm: stop apt from downloading translations
+  * Add --aspcud-criteria command line option and ASPCUD_CRITERIA
+    configuration option to customize the optimization criteria of the aspcud
+    resolver (Closes: #821376).
+
+ -- Aurelien Jarno <aurel32@debian.org>  Sat, 23 Apr 2016 15:01:17 +0200
+
 sbuild (0.65.2-1+buildd6) jessie; urgency=medium
 
   * lib/Sbuild/Build.pm: parse apt-cache showsrc output using Dpkg::Index
