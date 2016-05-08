@@ -20,11 +20,12 @@
 #
 #######################################################################
 
-package Sbuild::ChrootSchroot;
+package Sbuild::ChrootADT;
 
 use strict;
 use warnings;
 
+use IPC::Open2;
 use Sbuild qw(shellescape);
 
 BEGIN {
@@ -57,27 +58,86 @@ sub begin_session {
 	$chroot =~ s/^[^:]+://msx;
     }
 
-    my $schroot_session=readpipe($self->get_conf('SCHROOT') . " -c $chroot --begin-session");
-    chomp($schroot_session);
-    if ($?) {
+    my ($chld_out, $chld_in);
+    my $pid = open2(
+	$chld_out, $chld_in,
+	$self->get_conf('ADT_VIRT_SERVER'),
+	@{$self->get_conf('ADT_VIRT_SERVER_OPTIONS')},
+	$chroot);
+
+    if (!$pid) {
 	print STDERR "Chroot setup failed\n";
 	return 0;
     }
 
-    $self->set('Session ID', $schroot_session);
-    print STDERR "Setting up chroot $chroot (session id $schroot_session)\n"
-	if $self->get_conf('DEBUG');
+    chomp (my $status = <$chld_out>);
 
-    my $info = $self->get('Chroots')->get_info($schroot_session);
-	if (defined($info) &&
-	    defined($info->{'Location'}) && -d $info->{'Location'}) {
-	    $self->set('Priority', $info->{'Priority'});
-	    $self->set('Location', $info->{'Location'});
-	    $self->set('Session Purged', $info->{'Session Purged'});
-    } else {
-	print STDERR $self->get('Chroot ID') . " chroot does not exist\n";
+    if (! defined $status || $status ne "ok") {
+ 	print STDERR "adt-virt server returned unexpected value: $status\n";
+	kill 'KILL', $pid;
 	return 0;
     }
+
+    print $chld_in "open\n";
+
+    chomp ($status = <$chld_out>);
+
+    my $adt_session;
+    if ($status =~ /^ok (.*)$/) {
+	$adt_session = $1;
+	$self->set('Session ID', $adt_session);
+    } else {
+	print STDERR "adt-virt server: cannot open: $status\n";
+	kill 'KILL', $pid;
+	return 0;
+    }
+
+    print STDERR "Setting up chroot $chroot (session id $adt_session)\n"
+	if $self->get_conf('DEBUG');
+
+    print $chld_in "capabilities\n";
+
+    chomp ($status = <$chld_out>);
+
+    my @capabilities;
+    if ($status =~ /^ok (.*)$/) {
+	@capabilities = split /\s+/, $1;
+    } else {
+	print STDERR "adt-virt server: cannot capabilities: $status\n";
+	kill 'KILL', $pid;
+	return 0;
+    }
+
+    if (! grep {$_ eq "root-on-testbed"} @capabilities) {
+	print STDERR "adt-virt server: capability root-on-testbed missing\n";
+	kill 'KILL', $pid;
+	return 0;
+    }
+
+    # TODO: also test "revert" capability
+
+    print $chld_in "print-execute-command\n";
+
+    chomp ($status = <$chld_out>);
+
+    my $exec_cmd;
+    if ($status =~ /^ok (.*)$/) {
+	$exec_cmd = $1;
+    } else {
+	print STDERR "adt-virt server: cannot print-execute-command: $status\n";
+	kill 'KILL', $pid;
+	return 0;
+    }
+
+    my @exec_args = split /,/, $exec_cmd;
+
+    @exec_args = map { s/%([0-9A-Fa-f]{2})/chr(hex($1))/eg; $_ } @exec_args;
+
+    $self->set('Location', '/adt-virt-dummy-location');
+    $self->set('ADT Pipe In', $chld_in);
+    $self->set('ADT Pipe Out', $chld_out);
+    $self->set('ADT Virt PID', $pid);
+    $self->set('ADT Exec Command', \@exec_args);
 
     return 0 if !$self->_setup_options();
 
@@ -91,37 +151,36 @@ sub end_session {
 
     print STDERR "Cleaning up chroot (session id " . $self->get('Session ID') . ")\n"
 	if $self->get_conf('DEBUG');
-    system($self->get_conf('SCHROOT'), '-c', $self->get('Session ID'), '--end-session');
-    $self->set('Session ID', "");
+
+    my $chld_in = $self->get('ADT Pipe In');
+    my $chld_out = $self->get('ADT Pipe Out');
+    my $pid = $self->get('ADT Virt PID');
+
+    print $chld_in "close\n";
+
+    chomp (my $status = <$chld_out>);
+
+    if ($status ne "ok") {
+ 	print STDERR "adt-virt server: cannot close: $status\n";
+	return 0;
+    }
+
+    print $chld_in "quit\n";
+
+    waitpid $pid, 0;
+
     if ($?) {
-	print STDERR "Chroot cleanup failed\n";
+	my $child_exit_status = $? >> 8;
+	print STDERR "adt-virt quit with exit status $child_exit_status\n";
 	return 0;
     }
 
     return 1;
 }
 
-sub get_internal_exec_string {
-    my $self = shift;
-
-    return if $self->get('Session ID') eq "";
-
-    my $dir = '/';
-    my $user = 'root';
-    my @cmdline = ($self->get_conf('SCHROOT'),
-		   '-d', $dir,
-		   '-c', $self->get('Session ID'),
-		   '--run-session',
-		   @{$self->get_conf('SCHROOT_OPTIONS')},
-		   '-u', "$user", '-p', '--');
-    return join " ", (map { shellescape $_ } @cmdline);
-}
-
 sub get_command_internal {
     my $self = shift;
     my $options = shift;
-
-    return if $self->get('Session ID') eq "";
 
     # Command to run. If I have a string, use it. Otherwise use the list-ref
     my $command = $options->{'INTCOMMAND_STR'} // $options->{'INTCOMMAND'};
@@ -140,21 +199,26 @@ sub get_command_internal {
 
     my @cmdline = ();
 
-    if (!defined($dir)) {
+    @cmdline = @{$self->get('ADT Exec Command')};
+
+    if ($user ne "root") {
+	push @cmdline, "/sbin/runuser", '-u', $user, '--';
+    }
+
+    if (defined($dir)) {
+	my $shelldir = shellescape $dir;
+	push @cmdline, 'sh', '-c', "cd $shelldir && exec \"\$@\"", 'exec';
+    } else {
 	$dir = '/';
     }
-    @cmdline = ($self->get_conf('SCHROOT'),
-		'-d', $dir,
-		'-c', $self->get('Session ID'),
-		'--run-session',
-		@{$self->get_conf('SCHROOT_OPTIONS')},
-		'-u', "$user", '-p', '--');
+
     if (ref $command) {
         push @cmdline, @$command;
     } else {
         push @cmdline, ('/bin/sh', '-c', $command);
         $command = [split(/\s+/, $command)];
     }
+
     $options->{'USER'} = $user;
     $options->{'COMMAND'} = $command;
     $options->{'EXPCOMMAND'} = \@cmdline;

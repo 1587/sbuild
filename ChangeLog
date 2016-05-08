@@ -1,3 +1,358 @@
+commit d4c3cc43b4d8d169f4fec6dac560a63c9c8f6640
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sun May 8 11:01:42 2016 +0200
+
+    Bump version to 0.69.0
+
+commit 6b64cd824c95d0634ef6c56af5a8487639f526ca
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sun May 8 13:21:09 2016 +0200
+
+    lib/Sbuild/Build.pm: fetch_source_files(): apt-cache does not support pkg=version syntax
+
+commit eb54277e2e1ad087aaf4c0443ece88427021e22a
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sun May 8 10:37:21 2016 +0200
+
+    lib/Sbuild/Conf.pm: Move configuration options that can be set via command line options from __INTERNAL to other groups and document changes in sbuild.1
+
+commit 7ce5b665506278e0d00d837d5315215c7f871a59
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sun May 8 08:58:15 2016 +0200
+
+    lib/Sbuild/Conf.pm: Refine the documentation for the ASPCUD_CRITERIA configuration option
+
+commit b317c3cbf0b927c99009e757ddc1887284c1dba3
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sun May 8 08:57:40 2016 +0200
+
+    man/sbuild.1.in: Refine the documentation for the aspcud --build-dep-resolver option
+
+commit de4ecb6361d6c38a6d946502aa939933db2d4c06
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sun May 8 08:57:08 2016 +0200
+
+    man/sbuild.1.in: document the --aspcud-criteria and --stats-dir options
+
+commit c19ed07dfc3fee9d29e318b5fc52b1592520a872
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sun May 8 08:17:49 2016 +0200
+
+    Reference command line options in sbuild.conf.5 and configuration values in sbuild.1
+
+commit 5380d29981487ca558759bf5377f9dfc8c0c6170
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sun May 8 08:01:28 2016 +0200
+
+    lib/Sbuild/Conf.pm: move ADT_VIRT_SERVER from group __INTERNAL to Programs
+
+commit b45020adfb85ca5487295a3bbd4edce3257ddcc4
+Author: Paul Wise <pabs@debian.org>
+Date:   Mon May 2 17:39:13 2016 +0800
+
+    Improve sbuild's use of the perl system() function.
+    
+    Replace with perl-native functions where possible.
+    
+    Avoid shell meta-character injection where possible.
+    
+    Avoid extra forks due to shell where possible.
+    
+    Avoid manually running shell where possible.
+    
+    Avoid option injection where possible.
+
+commit 1cf828b179400227000cbd883c35b9ce964e589e
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sun May 1 21:12:29 2016 +0200
+
+    man/sbuild.1.in: Extend documentation of --*-opt and --*-opts options
+
+commit a8ba7bebf8f36da99d5263cc57327290d8959f93
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sat Apr 30 08:50:15 2016 +0200
+
+    Add --adt-virt-server-opts option for convenience
+
+commit 1f57fb1b42efb21b9b8e3f708f247f363c2e7391
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sat Apr 30 08:36:58 2016 +0200
+
+    Move the shellescape function to the Sbuild module and use it to escape the directory string in the adt backend
+
+commit 6f432bde9c72d564a2ef0dfe62f8c3e4bec08e81
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sat Apr 30 08:35:55 2016 +0200
+
+    man/sbuild.1.in: Improve documentation for adt-virt options
+
+commit 21a28c2a19b5b47c8847aea25ef4ec34f406d0b9
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sun Jan 3 14:33:35 2016 +0100
+
+    make different command line options modifying the same configuration parameter incompatible with each other and remove --arch-all-only in the process (its behaviour can be replicated by using --arch-all --no-arch-any)
+
+commit c6b228e443bbdc761b9da46524ba1c8aa99df6e2
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Fri Jan 15 14:41:51 2016 +0100
+
+    Add new sbuild backend: adt
+    
+     - New value for CHROOT_MODE config option: adt.
+     - Added lib/Sbuild/ChrootADT.pm and lib/Sbuild/ChrootInfoADT.pm.
+     - Added new configuration variables:
+        - ADT_VIRT_SERVER to select the adt-virt-* backend
+        - ADT_VIRT_SERVER_OPTIONS to pass custom options to the backend
+     - Add command line options:
+        - --chroot-mode to select between schroot, sudo and adt on the
+          command line (controls CHROOT_MODE)
+        - --adt-virt-server which controls (ADT_VIRT_SERVER)
+        - --adt-virt-server-opt which controls (ADT_VIRT_SERVER_OPTIONS)
+
+commit 668e86dbfe5d14defe54926cf58dec2dc39d876f
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Fri Jan 15 14:04:33 2016 +0100
+
+    Decouple chroot from host in terms of filesystem access (closes: #798835)
+    
+    This is useful to allow sbuild backends where the chroot filesystem
+    cannot be directly accessed by the host, either because the host has no
+    permission to access the chroot or because the chroot is inside a
+    virtual machine, a container or on a remote system accessed via ssh.
+    This in turn allows backends like adt-virt-qemu, adt-virt-ssh,
+    adt-virt-lxc or backends based on Linux user namespaces to be added.
+    
+    In course of the decoupling all pieces of code where:
+    
+     - the test operators (-d, -f, -s) were used
+     - perl modules like File::Temp or File::Copy were used
+     - perl functions like mkdir, open, close, opendir, readdir were used
+     - external commands pointing to paths inside the chroot were used like
+       apt-ftparchive
+    
+    had to be replaced by invocations of a program that knows how to execute
+    processes inside the chroot.
+    
+    To make this easier, many new convenience functions have been added to
+    lib/Sbuild/Chroot.pm like:
+    
+     - mktemp
+     - copy_to_chroot
+     - copy_from_chroot
+     - get_read_file_handle
+     - read_file
+     - get_write_file_handle
+     - read_command
+     - write_file
+     - write_command
+     - rename
+     - mkdir
+     - test_directory
+     - test_regular_file
+     - test_regular_file_readable
+     - test_symlink
+     - unlink
+     - chmod
+     - chown
+    
+    Since this also means that nothing in Build.pm or ResolverBase.pm needs
+    to know about the chroot path anymore (because all modifications of the
+    chroot content have to go through Chroot.pm) the function
+    strip_chroot_path is not necessary anymore and with it the 'Location'
+    and 'Chroot Dir' configuration variables are only very rarely used.
+    
+    Another consequence is, that since it cannot be relied upon anymore that
+    the root filesystem of the chroot backend is mounted on the machine that
+    runs sbuild, that the %SBUILD_CHROOT_DIR percentage escape for external
+    commands is not useful anymore for all backends. Thus, this escape is
+    now deprecated. Instead, the percentage escape %SBUILD_CHROOT_EXEC
+    should be used in external commands. With that escape, the same external
+    command script can then be used irrespective of which chroot backend is
+    used.
+    
+    Also, with this commit, we create the Packages, Sources and Release file
+    inside the chroot.  We cannot use apt-ftparchive as this is not
+    available inside the chroot.  Apt-ftparchive outside the chroot might
+    not have access to the files inside the chroot for reasons explained
+    above. The only alternative would've been to set up the archive outside
+    the chroot using apt-ftparchive and to then copy Packages, Sources and
+    Release into the chroot.  We do not do this to avoid copying files from
+    and to the chroot.  At the same time doing it like this has the
+    advantage to have less dependencies of sbuild itself (no apt-ftparchive
+    needed).  The disadvantage of doing it this way is that we now have to
+    maintain our own code creating the Release file which might break in the
+    future.
+
+commit 49dd7ee4bc28fba899fc2b178c2f64f0c136ca59
+Author: Luca Falavigna <dktrkranz@debian.org>
+Date:   Thu Apr 28 06:48:58 2016 +0200
+
+    bin/sbuild-createchroot: check for overlayfs support (closes: #813360)
+
+commit 8e91ef0b7e1c99ab2cc354a09235f017e297dc2b
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Fri Apr 22 13:10:04 2016 +0200
+
+    add --aspcud-criteria command line option and ASPCUD_CRITERIA configuration option to customize the optimization criteria of the aspcud resolver
+
+commit 05b39349632635177284bf7c5ed6b7678078aaeb
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Wed Apr 20 13:07:12 2016 +0200
+
+    lib/Sbuild/Conf.pm: clarify aspcud resolver help message and fix typo (thanks cbmuser)
+
+commit 80bc910adb63e349a5c1c34dfacc7082278e77d0
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sun Apr 3 07:53:44 2016 +0200
+
+    lib/Sbuild/ResolverBase.pm: stop apt from downloading translations
+
+commit 5cfa09c51a9167c8748330ba40206ec468fc8b47
+Author: Colin Watson <cjwatson@ubuntu.com>
+Date:   Thu Apr 7 12:45:41 2016 +0100
+
+    Sbuild::ResolverBase: sign dummy archive with SHA-512
+    
+    Recent versions of apt complain about gpg's default of SHA-1.
+
+commit 063ce0de64d2e66d597cf548c3145be536eaf3da
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sun Apr 3 06:27:35 2016 +0200
+
+    Add cron script to periodically update sbuild chroots (closes: #776438)
+
+commit f8efb79c6b70912af19e1e3507e721dd9630606a
+Author: Adam Conrad <adconrad@0c3.net>
+Date:   Mon Mar 28 03:08:23 2016 -0600
+
+    lib/Sbuild/Build.pm: Fix "W: Stripped single quote from command for security" (closes: #816493)
+
+commit 60960c41210b5d01cf50bd320f4885a27c4c0fc8
+Author: Adam Conrad <adconrad@0c3.net>
+Date:   Mon Mar 28 02:17:57 2016 -0600
+
+    lib/Sbuild/ResolverBase.pm: Fix quoting in apt.conf to conform to spec.
+
+commit decfd14c80d633c19fdcd3846481f505a111d14d
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Thu Feb 18 21:43:08 2016 +0100
+
+    lib/Sbuild/ResolverBase.pm: add code comment further explaining the reason behind commit e2d63ebc
+
+commit e2d63ebc20c8d2ef5d96db83828087505928895f
+Author: Colin Watson <cjwatson@ubuntu.com>
+Date:   Thu Feb 18 14:22:15 2016 +0000
+
+    Sbuild::ResolverBase: use copy: for dummy archive
+    
+    We used to use file: URIs for sbuild's dummy archive, but recent
+    versions of apt put symlinks in /var/lib/apt/lists/ if we do that, which
+    means that those symlinks become broken as soon as we remove the dummy
+    archive.  sbuild itself is OK with this, but launchpad-buildd tries to
+    read /var/lib/apt/lists/*_Packages in order to do dep-wait analysis
+    after failures, and that fails if there are broken symlinks there.  It's
+    easy enough to avoid this problem by using copy: URIs instead, so let's
+    do that.
+
+commit e18205251843f916f5593bf52436104b29346139
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Tue Jan 26 09:04:47 2016 +0100
+
+    lib/Sbuild/Build.pm: fix some more uses of the package version if build fails early
+
+commit cdf04b4e2d78151eb29c468ffc37ec1da26b462f
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Tue Jan 26 08:58:14 2016 +0100
+
+    lib/Sbuild/Build.pm: and keys() being used on a reference is experimental - so dereference it first
+
+commit 5fd41dfc734bc7103b99159a90529e0410e1a92a
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Tue Jan 26 08:52:49 2016 +0100
+
+    lib/Sbuild/Build.pm: turns out empty hashes evaluate to true in Perl
+
+commit cdf124142b70df446af938a5d19fc13cc01d36fa
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Tue Jan 26 08:30:26 2016 +0100
+
+    Allow to build by only passing source package name without version (closes: #693928)
+    
+    The packagename_version format was a handy way to fulfill the assumption
+    sbuild makes that the source package version is available right from the
+    start. Sbuild then uses the version for things like log filtering,
+    status output, external command percentage escapes or the build log file
+    name.
+    
+    This patch makes it optional that the version is known from the start.
+    In case it is not known it will:
+    
+     - not print version information in the build log
+     - not let external command percentage escapes be defined
+     - use only the package name for the build log filename
+     - set up log filtering much later when the version is definitely known
+    
+    To not break existing setups, all the old behavior is kept if the
+    version is known from the start. To distinguish the version being known
+    from not being known, the user-supplied argument is checked for the
+    presence of an underscore. If an underscore exists, then either a dsc is
+    passed or the pkgname_version format was used and in both cases, the old
+    behavior can be executed. If no underscore can be found, then it is a
+    bare package name and the different behavior explained above will kick
+    in.
+    
+    The man page has been adapted to document the new behavior.
+    
+    While I was at it, I also rewrote the code downloading the source
+    package:
+    
+     - The old code triggered an "apt-get update" if the source package
+       could not be found. This is not necessary because the source package
+       is fetched after the chroot is updated. Furthermore it allows to
+       "apt-get update" to be run without eventual failures be caught by the
+       respective external command hooks. Lastly, this would ignore the
+       --no-apt-update command line option.
+    
+     - "apt-cache showsrc" was run without --only-source
+    
+     - The "apt-cache showsrc" output was parsed using Perl regexes.
+       Dpkg::Index is used now.
+    
+     - The Files field is now parsed using Dpkg::Checksums instead of using
+       perl regexes.
+    
+     - the @fetched array was only filled but never used by anybody
+
+commit 29a4c42c5190bd83dce4ebc600124c0227d0b453
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Mon Jan 25 16:22:54 2016 +0100
+
+    lib/Sbuild/ResolverBase.pm: do not remove architectures when cloned chroot is in use (closes: #811558)
+
+commit 4df31d9221ef86ba9b83c9cd8f2ae2c231a92dbd
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Mon Jan 25 15:49:31 2016 +0100
+
+    lib/Sbuild/ResolverBase.pm: improve debugging output when adding architectures
+
+commit 7c94edf16fdfd4ec88122720873a4507b930d776
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Mon Jan 25 15:47:57 2016 +0100
+
+    lib/Sbuild/Build.pm: use log_error() for error messages
+
+commit 6bca9627085655f4877465e89ef42109ccb87cc0
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Mon Jan 25 15:36:52 2016 +0100
+
+    lib/Sbuild/Build.pm: issue a warning if it was requested not to apt update but a foreign arch was added
+
+commit 495228671184a4e46ffc1c9147e4157cf2c29876
+Author: Dima Kogan <dima@secretsauce.net>
+Date:   Fri Dec 25 18:01:08 2015 +0100
+
+    added another -failed external command: chroot-update-failed (closes: #803505)
+
 commit 75d0b5bc9593a0a8917b0376611914d4b92566a8
 Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
 Date:   Fri Jan 15 10:10:23 2016 +0100

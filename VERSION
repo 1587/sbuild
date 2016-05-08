@@ -1,5 +1,5 @@
 Package: sbuild
-Version: 0.68.0
-Release-Date: 15 Jan 2016
+Version: 0.69.0
+Release-Date: 08 May 2016
 Released-By: Johannes 'josch' Schauer <josch@mister-muffin.de>
-Git-Tag: release/sbuild-0.68.0
+Git-Tag: release/sbuild-0.69.0
