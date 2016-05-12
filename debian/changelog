@@ -1,3 +1,14 @@
+sbuild (0.69.0-2) unstable; urgency=medium
+
+  * add patch 0001-lib-Sbuild-ResolverBase.pm-do-not-produce-non-error-.patch
+    to make sbuild not print on stderr during sbuild-update unless it is an
+    error (closes: #823788)
+  * 0001-bin-sbuild-createchroot-fix-chown-chmod-error-checks.patch which
+    fixes error checking of chown and chmod calls in sbuild-createchroot
+    (closes: #823897)
+
+ -- Johannes Schauer <josch@debian.org>  Thu, 12 May 2016 07:36:32 +0200
+
 sbuild (0.69.0-1) unstable; urgency=medium
 
   * new upstream version

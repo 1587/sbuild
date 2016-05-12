@@ -1,0 +1,29 @@
+From d3d2663b51fdd627155cee3b0fe8555ac81ddaf4 Mon Sep 17 00:00:00 2001
+From: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date: Wed, 11 May 2016 06:45:53 +0200
+Subject: [PATCH] bin/sbuild-createchroot: fix chown/chmod error checks
+ (closes: #823897)
+
+---
+ bin/sbuild-createchroot | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/bin/sbuild-createchroot b/bin/sbuild-createchroot
+index 6216371..efcfe04 100755
+--- a/bin/sbuild-createchroot
++++ b/bin/sbuild-createchroot
+@@ -257,9 +257,9 @@ EOF
+ close POLICY_RC_D or die "Can't close $policy_rc_d";
+ 
+ my (undef, undef, $uid, undef) = getpwnam('root');
+-!chown($uid, -1, $policy_rc_d)
++chown($uid, -1, $policy_rc_d) == 1
+     or die "E: Failed to set root: ownership on $policy_rc_d";
+-!chmod(0775, $policy_rc_d)
++chmod(0775, $policy_rc_d) == 1
+     or die "E: Failed to set 0755 permissions on $policy_rc_d";
+ 
+ # Display /usr/sbin/policy-rc.d.
+-- 
+2.5.1
+
