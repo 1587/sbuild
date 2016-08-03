@@ -45,7 +45,7 @@ use MIME::Lite;
 use Term::ANSIColor;
 
 use Sbuild qw($devnull binNMU_version copy isin debug send_mail
-              dsc_files dsc_pkgver);
+              dsc_files dsc_pkgver strftime_c);
 use Sbuild::Base;
 use Sbuild::ChrootInfoSchroot;
 use Sbuild::ChrootInfoSudo;
@@ -821,6 +821,10 @@ sub run_fetch_install_packages {
 	    $self->check_abort();
 	    $self->run_piuparts();
 
+	    # Run autopkgtest.
+	    $self->check_abort();
+	    $self->run_autopkgtest();
+
 	    # Run post build external commands
 	    $self->check_abort();
 	    if(!$self->run_external_commands("post-build-commands")) {
@@ -1138,6 +1142,15 @@ sub check_architectures {
     $self->log_subsection("Check architectures");
     # Check for cross-arch dependencies
     # parse $build_depends* for explicit :arch and add the foreign arches, as needed
+    #
+    # This check only looks at the immediate build dependencies. This could
+    # fail in a future where a foreign architecture direct build dependency of
+    # architecture X depends on another foreign architecture package of
+    # architecture Y. Architecture Y would not be added through this check as
+    # sbuild will not traverse the dependency graph. Doing so would be very
+    # complicated as new architectures would have to be added to a dependency
+    # solver like dose3 as the graph is traversed and new architectures are
+    # found.
     sub get_explicit_arches
     {
         my $visited_deps = pop;
@@ -1466,7 +1479,7 @@ sub run_lintian {
     my $build_dir = $self->get('Build Dir');
     my $resolver = $self->get('Dependency Resolver');
     my $lintian = $self->get_conf('LINTIAN');
-    my $changes = $self->get_changes($build_dir);
+    my $changes = $self->get_changes();
     if (!defined($changes)) {
 	$self->log_error(".changes is undef. Cannot run lintian.\n");
 	return 0;
@@ -1538,6 +1551,49 @@ sub run_piuparts {
     }
 
     $self->log_info("Piuparts run was successful.\n");
+    return 1;
+}
+
+sub run_autopkgtest {
+    my $self = shift;
+
+    return 1 unless ($self->get_conf('RUN_AUTOPKGTEST'));
+
+    $self->log_subsubsection("autopkgtest");
+
+    my $autopkgtest = $self->get_conf('AUTOPKGTEST');
+    my @autopkgtest_command;
+    if (scalar(@{$self->get_conf('AUTOPKGTEST_ROOT_ARGS')})) {
+	push @autopkgtest_command, @{$self->get_conf('AUTOPKGTEST_ROOT_ARGS')};
+    } else {
+	push @autopkgtest_command, 'sudo', '--';
+    }
+    push @autopkgtest_command, $autopkgtest;
+    if (!$self->get_conf('BUILD_SOURCE')) {
+	push @autopkgtest_command, $self->get('DSC');
+    }
+    push @autopkgtest_command, $self->get('Changes File');
+    if (scalar(@{$self->get_conf('AUTOPKGTEST_OPTIONS')})) {
+	push @autopkgtest_command, @{$self->get_conf('AUTOPKGTEST_OPTIONS')};
+    } else {
+	push @autopkgtest_command, '--', 'null';
+    }
+    $self->get('Host')->run_command(
+        { COMMAND => \@autopkgtest_command,
+          PRIORITY => 0,
+        });
+    my $status = $? >> 8;
+    $self->set('Autopkgtest Reason', 'pass');
+
+    $self->log("\n");
+    # fail if neither all tests passed nor was the package without tests
+    if ($status != 0 && $status != 8) {
+        $self->log_error("Autopkgtest run failed.\n");
+	$self->set('Autopkgtest Reason', 'fail');
+        return 0;
+    }
+
+    $self->log_info("Autopkgtest run was successful.\n");
     return 1;
 }
 
@@ -1940,7 +1996,7 @@ sub build {
 		       $self->get('Build End Time')-$self->get('Build Start Time'));
     $self->write_stats('install-download-time',
 		       $self->get('Install End Time')-$self->get('Install Start Time'));
-    my $finish_date = strftime("%Y%m%d-%H%M",localtime($self->get('Build End Time')));
+    my $finish_date = strftime_c "%FT%TZ", gmtime($self->get('Build End Time'));
     $self->log_sep();
     $self->log("Build finished at $finish_date\n");
 
@@ -1954,7 +2010,8 @@ sub build {
 
     $self->log_subsubsection("Finished");
     if ($rv) {
-	$self->log_error("Build failure (dpkg-buildpackage died)\n");
+	Sbuild::Exception::Build->throw(error => "Build failure (dpkg-buildpackage died)",
+	    failstage => "build");
     } else {
 	$self->log_info("Built successfully\n");
 
@@ -1989,15 +2046,10 @@ sub build {
 	}
 
 	$self->log_subsection("Changes");
-	$changes = $self->get_changes($build_dir);
-	if (!defined($changes)) {
-	    $self->log_error(".changes is undef. Cannot copy build results.\n");
-	    return 0;
-	}
-	my @cfiles;
-	if ($session->test_regular_file_readable("$build_dir/$changes")) {
-	    my(@do_dists, @saved_dists);
-	    $self->log_subsubsection("$changes:");
+
+	my $copy_changes = sub {
+	    my $changes = shift;
+
 	    my $F = $session->get_read_file_handle("$build_dir/$changes");
 	    if (!$F) {
 		$self->log_error("cannot get read file handle for $build_dir/$changes\n");
@@ -2016,11 +2068,6 @@ sub build {
 	    if ($self->get_conf('OVERRIDE_DISTRIBUTION')) {
 		$pchanges->{Distribution} = $self->get_conf('DISTRIBUTION');
 	    }
-
-	    my $checksums = Dpkg::Checksums->new();
-	    $checksums->add_from_control($pchanges);
-
-	    push(@cfiles, $checksums->get_files());
 
 	    my $sys_build_dir = $self->get_conf('BUILD_DIR');
 	    if (!open( F2, ">$sys_build_dir/$changes.new" )) {
@@ -2043,9 +2090,61 @@ sub build {
 		unlink("$build_dir/$changes")
 		    if $build_dir;
 	    }
+
+	    return $pchanges;
+	};
+
+	$changes = $self->get_changes();
+	if (!defined($changes)) {
+	    $self->log_error(".changes is undef. Cannot copy build results.\n");
+	    return 0;
+	}
+	my @cfiles;
+	if ($session->test_regular_file_readable("$build_dir/$changes")) {
+	    my(@do_dists, @saved_dists);
+	    $self->log_subsubsection("$changes:");
+
+	    my $pchanges = &$copy_changes($changes);
+
+	    my $checksums = Dpkg::Checksums->new();
+	    $checksums->add_from_control($pchanges);
+
+	    push(@cfiles, $checksums->get_files());
+
 	}
 	else {
 	    $self->log_error("Can't find $changes -- can't dump info\n");
+	}
+
+	if ($self->get_conf('SOURCE_ONLY_CHANGES')) {
+	    my $so_changes = $self->get('Package_SVersion') . "_source.changes";
+	    $self->log_subsubsection("$so_changes:");
+	    my $genchangescmd = ['dpkg-genchanges', '--build=source'];
+	    if (defined($self->get_conf('SIGNING_OPTIONS')) &&
+		$self->get_conf('SIGNING_OPTIONS')) {
+		if (ref($self->get_conf('SIGNING_OPTIONS')) eq 'ARRAY') {
+		    push (@{$genchangescmd}, @{$self->get_conf('SIGNING_OPTIONS')});
+		} else {
+		    push (@{$genchangescmd}, $self->get_conf('SIGNING_OPTIONS'));
+		}
+	    }
+	    my $cfile = $session->read_command(
+		{ COMMAND => $genchangescmd,
+		    USER => $self->get_conf('BUILD_USER'),
+		    PRIORITY => 0,
+		    DIR => $dscdir});
+	    if (!$cfile) {
+		$self->log_error("dpkg-genchanges --build=source failed\n");
+		Sbuild::Exception::Build->throw(error => "dpkg-genchanges --build=source failed",
+		    failstage => "source-only-changes");
+	    }
+	    if (!$session->write_file("$build_dir/$so_changes", $cfile)) {
+		$self->log_error("cannot write content to $build_dir/$so_changes\n");
+		Sbuild::Exception::Build->throw(error => "cannot write content to $build_dir/$so_changes",
+		    failstage => "source-only-changes");
+	    }
+
+	    my $pchanges = &$copy_changes($so_changes);
 	}
 
 	$self->log_subsection("Package contents");
@@ -2082,7 +2181,10 @@ sub build {
 	}
     }
 
-    $self->check_space(@space_files);
+    $self->set('This Time', $self->get('Pkg End Time') - $self->get('Pkg Start Time'));
+    $self->get('This Time') = 0 if $self->get('This Time') < 0;
+
+    $self->set('This Space', $self->check_space(@space_files));
 
     return $rv == 0 ? 1 : 0;
 }
@@ -2113,40 +2215,16 @@ sub get_env ($$) {
 
 sub get_changes {
     my $self=shift;
-    my $path=shift;
-    my $changes;
-    my $session = $self->get('Session');
-
-    return if not defined($session);
-
-    if ($session->test_regular_file_readable($path . '/' . $self->get('Package_SVersion') . "_source.changes")) {
-	$changes = $self->get('Package_SVersion') . "_source.changes";
-    }
-    elsif ($session->test_regular_file_readable($path . '/' . $self->get('Package_SVersion') . "_all.changes")) {
-	$changes = $self->get('Package_SVersion') . "_all.changes";
-    }
-    else {
-	$changes = $self->get('Package_SVersion') . '_' . $self->get('Host Arch') . '.changes';
-    }
-    return $changes;
-}
-
-# same as get_changes but checks for the .changes file on the host running
-# sbuild instead of inside the chroot
-sub get_changes_host {
-    my $self=shift;
-    my $path=shift;
     my $changes;
 
-    if ( -r $path . '/' . $self->get('Package_SVersion') . "_source.changes") {
+    if ($self->get_conf('BUILD_ARCH_ANY')) {
+	$changes = $self->get('Package_SVersion') . '_' . $self->get('Host Arch') . '.changes';
+    } elsif ($self->get_conf('BUILD_ARCH_ALL')) {
+	$changes = $self->get('Package_SVersion') . "_all.changes";
+    } elsif ($self->get_conf('BUILD_SOURCE')) {
 	$changes = $self->get('Package_SVersion') . "_source.changes";
     }
-    elsif ( -r $path . '/' . $self->get('Package_SVersion') . "_all.changes") {
-	$changes = $self->get('Package_SVersion') . "_all.changes";
-    }
-    else {
-	$changes = $self->get('Package_SVersion') . '_' . $self->get('Host Arch') . '.changes';
-    }
+
     return $changes;
 }
 
@@ -2158,41 +2236,50 @@ sub check_space {
     my $dscdir = $self->get('DSC Dir');
     my $build_dir = $self->get('Build Dir');
     my $pkgbuilddir = "$build_dir/$dscdir";
+    my ($space, $spacenum);
 
-    my $pkgbuilddirspc = $self->get('Session')->read_command(
+    # get the required space for the unpacked source package in the chroot
+    $space = $self->get('Session')->read_command(
 	{ COMMAND => ['du', '-k', '-s', $pkgbuilddir],
 	    USER => $self->get_conf('USERNAME'),
 	    PRIORITY => 0,
 	    DIR => '/'});
 
-    if (!$pkgbuilddirspc) {
-	$self->log_error("Cannot determine space needed (du failed)\n");
+    if (!$space) {
+	$self->log_error("Cannot determine space needed for $pkgbuilddir (du failed)\n");
+	return -1;
     }
-    if ($pkgbuilddirspc !~ /^(\d+)/) {
-	$self->log_error("Cannot determine space needed (unexpected du output): $pkgbuilddirspc\n");
+    # remove the trailing path from the du output
+    if (($spacenum) = $space =~ /^(\d+)/) {
+	$sum += $spacenum;
+    } else {
+	$self->log_error("Cannot determine space needed for $pkgbuilddir (unexpected du output): $space\n");
+	return -1;
     }
-    $sum += $1;
 
-    foreach (@files) {
-	my $space = $self->get('Host')->read_command(
-	    { COMMAND => ['du', '-k', '-s', $_],
+    # get the required space for all produced build artifacts on the host
+    # running sbuild
+    foreach my $file (@files) {
+	$space = $self->get('Host')->read_command(
+	    { COMMAND => ['du', '-k', '-s', $file],
 	      USER => $self->get_conf('USERNAME'),
 	      PRIORITY => 0,
 	      DIR => '/'});
 
 	if (!$space) {
-	    $self->log_error("Cannot determine space needed (du failed): $!\n");
-	    next;
+	    $self->log_error("Cannot determine space needed for $file (du failed): $!\n");
+	    return -1;
 	}
-	if ($pkgbuilddirspc !~ /^(\d+)/) {
-	    $self->log_error("Cannot determine space needed (unexpected du output): $space\n");
+	# remove the trailing path from the du output
+	if (($spacenum) = $space =~ /^(\d+)/) {
+	    $sum += $spacenum;
+	} else {
+	    $self->log_error("Cannot determine space needed for $file (unexpected du output): $space\n");
+	    return -1;
 	}
-	$sum += $1;
     }
 
-    $self->set('This Time', $self->get('Pkg End Time') - $self->get('Pkg Start Time'));
-    $self->get('This Time') = 0 if $self->get('This Time') < 0;
-    $self->set('This Space', $sum);
+    return $sum;
 }
 
 sub lock_file {
@@ -2305,6 +2392,8 @@ sub generate_stats {
 	if $self->get('Lintian Reason');
     $self->add_stat('Piuparts', $self->get('Piuparts Reason'))
 	if $self->get('Piuparts Reason');
+    $self->add_stat('Autopkgtest', $self->get('Autopkgtest Reason'))
+	if $self->get('Autopkgtest Reason');
 }
 
 sub log_stats {
@@ -2410,7 +2499,7 @@ sub build_log_colour {
 sub open_build_log {
     my $self = shift;
 
-    my $date = strftime("%Y%m%d-%H%M", localtime($self->get('Pkg Start Time')));
+    my $date = strftime_c "%FT%TZ", gmtime($self->get('Pkg Start Time'));
 
     my $filter_prefix = '__SBUILD_FILTER_' . $$ . ':';
     $self->set('FILTER_PREFIX', $filter_prefix);
@@ -2553,17 +2642,14 @@ sub open_build_log {
     my $hostname = $self->get_conf('HOSTNAME');
     $self->log("sbuild (Debian sbuild) $version ($release_date) on $hostname\n");
 
-    my $arch_string = $self->get('Build Arch');
-    $arch_string = 'CROSS host=' . $self->get('Host Arch') .
-	'/build=' . $self->get('Build Arch')
-	if ($self->get('Host Arch') ne $self->get('Build Arch'));
+    my $arch_string = $self->get('Host Arch');
     my $head1 = $self->get('Package');
     if ($self->get('Version')) {
 	$head1 .= ' ' . $self->get('Version');
     }
     $head1 .= ' (' . $arch_string . ') ';
-    my $head2 = strftime("%d %b %Y %H:%M",
-			 localtime($self->get('Pkg Start Time')));
+    my $head2 = strftime_c "%a, %d %b %Y %H:%M:%S +0000",
+			 gmtime($self->get('Pkg Start Time'));
     my $head = $head1 . ' ' x (80 - 4 - length($head1) - length($head2)) .
 	$head2;
     $self->log_section($head);
@@ -2588,7 +2674,7 @@ sub close_build_log {
     if ($time == 0) {
         $time = time;
     }
-    my $date = strftime("%Y%m%d-%H%M", localtime($time));
+    my $date = strftime_c "%FT%TZ", gmtime($time);
 
     my $hours = int($self->get('This Time')/3600);
     my $minutes = int(($self->get('This Time')%3600)/60),
@@ -2617,11 +2703,19 @@ sub close_build_log {
 	    my $build_dir = $self->get_conf('BUILD_DIR');
 	    my $changes;
 	    $self->log(sprintf("Signature with key '%s' requested:\n", $key_id));
-	    $changes = $self->get_changes_host($build_dir);
+	    $changes = $self->get_changes();
 	    if (!defined($changes)) {
 		$self->log_error(".changes is undef. Cannot sign .changes.\n");
 	    } else {
-		system('debsign', "-k$key_id", '--', "$build_dir/$changes");
+		system('debsign', '--re-sign', "-k$key_id", '--', "$build_dir/$changes");
+	    }
+	    if ($self->get_conf('SOURCE_ONLY_CHANGES')) {
+		my $so_changes = $build_dir . '/' . $self->get('Package_SVersion') . "_source.changes";
+		if (-r $so_changes) {
+		    system('debsign', '--re-sign', "-k$key_id", '--', "$so_changes");
+		} else {
+		    $self->log_error("$so_changes unreadable. Cannot sign .changes.\n");
+		}
 	    }
 	}
     }
@@ -2738,7 +2832,7 @@ sub send_mime_build_log {
 		);
     }
     my $build_dir = $self->get_conf('BUILD_DIR');
-    my $changes = $self->get_changes_host($build_dir);
+    my $changes = $self->get_changes();
     if ($self->get_status() eq 'successful' && -r "$build_dir/$changes") {
 	my $log_part = MIME::Lite->new(
 		Type     => 'text/plain',

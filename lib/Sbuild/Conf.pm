@@ -358,6 +358,7 @@ sub setup ($) {
 	    TYPE => 'STRING',
 	    VARNAME => 'stats_dir',
 	    GROUP => 'Statistics',
+	    IGNORE_DEFAULT => 1, # Don't dump the current home
 	    DEFAULT => "$HOME/stats",
 	    HELP => 'Directory for writing build statistics to',
 	    CLI_OPTIONS => ['--stats-dir']
@@ -1073,6 +1074,51 @@ $crossbuild_core_depends = {
 	    HELP => 'Preceding arguments to launch piuparts as root. If no arguments are specified, piuparts will be launched via sudo.',
 	    CLI_OPTIONS => ['--piuparts-root-arg', '--piuparts-root-args']
 	},
+	'AUTOPKGTEST'				=> {
+	    TYPE => 'STRING',
+	    VARNAME => 'autopkgtest',
+	    GROUP => 'Build validation',
+	    CHECK => sub {
+		my $conf = shift;
+		my $entry = shift;
+		my $key = $entry->{'NAME'};
+
+		# Only validate if needed.
+		if ($conf->get('RUN_AUTOPKGTEST')) {
+		    $validate_program->($conf, $entry);
+		}
+	    },
+	    DEFAULT => 'autopkgtest',
+	    HELP => 'Path to autopkgtest binary',
+	    CLI_OPTIONS => ['--autopkgtest-opt', '--autopkgtest-opts']
+	},
+	'RUN_AUTOPKGTEST'				=> {
+	    TYPE => 'BOOL',
+	    VARNAME => 'run_autopkgtest',
+	    GROUP => 'Build validation',
+	    CHECK => sub {
+		my $conf = shift;
+		$conf->check('AUTOPKGTEST');
+	    },
+	    DEFAULT => 0,
+	    HELP => 'Run autopkgtest',
+	    CLI_OPTIONS => ['--run-autopkgtest', '--no-run-autopkgtest']
+	},
+	'AUTOPKGTEST_OPTIONS'			=> {
+	    TYPE => 'ARRAY:STRING',
+	    VARNAME => 'autopkgtest_opts',
+	    GROUP => 'Build validation',
+	    DEFAULT => [],
+	    HELP => 'Options to pass to autopkgtest.  Each option is a separate arrayref element.  For example, [\'-b\', \'<chroot_tarball>\'] to add -b and <chroot_tarball>.'
+	},
+	'AUTOPKGTEST_ROOT_ARGS'			=> {
+	    TYPE => 'ARRAY:STRING',
+	    VARNAME => 'autopkgtest_root_args',
+	    GROUP => 'Build validation',
+	    DEFAULT => [],
+	    HELP => 'Preceding arguments to launch autopkgtest as root. If no arguments are specified, autopkgtest will be launched via sudo.',
+	    CLI_OPTIONS => ['--autopkgtest-root-arg', '--autopkgtest-root-args']
+	},
 	'EXTERNAL_COMMANDS'			=> {
 	    TYPE => 'HASH:ARRAY:STRING',
 	    VARNAME => 'external_commands',
@@ -1174,14 +1220,28 @@ $crossbuild_core_depends = {
 	    VARNAME => 'sbuild_build_depends_secret_key',
 	    GROUP => 'Dependency resolution',
 	    DEFAULT => '/var/lib/sbuild/apt-keys/sbuild-key.sec',
-	    HELP => 'GPG secret key for temporary local apt archive.'
+	    HELP => 'GPG secret key for temporary local apt archive in GPG native format. This setting is deprecated and is superseded by SBUILD_BUILD_DEPENDS_SECRET_KEY_ARMORED.'
 	},
 	'SBUILD_BUILD_DEPENDS_PUBLIC_KEY'		=> {
 	    TYPE => 'STRING',
 	    VARNAME => 'sbuild_build_depends_public_key',
 	    GROUP => 'Dependency resolution',
 	    DEFAULT => '/var/lib/sbuild/apt-keys/sbuild-key.pub',
-	    HELP => 'GPG public key for temporary local apt archive.'
+	    HELP => 'GPG public key for temporary local apt archive in GPG native format. This setting is deprecated and is superseded by SBUILD_BUILD_DEPENDS_PUBLIC_KEY_ARMORED.'
+	},
+	'SBUILD_BUILD_DEPENDS_SECRET_KEY_ARMORED'		=> {
+	    TYPE => 'STRING',
+	    VARNAME => 'sbuild_build_depends_secret_key_armored',
+	    GROUP => 'Dependency resolution',
+	    DEFAULT => '/var/lib/sbuild/apt-keys/sbuild-key.sec.asc',
+	    HELP => 'GPG secret key for temporary local apt archive in armored ASCII format.'
+	},
+	'SBUILD_BUILD_DEPENDS_PUBLIC_KEY_ARMORED'		=> {
+	    TYPE => 'STRING',
+	    VARNAME => 'sbuild_build_depends_public_key_armored',
+	    GROUP => 'Dependency resolution',
+	    DEFAULT => '/var/lib/sbuild/apt-keys/sbuild-key.pub.asc',
+	    HELP => 'GPG public key for temporary local apt archive in armored ASCII format.'
 	},
 	'EXTRA_PACKAGES'				=> {
 	    TYPE => 'ARRAY:STRING',
@@ -1206,6 +1266,14 @@ $crossbuild_core_depends = {
 	    DEFAULT => [],
 	    HELP => 'Additional per-build apt repositories.',
 	    CLI_OPTIONS => ['--extra-repository']
+	},
+	'SOURCE_ONLY_CHANGES'				=> {
+	    TYPE => 'BOOL',
+	    VARNAME => 'source_only_changes',
+	    GROUP => 'Build options',
+	    DEFAULT => 0,
+	    HELP => 'Also produce a changes file suitable for a source-only upload.',
+	    CLI_OPTIONS => ['--source-only-changes']
 	},
     );
 

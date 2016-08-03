@@ -26,6 +26,7 @@ use Sbuild qw(copy debug debug2);
 use Sbuild::Base;
 use Sbuild::ChrootInfo;
 use Sbuild::ChrootSetup qw(basesetup);
+use Sbuild qw(shellescape);
 
 use strict;
 use warnings;
@@ -249,8 +250,10 @@ sub get_read_file_handle {
     my $dir = "/";
     $dir = $options->{'DIR'} if defined $options->{'DIR'};
 
+    my $escapedsource = shellescape $source;
+
     my $pipe = $self->pipe_command({
-	    COMMAND => [ "sh", "-c", "cat \"$source\"" ],
+	    COMMAND => [ "sh", "-c", "cat $escapedsource" ],
 	    DIR => $dir,
 	    USER => $user,
 	    PIPE => 'in'
@@ -293,8 +296,10 @@ sub get_write_file_handle {
     my $dir = "/";
     $dir = $options->{'DIR'} if defined $options->{'DIR'};
 
+    my $escapeddest = shellescape $dest;
+
     my $pipe = $self->pipe_command({
-	    COMMAND => [ "sh", "-c", "cat > \"$dest\"" ],
+	    COMMAND => [ "sh", "-c", "cat > $escapeddest" ],
 	    DIR => $dir,
 	    USER => $user,
 	    PIPE => 'out'
@@ -576,6 +581,32 @@ sub chown {
     $self->run_command({ COMMAND => $chowncmd, USER => $user, DIR => $dir});
     if ($?) {
 	$self->log_error("Can't chown $path to $owner:$group: $!\n");
+	return 0;
+    }
+
+    return 1;
+}
+
+# test if a program inside the chroot can be run
+# we use the function name "can_run" as it is similar to the function in
+# IPC::Cmd
+sub can_run {
+    my $self = shift;
+    my $program = shift;
+    my $options = shift;
+
+    my $user = "root";
+    $user = $options->{'USER'} if defined $options->{'USER'};
+
+    my $dir = "/";
+    $dir = $options->{'DIR'} if defined $options->{'DIR'};
+
+    my $escapedprogram = shellescape $program;
+
+    my $commandcmd = [ 'sh', '-c', "command -v $escapedprogram >/dev/null 2>&1" ];
+
+    $self->run_command({ COMMAND => $commandcmd, USER => $user, DIR => $dir});
+    if ($?) {
 	return 0;
     }
 

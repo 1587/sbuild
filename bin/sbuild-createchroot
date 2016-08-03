@@ -72,6 +72,15 @@ sub setup {
 	'KEEP_SBUILD_CHROOT_DIR'			=> {
 	    DEFAULT => 0
 	},
+	'DEB_SRC'				=> {
+	    DEFAULT => 1
+	},
+	'ALIASES'				=> {
+	    DEFAULT => []
+	},
+	'EXTRA_REPOSITORIES'			=> {
+	    DEFAULT => []
+	},
     );
 
     $conf->set_allowed_keys(\%createchroot_keys);
@@ -136,6 +145,15 @@ sub set_options {
 	},
 	"keep-sbuild-chroot-dir" => sub {
 	    $self->set_conf('KEEP_SBUILD_CHROOT_DIR', 1);
+	},
+	"no-deb-src" => sub {
+	    $self->set_conf('DEB_SRC', 0);
+	},
+	"alias=s" => sub {
+	    push @{$self->get_conf('ALIASES')}, $_[1];
+	},
+	"extra-repository=s" => sub {
+	    push @{$self->get_conf('EXTRA_REPOSITORIES')}, $_[1];
 	});
 }
 
@@ -170,14 +188,15 @@ usage_error("sbuild-createchroot",
 # Make sure fakeroot and build-essential are installed
 $conf->set('INCLUDE', add_items($conf->get('INCLUDE'),
 				"fakeroot",
-				"build-essential",
-				"debfoster"));
+				"build-essential"));
 
-my $suite = $ARGV[0];
+# Deal with SUITE-VARIANT
+my $suitevariant = $ARGV[0];
+(my $suite = $suitevariant) =~ s/-.*//;
 
 # check if schroot name is already in use
 
-my $chrootname = "${suite}-" . $conf->get('BUILD_ARCH') . $conf->get('CHROOT_SUFFIX');
+my $chrootname = "${suitevariant}-" . $conf->get('BUILD_ARCH') . $conf->get('CHROOT_SUFFIX');
 
 open my $pipe, 'schroot -l --all-source-chroots |';
 while (my $line = <$pipe>) {
@@ -257,25 +276,32 @@ EOF
 close POLICY_RC_D or die "Can't close $policy_rc_d";
 
 my (undef, undef, $uid, undef) = getpwnam('root');
-!chown($uid, -1, $policy_rc_d)
+chown($uid, -1, $policy_rc_d) == 1
     or die "E: Failed to set root: ownership on $policy_rc_d";
-!chmod(0775, $policy_rc_d)
+chmod(0775, $policy_rc_d) == 1
     or die "E: Failed to set 0755 permissions on $policy_rc_d";
 
 # Display /usr/sbin/policy-rc.d.
 print "I: Configured /usr/sbin/policy-rc.d:\n";
 dump_file("$policy_rc_d");
 
+if ($conf->get('DEB_SRC') || scalar @{$conf->get('EXTRA_REPOSITORIES')} > 0) {
+    my $sources = "${target}/etc/apt/sources.list";
+    open(SOURCES, ">>$sources")
+        or die "E: Can't open $sources for writing";
 
+    # Add deb-src to /etc/apt/sources.list.
+    if ($conf->get('DEB_SRC')) {
+	my $comps = join(' ',split(/,/,$conf->get('COMPONENTS')));
+	print SOURCES "deb-src $mirror $suite $comps\n";
+    }
 
-# Set up minimal /etc/apt/sources.list
-my $sources = "${target}/etc/apt/sources.list";
-my $comps = join(' ',split(/,/,$conf->get('COMPONENTS')));
-open(SOURCES, ">$sources")
-    or die "Can't open $sources for writing";
-print SOURCES "deb $mirror $suite $comps\n";
-print SOURCES "deb-src $mirror $suite $comps\n";
-close SOURCES or die "Can't close $sources";
+    # Add extra repositories to /etc/apt/sources.list
+    for my $repo (@{$conf->get('EXTRA_REPOSITORIES')}) {
+	print SOURCES "$repo\n";
+    }
+    close SOURCES or die "E: Can't close $sources";
+}
 
 # Display /etc/apt/sources.list.
 print "I: Configured APT /etc/apt/sources.list:\n";
@@ -284,9 +310,16 @@ print "I: Please add any additional APT sources to ${target}/etc/apt/sources.lis
 
 # Write out schroot chroot configuration.
 
-# Determine the schroot chroot configuration to use.
-my $config_entry;
 my $arch = $conf->get('BUILD_ARCH');
+my $config_entry = <<"EOF";
+[$chrootname]
+description=Debian $suitevariant/$arch autobuilder
+groups=root,sbuild
+root-groups=root,sbuild
+profile=sbuild
+EOF
+
+# Determine the schroot chroot configuration to use.
 if ($conf->get('MAKE_SBUILD_TARBALL')) {
     my $tarball = $conf->get('MAKE_SBUILD_TARBALL');
 
@@ -298,38 +331,33 @@ if ($conf->get('MAKE_SBUILD_TARBALL')) {
         $conf->set('MAKE_SBUILD_TARBALL', $tarball);
     }
 
-    $config_entry = <<"EOF";
-[$chrootname]
+    $config_entry .= <<"EOF";
 type=file
-description=Debian $suite/$arch autobuilder
 file=$tarball
-groups=root,sbuild
-root-groups=root,sbuild
-profile=sbuild
 EOF
 } else {
     # Determine whether system has overlayfs capability
-    my $uniontype = "union-type=none";
+    my $uniontype = "none";
     if (lc("$^O") =~ /linux/) {
 	system(qw(/sbin/modprobe overlay));
 	if (open(FILE, "/proc/filesystems")) {
 	    if (grep {/\soverlay$/} <FILE>) {
-		$uniontype = "union-type=overlay";
+		$uniontype = "overlay";
 	    }
 	    close(FILE);
 	}
     }
 
-    $config_entry = <<"EOF";
-[$chrootname]
+    $config_entry .= <<"EOF";
 type=directory
-$uniontype
-description=Debian $suite/$arch autobuilder
 directory=$target
-groups=root,sbuild
-root-groups=root,sbuild
-profile=sbuild
+union-type=$uniontype
 EOF
+}
+
+if (scalar @{$conf->get('ALIASES')} > 0) {
+    my $aliases = join ',', @{$conf->get('ALIASES')};
+    $config_entry .= "aliases=$aliases\n";
 }
 
 if (-d "/etc/schroot/chroot.d") {
@@ -379,6 +407,8 @@ if (! -d "$Sbuild::Sysconfig::paths{'SBUILD_SYSCONF_DIR'}/chroot") {
     makedir("$Sbuild::Sysconfig::paths{'SBUILD_SYSCONF_DIR'}/chroot", 0775);
 }
 
+# Populate /etc/sbuild/chroot with a symlink to be able to use the chroot in
+# sudo mode for directory based chroots
 my $chrootlink = "$Sbuild::Sysconfig::paths{'SBUILD_SYSCONF_DIR'}/chroot/$chrootname";
 if ((defined $chrootlink) && (! $conf->get('MAKE_SBUILD_TARBALL'))) {
     if (! -e $chrootlink) {
@@ -467,7 +497,7 @@ if ($conf->get('MAKE_SBUILD_TARBALL')) {
     }
 }
 
-print "I: Successfully set up $suite chroot.\n";
+print "I: Successfully set up $suitevariant chroot.\n";
 print "I: Run \"sbuild-adduser\" to add new sbuild users.\n";
 
 exit 0;

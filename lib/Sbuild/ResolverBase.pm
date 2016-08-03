@@ -25,8 +25,9 @@ use strict;
 use warnings;
 use POSIX;
 use Fcntl;
-use File::Temp qw(tempfile);
+use File::Temp qw(mktemp);
 use File::Copy;
+use MIME::Base64;
 
 use Dpkg::Deps;
 use Sbuild::Base;
@@ -67,6 +68,10 @@ sub new {
         '/etc/apt/sources.list.d/sbuild-build-depends-archive.list';
     $self->set('Dummy archive list file', $dummy_archive_list_file);
 
+    my $extra_repositories_list_file =
+        '/etc/apt/sources.list.d/sbuild-extra-repositories.list';
+    $self->set('Extra repositories list file', $extra_repositories_list_file);
+
     my $dummy_archive_key_file =
         '/etc/apt/trusted.gpg.d/sbuild-build-depends-archive.gpg';
     $self->set('Dummy archive key file', $dummy_archive_key_file);
@@ -103,7 +108,7 @@ sub setup {
 
     # Always write out apt.conf, because it may become outdated.
     if ($self->get_conf('APT_ALLOW_UNAUTHENTICATED')) {
-	print $F qq(APT::Get::AllowUnauthenticated "true";\n");
+	print $F qq(APT::Get::AllowUnauthenticated "true";\n);
     }
     print $F qq(APT::Install-Recommends "false";\n);
     print $F qq(APT::AutoRemove::SuggestsImportant "false";\n);
@@ -154,7 +159,146 @@ sub setup {
 	    $self->get('APT Conf');
     }
 
-    $self->cleanup_apt_archive();
+    # Add specified extra repositories into /etc/apt/sources.list.d/.
+    # This has to be done this early so that the early apt
+    # update/upgrade/distupgrade steps also consider the extra repositories.
+    # If this step would be done too late, extra repositories would only be
+    # considered when resolving build dependencies but not for upgrading the
+    # base chroot.
+    if (scalar @{$self->get_conf('EXTRA_REPOSITORIES')} > 0) {
+	my $extra_repositories_list_file = $self->get('Extra repositories list file');
+	if ($session->test_regular_file($extra_repositories_list_file)) {
+	    $self->log_error("$extra_repositories_list_file exists - will not write extra repositories to it\n");
+	} else {
+	    my $tmpfilename = $session->mktemp();
+
+	    my $tmpfh = $session->get_write_file_handle($tmpfilename);
+	    if (!$tmpfh) {
+		$self->log_error("Cannot open pipe: $!\n");
+		return 0;
+	    }
+	    for my $repospec (@{$self->get_conf('EXTRA_REPOSITORIES')}) {
+		print $tmpfh "$repospec\n";
+	    }
+	    close $tmpfh;
+	    # List file needs to be moved with root.
+	    if (!$session->chmod($tmpfilename, '0644')) {
+		$self->log("Failed to create apt list file for dummy archive.\n");
+		$session->unlink($tmpfilename);
+		return 0;
+	    }
+	    if (!$session->rename($tmpfilename, $extra_repositories_list_file)) {
+		$self->log("Failed to create apt list file for dummy archive.\n");
+		$session->unlink($tmpfilename);
+		return 0;
+	    }
+	}
+    }
+
+    # Now, we'll add in any provided OpenPGP keys into the archive, so that
+    # builds can (optionally) trust an external key for the duration of the
+    # build.
+    #
+    # Keys have to be in a format that apt expects to land in
+    # /etc/apt/trusted.gpg.d as they are just copied to there. We could also
+    # support more formats by first importing them using gpg and then
+    # exporting them but that would require gpg to be installed inside the
+    # chroot.
+    if (@{$self->get_conf('EXTRA_REPOSITORY_KEYS')}) {
+	my $host = $self->get('Host');
+	# remember whether running gpg worked or not
+	my $has_gpg = 1;
+	for my $repokey (@{$self->get_conf('EXTRA_REPOSITORY_KEYS')}) {
+	    debug("Adding archive key: $repokey\n");
+	    if (!-f $repokey) {
+		$self->log("Failed to add archive key '${repokey}' - it doesn't exist!\n");
+		return 0;
+	    }
+	    # key might be armored but apt requires keys in binary format
+	    # We first try to run gpg from the host to convert the key into
+	    # binary format (this works even when the key already is in binary
+	    # format).
+	    my $tmpfilename = mktemp("/tmp/tmp.XXXXXXXXXX");
+	    if ($has_gpg == 1) {
+		$host->run_command({
+			COMMAND => ['gpg', '--yes', '--batch', '--output', $tmpfilename, '--dearmor', $repokey],
+			USER => $self->get_conf('BUILD_USER'),
+		    });
+		if ($?) {
+		    # don't try to use gpg again in later loop iterations
+		    $has_gpg = 0;
+		}
+	    }
+	    # If that doesn't work, then we manually convert the key
+	    # as it is just base64 encoded data with a header and footer.
+	    #
+	    # The decoding of armored gpg keys can even be done from a shell
+	    # script by using:
+	    #
+	    #    awk '/^$/{ x = 1; } /^[^=-]/{ if (x) { print $0; } ; }' | base64 -d
+	    #
+	    # As explained by dkg here: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=831409#67
+	    if ($has_gpg == 0) {
+		# Test if we actually have an armored key. Otherwise, no
+		# conversion is needed.
+		open my $fh, '<', $repokey;
+		read $fh, my $first_line, 36;
+		if ($first_line eq "-----BEGIN PGP PUBLIC KEY BLOCK-----") {
+		    # Read the remaining part of the line until the newline.
+		    # We do it like this because the line might contain
+		    # additional whitespace characters or \r\n newlines.
+		    <$fh>;
+		    open my $out, '>', $tmpfilename;
+		    # the file is an armored gpg key, so we convert it to the
+		    # binary format
+		    my $header = 1;
+		    while( my $line = <$fh>) {
+			chomp $line;
+			# an empty line marks the end of the header
+			if ($line eq "") {
+			    $header = 0;
+			    next;
+			}
+			if ($header == 1) {
+			    next;
+			}
+			# the footer might contain lines starting with an
+			# equal sign or minuses
+			if ($line =~ /^[=-]/) {
+			    last;
+			}
+			print $out (decode_base64($line));
+		    }
+		    close $out;
+		}
+		close $fh;
+	    }
+	    # we could use incrementing integers to number the extra
+	    # repository keys but mktemp will also make sure that the new name
+	    # doesn't exist yet and avoids the complexity of an additional
+	    # variable
+	    my $keyfilename = $session->mktemp({TEMPLATE => "/etc/apt/trusted.gpg.d/sbuild-extra-repository-XXXXXXXXXX.gpg"});
+	    if (!$keyfilename) {
+		$self->log_error("Can't create tempfile for external repository key\n");
+		$session->unlink($keyfilename);
+		unlink $tmpfilename;
+		return 0;
+	    }
+	    if (!$session->copy_to_chroot($tmpfilename, $keyfilename)) {
+		$self->log_error("Failed to copy external repository key $repokey into chroot $keyfilename\n");
+		$session->unlink($keyfilename);
+		unlink $tmpfilename;
+		return 0;
+	    }
+	    unlink $tmpfilename;
+	    if (!$session->chmod($keyfilename, '0644')) {
+		$self->log_error("Failed to chmod $keyfilename inside the chroot\n");
+		$session->unlink($keyfilename);
+		return 0;
+	    }
+	}
+
+    }
 
     return 1;
 }
@@ -183,15 +327,15 @@ sub get_foreign_architectures {
 
     if (!$foreignarchs)
     {
-        $self->log("There are no foreign architectures configured\n");
+        debug("There are no foreign architectures configured\n");
         return {};
     }
 
     my %set;
     foreach my $arch (split /\s+/, $foreignarchs) {
-	chomp;
-	next unless $_;
-	$set{$_} = 1;
+	chomp $arch;
+	next unless $arch;
+	$set{$arch} = 1;
     }
 
     return \%set;
@@ -252,7 +396,7 @@ sub cleanup_foreign_architectures {
     my $session = $self->get('Session');
 
     if (defined ($session->get('Session Purged')) && $session->get('Session Purged') == 1) {
-	$self->log("Not removing foreign architectures: cloned chroot in use\n");
+	debug("Not removing foreign architectures: cloned chroot in use\n");
 	return;
     }
 
@@ -323,7 +467,6 @@ sub update_archive {
 	my $dummy_sources_list_d = $self->get('Dummy package path') . '/sources.list.d';
 	if (!($session->test_directory($dummy_sources_list_d) || $session->mkdir($dummy_sources_list_d, { MODE => "00700"}))) {
 	    $self->log_warning('Could not create build-depends dummy sources.list directory ' . $dummy_sources_list_d . ': ' . $!);
-	    $self->cleanup_apt_archive();
 	    return 0;
 	}
 
@@ -771,12 +914,10 @@ sub setup_apt_archive {
 
     if (!$session->test_directory($dummy_dir)) {
         $self->log_warning('Could not create build-depends dummy dir ' . $dummy_dir . ': ' . $!);
-        $self->cleanup_apt_archive();
         return 0;
     }
     if (!($session->test_directory($dummy_gpghome) || $session->mkdir($dummy_gpghome, { MODE => "00700"}))) {
         $self->log_warning('Could not create build-depends dummy gpg home dir ' . $dummy_gpghome . ': ' . $!);
-        $self->cleanup_apt_archive();
         return 0;
     }
     if (!$session->chown($dummy_gpghome, $self->get_conf('BUILD_USER'), 'sbuild')) {
@@ -786,7 +927,6 @@ sub setup_apt_archive {
     }
     if (!($session->test_directory($dummy_archive_dir) || $session->mkdir($dummy_archive_dir, { MODE => "00775"}))) {
         $self->log_warning('Could not create build-depends dummy archive dir ' . $dummy_archive_dir . ': ' . $!);
-        $self->cleanup_apt_archive();
         return 0;
     }
 
@@ -796,20 +936,17 @@ sub setup_apt_archive {
 
     if (!($session->mkdir("$dummy_pkg_dir", { MODE => "00775"}))) {
 	$self->log_warning('Could not create build-depends dummy dir ' . $dummy_pkg_dir . $!);
-        $self->cleanup_apt_archive();
 	return 0;
     }
 
     if (!($session->mkdir("$dummy_pkg_dir/DEBIAN", { MODE => "00775"}))) {
 	$self->log_warning('Could not create build-depends dummy dir ' . $dummy_pkg_dir . '/DEBIAN: ' . $!);
-        $self->cleanup_apt_archive();
 	return 0;
     }
 
     my $DUMMY_CONTROL = $session->get_write_file_handle("$dummy_pkg_dir/DEBIAN/control");
     if (!$DUMMY_CONTROL) {
 	$self->log_warning('Could not open ' . $dummy_pkg_dir . '/DEBIAN/control for writing: ' . $!);
-        $self->cleanup_apt_archive();
 	return 0;
     }
 
@@ -866,7 +1003,6 @@ EOF
     if( !defined $positive ) {
         my $msg = "Error! deps_parse() couldn't parse the positive Build-Depends '$positive_build_deps'";
         $self->log_error("$msg\n");
-        $self->cleanup_apt_archive();
         return 0;
     }
 
@@ -883,7 +1019,6 @@ EOF
     if( !defined $negative ) {
         my $msg = "Error! deps_parse() couldn't parse the negative Build-Depends '$negative_build_deps'";
         $self->log_error("$msg\n");
-        $self->cleanup_apt_archive();
         return 0;
     }
 
@@ -971,7 +1106,6 @@ EOF
 	  PRIORITY => 0});
     if ($?) {
 	$self->log("Dummy package creation failed\n");
-        $self->cleanup_apt_archive();
 	return 0;
     }
 
@@ -979,7 +1113,6 @@ EOF
     my $dummy_dsc_fh = $session->get_write_file_handle($dummy_dsc);
     if (!$dummy_dsc_fh) {
         $self->log_warning('Could not open ' . $dummy_dsc . ' for writing: ' . $!);
-        $self->cleanup_apt_archive();
         return 0;
     }
 
@@ -1015,7 +1148,6 @@ EOF
     # Do code to run apt-ftparchive
     if (!$self->run_apt_ftparchive()) {
         $self->log("Failed to run apt-ftparchive.\n");
-        $self->cleanup_apt_archive();
         return 0;
     }
 
@@ -1024,121 +1156,154 @@ EOF
     # Once squeeze is not supported anymore, we want to never sign the
     # dummy repository anymore but instead make use of apt's support for
     # [trusted=yes] in wheezy and later.
-    if ((-f $self->get_conf('SBUILD_BUILD_DEPENDS_SECRET_KEY')) &&
-	(-f $self->get_conf('SBUILD_BUILD_DEPENDS_PUBLIC_KEY')) &&
+    if ((((-f $self->get_conf('SBUILD_BUILD_DEPENDS_SECRET_KEY')) &&
+		(-f $self->get_conf('SBUILD_BUILD_DEPENDS_PUBLIC_KEY'))) ||
+	    ((-f $self->get_conf('SBUILD_BUILD_DEPENDS_SECRET_KEY_ARMORED')) &&
+		(-f $self->get_conf('SBUILD_BUILD_DEPENDS_PUBLIC_KEY_ARMORED')))) &&
 	!$self->get_conf('APT_ALLOW_UNAUTHENTICATED')) {
-        if (!$self->generate_keys()) {
-            $self->log("Failed to generate archive keys.\n");
-            $self->cleanup_apt_archive();
-            return 0;
-        }
-	if (!$session->test_regular_file($dummy_archive_seckey)) {
-	    if (!$session->copy_to_chroot($self->get_conf('SBUILD_BUILD_DEPENDS_SECRET_KEY'), $dummy_archive_seckey)) {
-		$self->log_error("Failed to copy secret key");
+	if (!$session->can_run("gpg")) {
+	    $self->log_error("Signing the internal dummy package repository was implicitly enabled because\n");
+	    $self->log_error("a GPG key pair was found on the host. An error occurred because the gnupg\n");
+	    $self->log_error("executable was not found inside the chroot. Signing the internal dummy\n");
+	    $self->log_error("repository is only required for chroots with versions of apt versions before\n");
+	    $self->log_error("version 0.8.16~exp3 (so Debian squeeze or older).\n");
+	    $self->log_error("To fix this problem, either (if you don't need squeeze):\n");
+	    $self->log_error(" - disable signing by removing /var/lib/sbuild/apt-keys/ from the host\n");
+	    $self->log_error("or (if you need squeeze) either:\n");
+	    $self->log_error(" - install the gnupg package into your chroot\n");
+	    $self->log_error(" - or add gnupg:native to the CORE_DEPENDS configuration variable\n");
+	    return 0;
+	}
+	my $kill_gpgagent = sub {
+	    if (((((-f $self->get_conf('SBUILD_BUILD_DEPENDS_SECRET_KEY')) &&
+			    (-f $self->get_conf('SBUILD_BUILD_DEPENDS_PUBLIC_KEY'))) ||
+			((-f $self->get_conf('SBUILD_BUILD_DEPENDS_SECRET_KEY_ARMORED')) &&
+			    (-f $self->get_conf('SBUILD_BUILD_DEPENDS_PUBLIC_KEY_ARMORED')))) &&
+		    !$self->get_conf('APT_ALLOW_UNAUTHENTICATED')) &&
+		$session->can_run("gpgconf")) {
+		# run gpgconf --kill gpg-agent (for gpg > 2.1) to kill any
+		# remaining gpg-agent
+		$session->run_command(
+		    { COMMAND => ['gpgconf', '--kill', 'gpg-agent'],
+			ENV => { GNUPGHOME => $dummy_gpghome }, # gpgconf (< 2.1.12) doesn't have a --homedir argument
+			USER => $self->get_conf('BUILD_USER'),
+			PRIORITY => 0});
+		if ($?) {
+		    my $err = $? >> 8;
+		    $self->log_error("before conversion: $?\n");
+		    $self->log_error("gpgconf --kill gpg-agent died with exit $err\n");
+		    return 0;
+		}
+	    }
+	};
+
+	my @gpg_command = ('gpg', '--homedir', $dummy_gpghome, '--yes');
+	# if the armored keys exist, we prefer these. Otherwise we fall back
+	# to the keys in gpg format
+	if ((-f $self->get_conf('SBUILD_BUILD_DEPENDS_SECRET_KEY_ARMORED')) &&
+	    (-f $self->get_conf('SBUILD_BUILD_DEPENDS_PUBLIC_KEY_ARMORED'))) {
+	    if (!$session->test_regular_file($dummy_archive_seckey)) {
+		if (!$session->copy_to_chroot($self->get_conf('SBUILD_BUILD_DEPENDS_SECRET_KEY_ARMORED'), $dummy_archive_seckey)) {
+		    $self->log_error("Failed to copy secret key\n");
+		    return 0;
+		}
+	    }
+	    if (!$session->test_regular_file($dummy_archive_pubkey)) {
+		if (!$session->copy_to_chroot($self->get_conf('SBUILD_BUILD_DEPENDS_PUBLIC_KEY_ARMORED'), $dummy_archive_pubkey)) {
+		    $self->log_error("Failed to copy public key\n");
+		    return 0;
+		}
+	    }
+	    # import the armored keys
+	    my @import_command;
+	    @import_command = ('gpg', '--homedir', $dummy_gpghome, '--import', $dummy_archive_pubkey);
+	    $session->run_command(
+		{ COMMAND => \@import_command,
+		    USER => $self->get_conf('BUILD_USER'),
+		    PRIORITY => 0});
+	    if ($?) {
+		$self->log_error("Failed to import public key\n");
+		&$kill_gpgagent();
 		return 0;
 	    }
-	}
-	if (!$session->test_regular_file($dummy_archive_pubkey)) {
-	    if (!$session->copy_to_chroot($self->get_conf('SBUILD_BUILD_DEPENDS_PUBLIC_KEY'), $dummy_archive_pubkey)) {
-		$self->log_error("Failed to copy public key");
+	    @import_command = ('gpg', '--homedir', $dummy_gpghome, '--allow-secret-key-import', '--import', $dummy_archive_seckey);
+	    $session->run_command(
+		{ COMMAND => \@import_command,
+		    USER => $self->get_conf('BUILD_USER'),
+		    PRIORITY => 0});
+	    if ($?) {
+		$self->log_error("Failed to import public key\n");
+		&$kill_gpgagent();
 		return 0;
 	    }
+	} else {
+	    # Since the armored keys were not present, we fall back to using
+	    # keys in binary gnupg format. This operation can fail if the
+	    # gnupg version with which the keys were generated and the version
+	    # of gnupg inside the chroot are not compatible with each other.
+	    # In that case, the user has to use sbuild-update --keygen to
+	    # create a new armored ASCII keypair.
+	    # This code can be removed once the sbuild version with armored
+	    # ASCII key support is in stable.
+	    if (!$session->test_regular_file($dummy_archive_seckey)) {
+		if (!$session->copy_to_chroot($self->get_conf('SBUILD_BUILD_DEPENDS_SECRET_KEY'), $dummy_archive_seckey)) {
+		    $self->log_error("Failed to copy secret key");
+		    return 0;
+		}
+	    }
+	    if (!$session->test_regular_file($dummy_archive_pubkey)) {
+		if (!$session->copy_to_chroot($self->get_conf('SBUILD_BUILD_DEPENDS_PUBLIC_KEY'), $dummy_archive_pubkey)) {
+		    $self->log_error("Failed to copy public key");
+		    return 0;
+		}
+	    }
+	    push @gpg_command, '--no-default-keyring',
+		'--secret-keyring', $dummy_archive_seckey,
+		'--keyring', $dummy_archive_pubkey;
 	}
-        my @gpg_command = ('gpg', '--yes', '--no-default-keyring',
-                           '--homedir', $dummy_gpghome,
-                           '--secret-keyring', $dummy_archive_seckey,
-                           '--keyring', $dummy_archive_pubkey,
-                           '--default-key', 'Sbuild Signer', '-abs',
-                           '--digest-algo', 'SHA512',
-                           '-o', $dummy_release_file . '.gpg',
-                           $dummy_release_file);
-        $session->run_command(
-            { COMMAND => \@gpg_command,
-              USER => $self->get_conf('BUILD_USER'),
-              PRIORITY => 0});
-        if ($?) {
-            $self->log("Failed to sign dummy archive Release file.\n");
-            $self->cleanup_apt_archive();
-            return 0;
-        }
-    }
-
-    # Now, we'll add in any provided OpenPGP keys into the archive, so that
-    # builds can (optionally) trust an external key for the duration of the
-    # build.
-    if (@{$self->get_conf('EXTRA_REPOSITORY_KEYS')}) {
-        my $dummy_archive_key_file = $self->get('Dummy archive key file');
-
-	my $tmpfilename = $session->mktemp();
-
-	my $tmpfh = $session->get_write_file_handle($tmpfilename);
-	if (!$tmpfh) {
-	    $self->log_error("Cannot open pipe: $!\n");
+	push @gpg_command, '--default-key', 'Sbuild Signer', '-abs',
+		'--digest-algo', 'SHA512',
+		'-o', $dummy_release_file . '.gpg',
+		$dummy_release_file;
+	$session->run_command(
+	    { COMMAND => \@gpg_command,
+		USER => $self->get_conf('BUILD_USER'),
+		PRIORITY => 0});
+	if ($?) {
+	    $self->log_error("Failed to sign dummy archive Release file.\n");
+	    # output a helpful message in case the keys were not present in
+	    # armored format
+	    if ((! -f $self->get_conf('SBUILD_BUILD_DEPENDS_SECRET_KEY_ARMORED')) ||
+		(! -f $self->get_conf('SBUILD_BUILD_DEPENDS_PUBLIC_KEY_ARMORED'))) {
+		$self->log_warning("The keys were not found in armored format and thus, a version skew \n");
+		$self->log_warning("between gnupg on your host and in the chroot might be responsible \n");
+		$self->log_warning("for this failure. Try running sbuild-update --keygen again to \n");
+		$self->log_warning("generate a keypair in armored ASCII format.\n");
+		$self->log_warning("Alternatively, if you are using sbuild with chroots containing apt\n");
+		$self->log_warning("versions of 0.8.16~exp3 or newer (Debian wheezy and later) then\n");
+		$self->log_warning("signing isn't required at all and you can just delete\n");
+		$self->log_warning("/var/lib/sbuild/apt-keys/ from the host to disable signing.\n");
+	    }
+	    &$kill_gpgagent();
 	    return 0;
 	}
 
-        # Right, so, in order to copy the keys into the chroot (since we may have
-        # a bunch of them), we'll append to a tempfile, and write *all* of the
-        # given keys to the same tempfile. After we're clear, we'll move that file
-        # into the correct location by importing the .asc into a .gpg file.
-
-        for my $repokey (@{$self->get_conf('EXTRA_REPOSITORY_KEYS')}) {
-            debug("Adding archive key: $repokey\n");
-            if (!-f $repokey) {
-                $self->log("Failed to add archive key '${repokey}' - it doesn't exist!\n");
-                $self->cleanup_apt_archive();
-                close($tmpfh);
-		$session->unlink($tmpfilename);
-                return 0;
-            }
-	    local *INFILE;
-	    if(!open(INFILE, "<", $repokey)) {
-                $self->log("Failed to add archive key '${repokey}' - it cannot be opened for reading!\n");
-                $self->cleanup_apt_archive();
-                close($tmpfh);
-		$session->unlink($tmpfilename);
-                return 0;
-	    }
-
-	    while ( (read (INFILE, my $buffer, 65536)) != 0 ) {
-		print $tmpfh $buffer;
-	    }
-
-	    close INFILE;
-
-            print $tmpfh "\n";
-        }
-        close($tmpfh);
-
-        # Now that we've concat'd all the keys into the chroot, we're going
-        # to use GPG to import the keys into a single keyring. We've stubbed
-        # out the secret ring and home to ensure we don't store anything
-        # except for the public keyring.
-
-
-	my $tmpgpghome = $session->mktemp({ TEMPLATE => '/tmp/extra-repository-keys-XXXXXX', DIRECTORY => 1});
-	if (!$tmpgpghome) {
-	    $self->log_error("mktemp /tmp/extra-repository-keys-XXXXXX failed\n");
+	# Add the imported key to apt's trusted keys
+	#
+	# Write into a temporary file first so that we can run gpg as the
+	# BUILD_USER instead of root (gpg will complain otherwise)
+	my $tmpfilename = $session->mktemp({USER => $self->get_conf('BUILD_USER')});
+	$session->run_command(
+	    { COMMAND => ['gpg', '--homedir', $dummy_gpghome, '--batch', '--yes', '--export', '--output', $tmpfilename, 'Sbuild Signer'],
+		USER => $self->get_conf('BUILD_USER'),
+		PRIORITY => 0});
+	if ($?) {
+	    $self->log("Failed to add dummy archive key.\n");
+	    &$kill_gpgagent();
 	    return 0;
 	}
-
-        my @gpg_command = ('gpg', '--import', '--no-default-keyring',
-                           '--homedir', $tmpgpghome,
-                           '--secret-keyring', '/dev/null',
-                           '--keyring', $dummy_archive_key_file,
-                           $tmpfilename);
-
-        $session->run_command(
-            { COMMAND => \@gpg_command,
-              USER => 'root',
-              PRIORITY => 0});
-        if ($?) {
-            $self->log("Failed to import archive keys to the trusted keyring");
-            $self->cleanup_apt_archive();
-	    $session->unlink($tmpfilename);
-            return 0;
-        }
-	$session->unlink($tmpfilename);
+	$session->rename($tmpfilename, $self->get('Dummy archive key file'));
+	&$kill_gpgagent();
     }
 
     # Write a list file for the dummy archive if one not create yet.
@@ -1174,37 +1339,16 @@ EOF
         print $tmpfh 'deb [trusted=yes] copy://' . $dummy_archive_dir . " ./\n";
         print $tmpfh 'deb-src [trusted=yes] copy://' . $dummy_archive_dir . " ./\n";
 
-        for my $repospec (@{$self->get_conf('EXTRA_REPOSITORIES')}) {
-            print $tmpfh "$repospec\n";
-        }
-
         close($tmpfh);
         # List file needs to be moved with root.
         if (!$session->chmod($tmpfilename, '0644')) {
             $self->log("Failed to create apt list file for dummy archive.\n");
-            $self->cleanup_apt_archive();
 	    $session->unlink($tmpfilename);
             return 0;
         }
         if (!$session->rename($tmpfilename, $dummy_archive_list_file)) {
             $self->log("Failed to create apt list file for dummy archive.\n");
-            $self->cleanup_apt_archive();
 	    $session->unlink($tmpfilename);
-            return 0;
-        }
-    }
-
-    if ((-f $self->get_conf('SBUILD_BUILD_DEPENDS_SECRET_KEY')) &&
-	(-f $self->get_conf('SBUILD_BUILD_DEPENDS_PUBLIC_KEY')) &&
-	!$self->get_conf('APT_ALLOW_UNAUTHENTICATED')) {
-        # Add the generated key
-        $session->run_command(
-            { COMMAND => ['apt-key', 'add', $dummy_archive_pubkey],
-              USER => 'root',
-              PRIORITY => 0});
-        if ($?) {
-            $self->log("Failed to add dummy archive key.\n");
-            $self->cleanup_apt_archive();
             return 0;
         }
     }
@@ -1226,29 +1370,11 @@ sub cleanup_apt_archive {
 
     $session->unlink($self->get('Dummy archive key file'), { FORCE => 1 });
 
+    $session->unlink($self->get('Extra repositories list file'), { FORCE => 1 });
+
     $self->set('Dummy package path', undef);
     $self->set('Dummy archive directory', undef);
     $self->set('Dummy Release file', undef);
-}
-
-# Generate a key pair if not already done.
-sub generate_keys {
-    my $self = shift;
-
-    if ((-f $self->get_conf('SBUILD_BUILD_DEPENDS_SECRET_KEY')) &&
-        (-f $self->get_conf('SBUILD_BUILD_DEPENDS_PUBLIC_KEY'))) {
-        return 1;
-    }
-
-    $self->log_error("Local archive GPG signing key not found\n");
-    $self->log_info("Please generate a key with 'sbuild-update --keygen'\n");
-    $self->log_info("Note that on machines with scarce entropy, you may wish ".
-		    "to generate the key with this command on another machine ".
-		    "and copy the public and private keypair to '" .
-		    $self->get_conf('SBUILD_BUILD_DEPENDS_PUBLIC_KEY')
-		    ."' and '".
-		    $self->get_conf('SBUILD_BUILD_DEPENDS_SECRET_KEY') ."'\n");
-    return 0;
 }
 
 # Function that runs apt-ftparchive
@@ -1282,6 +1408,7 @@ use IO::Compress::Gzip qw(gzip $GzipError);
 use Digest::MD5;
 use Digest::SHA;
 use POSIX qw(strftime);
+use POSIX qw(locale_h);
 
 # Execute a command without /bin/sh but plain execvp while redirecting its
 # standard output to a file given as the first argument.
@@ -1338,8 +1465,17 @@ my $sources_size = -s 'Sources';
 my $packagesgz_size = -s 'Packages.gz';
 my $sourcesgz_size = -s 'Sources.gz';
 
-# time format stolen from apt ftparchive/writer.cc
-my $datestring = strftime "%a, %d %b %Y %H:%M:%S UTC", gmtime();
+# The timestamp format of release files is documented here:
+#   https://wiki.debian.org/RepositoryFormat#Date.2CValid-Until
+# It is specified to be the same format as described in Debian Policy §4.4
+#   https://www.debian.org/doc/debian-policy/ch-source.html#s-dpkgchangelog
+# or the same as in debian/changelog or the Date field in .changes files.
+# or the same format as `date -R`
+# To adhere to the specified format, the C or C.UTF-8 locale must be used.
+my $old_locale = setlocale(LC_TIME);
+setlocale(LC_TIME, "C.UTF-8");
+my $datestring = strftime "%a, %d %b %Y %H:%M:%S +0000", gmtime();
+setlocale(LC_TIME, $old_locale);
 
 open(my $releasefh, '>', 'Release') or die "cannot open Release for writing: $!";
 

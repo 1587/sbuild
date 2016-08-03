@@ -34,6 +34,9 @@ sbuild\-createchroot \- create sbuild chroot
 .RB [ "\-\-setup\-only" ]
 .RB [ "\-\-make\-sbuild\-tarball=\fIfile\fP" ]
 .RB [ "\-\-keep\-sbuild\-chroot\-dir" ]
+.RB [ "\-\-no\-deb\-src" ]
+.RB [ "\-\-alias=\fIalias\fP" ]
+.RB [ \-\-extra\-repository=\fIspec\fP ]
 .B SUITE TARGET-DIRECTORY DEBIAN-MIRROR-URI
 .RB [ SCRIPT ]
 .PP
@@ -135,6 +138,15 @@ empty string to disable signature checking.
 The distribution to bootstrap (e.g. \[oq]sarge\[cq], \[oq]etch\[cq],
 \[oq]lenny\[cq], \[oq]sid\[cq]).  A complete list may be found in
 \fI/usr/share/debootstrap/scripts\fP.
+The special syntax \fISUITE-VARIANT\fP is also supported, which will creates a
+chroot for \fISUITE\fP, but named \fISUITE-VARIANT\fP. This is useful to create
+variants of a base suite like jessie-backports which which would create a
+jessie chroot to which the backports archive can be manually added after the
+base chroot was created using sbuild-shell. This way, a normal jessie chroot
+and a jessie-backports chroot can exist side-by-side. Besides this common use
+case, this syntax can also be used to create chroots with any other type of
+customization. It is a shortcut for creating a base chroot and then having to
+manually copy it and edit the configuration files.
 .TP
 .B TARGET-DIRECTORY
 The directory to create the chroot in.  The directory will be created if it
@@ -162,6 +174,38 @@ details.
 .BR \-\-keep\-sbuild\-chroot\-dir
 Don't delete the directory used for creating a file type chroot. This option
 does nothing if not creating a file type chroot.
+.TP
+.BR \-\-no\-deb\-src
+Don't add a deb-src line to the \fI/etc/apt/sources.list\fP file in the
+\fITARGET-DIRECTORY\fP after the debootstrap process. This is useful in
+situation when it is known that sbuild will never have to download the source
+package itself but is always given an already downloaded dsc. In that case,
+this option will help to save bandwidth and disk space because the source
+indices don't have to be downloaded and later continually updated.
+.TP
+.BR \-\-alias=\fIalias\fP
+Add an alternative name that the chroot will be known by. This option can be
+given multiple times to add more than one alias. Using an alias is useful for
+chroots of distributions that are known by more than one name. For example
+Debian unstable is also known as sid. Additionally, sbuild chooses the
+distribution by the latest changelog entry which could list \fIUNRELEASED\fP
+for packages that the maintainer is currently working on. For Debian it thus
+makes sense to add \fIUNRELEASED\fP as an alias for a Debian unstable chroot.
+See the EXAMPLES section for how to use this option in practice.
+.TP
+.BR \-\-extra\-repository=\fIspec\fP
+Add a repository to the list of apt sources. The repository specification is a
+line suitable for an apt
+.BR sources.list (5)
+file. For instance, you might use
+.nh
+.B \-\-extra\-repository="deb http://httpredir.debian.org/debian experimental main"
+.hy
+to allow packages in the experimental distribution to fulfill
+build-dependencies. Note that the build chroot must already trust the key of
+this repository. This option is especially useful for creating variant chroots.
+See the EXAMPLES section for how to combine this option with variants and
+aliases.
 .SH TARBALL FILE
 When creating an sbuild tarball \fIfile\fP, the compression format used to
 generate the tarball depends on the entension used in \fIfile\fP. Here is a
@@ -200,9 +244,32 @@ temporary directory as the target:
 \f[CB]    http://httpredir.debian.org/debian\fP\[CR]
 .PP
 To create a plain type sid (unstable) chroot in \fI/srv/chroot/unstable\fP using
-the \fIhttpredir.debian.org\fP Debian http mirror redirector service:
+the \fIhttpredir.debian.org\fP Debian http mirror redirector service and with
+aliases for \fIunstable\fP and \fIUNRELEASED\fP:
 .PP
 \f[CR]% \f[CB]sudo sbuild\-createchroot sid /srv/chroot/unstable-amd64 \fP\fP\\
+.br
+    \-\-alias=unstable \-\-alias=UNRELEASED \fP\fP\\
+.br
+\f[CB]    http://httpredir.debian.org/debian\fP\[CR]
+.PP
+To create a chroot to build for Jessie backports:
+.PP
+\f[CR]% \f[CB]sudo sbuild\-createchroot \fP\fP\\
+.br
+    \-\-extra\-repository="deb http://httpredir.debian.org/debian jessie-backports main" \fP\fP\\
+.br
+    jessie-backports /srv/chroot/jessie-backports-amd64 \fP\fP\\
+.br
+\f[CB]    http://httpredir.debian.org/debian\fP\[CR]
+.PP
+To create a chroot to build for experimental with an alias:
+.PP
+\f[CR]% \f[CB]sudo sbuild\-createchroot \-\-alias=experimental \fP\fP\\
+.br
+    \-\-extra\-repository="deb http://httpredir.debian.org/debian experimental main" \fP\fP\\
+.br
+    unstable-experimental /srv/chroot/unstable-experimental-amd64 \fP\fP\\
 .br
 \f[CB]    http://httpredir.debian.org/debian\fP\[CR]
 .SH HISTORY
