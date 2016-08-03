@@ -1,3 +1,62 @@
+sbuild (0.70.0-1) unstable; urgency=medium
+
+  * new upstream version
+    - Fix reproducibility issue by not writing the $HOME as set during the
+      build into config files and man pages anymore (closes: #825991)
+    - Add an EXAMPLE section to the sbuild man page (closes: #824582)
+    - sbuild-createchroot now has support for SUITE-VARIANT chroot names. This
+      is useful to create variants of base suits like jessie-backports or
+      unstable-experimental. (closes: #826957)
+    - sbuild-createchroot now has the --no-deb-src option which allows one to
+      create a chroot without a deb-src entry in its sources.list. This is
+      useful to save bandwidth and disk space for chroots that will never be
+      used to download source packages as the source indices do not have to
+      downloaded, stored and later updated from the mirrors. (closes: #826847)
+    - sbuild-createchroot now has the --alias option which is useful to add a
+      shorthand alias to a chroot which will be used for chroot selection. This
+      is for example useful for a Debian unstable chroot which will be
+      automatically selected for package builds that have UNRELEASED in their
+      debian/changelog, if the UNRELEASED alias is added to the Debian unstable
+      chroot. (closes: #800593)
+    - suild-createchroot now has the --extra-repository which works like the
+      --extra-repository option for sbuild and permanently adds another line to
+      the chroot's sources.list.
+    - Private/public key pairs are now stored in armored ASCII format to
+      maintain compatibility between different gpg versions on the host and
+      within the chroot. Re-running `sbuild-update --keygen` will create the
+      new key types.
+    - Chroots can now have gpg >= 2.x installed as sbuild will properly clean
+      up any remaining gpg-agent processes and "apt-key add" is not used
+      anymore (it will leave a gpg-agent process around that cannot properly
+      be killed).
+    - Add the --source-only-changes option which will create a .changes file
+      suitable for a source-only upload alongside the normal binary .changes
+      file. (closes: #812361)
+    - Do not install debfoster by default in sbuild-createchroot to keep the
+      build chroot as minimal as possible. Users that use debfoster can use the
+      --include option of sbuild-createchroot.
+    - Drop requirement for gpg inside the chroot as external archive keys are
+      now processed without gpg and signing of the internal repository is
+      entirely optional with helpful warning and error messages in case
+      signing failed. (closes: #831462)
+    - Allow running autopkgtest after a successful build in the same manner
+      that piuparts can be run after a successful build. (closes: #824935)
+    - fix uninitialized value problem in loop (closes: #823993)
+    - Fix typo in APT::Get::AllowUnauthenticated config setting
+      (closes: #824165)
+    - Add up correct size when looping over files (closes: #825359)
+    - Make sure printed timestamps are in C locale, in UTC and in standard
+      formats (closes: #813895)
+    - Move addition of extra repositories from the creation of the dummy build
+      dependency repository to the initial setup (closes: #792037)
+    - Fix execution of man (closes: #831063)
+  * Remove patches
+    0001-lib-Sbuild-ResolverBase.pm-do-not-produce-non-error-.patch and
+    0001-bin-sbuild-createchroot-fix-chown-chmod-error-checks.patch as they
+    were merged upstream.
+
+ -- Johannes Schauer <josch@debian.org>  Wed, 03 Aug 2016 10:58:48 +0200
+
 sbuild (0.69.0-2) unstable; urgency=medium
 
   * add patch 0001-lib-Sbuild-ResolverBase.pm-do-not-produce-non-error-.patch
