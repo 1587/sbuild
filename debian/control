@@ -58,7 +58,7 @@ Depends: adduser,
          ${perl:Depends},
          ${shlibs:Depends}
 Recommends: debootstrap, fakeroot
-Suggests: deborphan, wget
+Suggests: deborphan, wget, autopkgtest
 Description: Tool for building Debian binary packages from Debian sources
  The sbuild suite of programs (buildd and sbuild) are used to build
  binary packages from source packages.  sbuild does the actual package
