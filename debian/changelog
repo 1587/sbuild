@@ -1,8 +1,33 @@
-sbuild (0.70.0-2) UNRELEASED; urgency=medium
+sbuild (0.71.0-1) unstable; urgency=medium
 
   * add autopkgtest to Suggests
+  * Undo exporting private keys in armored ASCII format as introduced by the
+    last release. It turns out, that this is not necessary to support gpg
+    cross-version compatibility. This should fix problems with gpg 2.x as well
+    as chroots not having gpg installed as apt stopped depending on it.
+    (closes: #827315, #834898)
+  * Undo the SUITE-VARIANT syntax of sbuild-createchroot as introduced by the
+    last release. It turns out that overloading the suite name argument with a
+    variant name was a bad idea because there exist distributions with a minus
+    in its name. Variant names can now be specified using the --chroot-prefix
+    option which works analogous to the --chroot-suffix option. (closes:
+    #834515)
+  * Add percent escape support to piuparts, autopkgtest and adt-virt options.
+    (closes: #833285, #833286)
+  * Add sbuild-destroychroot.
+  * Allow running autopkgtest when sbuild downloads the .dsc (closes: #833549)
+  * Run apt-cache without --only-source (closes: #834704)
+  * Avoid dropping extra repositories before using them (closes: #834497)
+  * lib/Sbuild/ResolverBase.pm: Fix copypaste error s/public/private/ (closes:
+    #834330)
+  * lib/Sbuild/ChrootSetup.pm: don't prompt the user during --keygen (closes:
+    #833547)
+  * Add an option to not prefix piuparts and autopkgtest with anything at all
+    (closes: #833390)
+  * lib/Sbuild/Build.pm: add red/green coloring to log when piuparts or
+    autopkgtest succeed/fail (closes: #833552)
 
- -- Johannes Schauer <josch@debian.org>  Fri, 12 Aug 2016 14:58:26 +0200
+ -- Johannes Schauer <josch@debian.org>  Wed, 24 Aug 2016 13:42:26 +0200
 
 sbuild (0.70.0-1) unstable; urgency=medium
 
