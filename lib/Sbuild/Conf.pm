@@ -255,6 +255,33 @@ sub setup ($) {
 	    VARNAME => 'adt_virt_server_options',
 	    GROUP => 'Programs',
 	    DEFAULT => [],
+	    GET => sub {
+		my $conf = shift;
+		my $entry = shift;
+
+		my $retval = $conf->_get($entry->{'NAME'});
+
+		my $dist = $conf->get('DISTRIBUTION');
+		my $hostarch = $conf->get('HOST_ARCH');
+		my %percent = (
+		    '%' => '%',
+		    'a' => $hostarch, 'SBUILD_HOST_ARCH' => $hostarch,
+		    'r' => $dist, 'SBUILD_DISTRIBUTION' => $dist,
+		);
+
+		my $keyword_pat = join("|",
+		    sort {length $b <=> length $a || $a cmp $b} keys %percent);
+		foreach (@{$retval}) {
+		    s{
+			# Match a percent followed by a valid keyword
+			\%($keyword_pat)
+		    }{
+			# Substitute with the appropriate value only if it's defined
+			$percent{$1} || $&
+		    }msxge;
+		}
+		return $retval;
+	    },
 	    HELP => 'Additional command-line options for adt-virt-*',
 	    CLI_OPTIONS => ['--adt-virt-server-opt', '--adt-virt-server-opts']
 	},
@@ -262,6 +289,7 @@ sub setup ($) {
 	    TYPE => 'STRING',
 	    VARNAME => 'fakeroot',
 	    GROUP => 'Programs',
+	    CHECK => $validate_program,
 	    DEFAULT => 'fakeroot',
 	    HELP => 'Path to fakeroot binary'
 	},
@@ -1064,6 +1092,33 @@ $crossbuild_core_depends = {
 	    VARNAME => 'piuparts_opts',
 	    GROUP => 'Build validation',
 	    DEFAULT => [],
+	    GET => sub {
+		my $conf = shift;
+		my $entry = shift;
+
+		my $retval = $conf->_get($entry->{'NAME'});
+
+		my $dist = $conf->get('DISTRIBUTION');
+		my $hostarch = $conf->get('HOST_ARCH');
+		my %percent = (
+		    '%' => '%',
+		    'a' => $hostarch, 'SBUILD_HOST_ARCH' => $hostarch,
+		    'r' => $dist, 'SBUILD_DISTRIBUTION' => $dist,
+		);
+
+		my $keyword_pat = join("|",
+		    sort {length $b <=> length $a || $a cmp $b} keys %percent);
+		foreach (@{$retval}) {
+		    s{
+			# Match a percent followed by a valid keyword
+			\%($keyword_pat)
+		    }{
+			# Substitute with the appropriate value only if it's defined
+			$percent{$1} || $&
+		    }msxge;
+		}
+		return $retval;
+	    },
 	    HELP => 'Options to pass to piuparts.  Each option is a separate arrayref element.  For example, [\'-b\', \'<chroot_tarball>\'] to add -b and <chroot_tarball>.'
 	},
 	'PIUPARTS_ROOT_ARGS'			=> {
@@ -1071,7 +1126,19 @@ $crossbuild_core_depends = {
 	    VARNAME => 'piuparts_root_args',
 	    GROUP => 'Build validation',
 	    DEFAULT => [],
-	    HELP => 'Preceding arguments to launch piuparts as root. If no arguments are specified, piuparts will be launched via sudo.',
+	    HELP => 'Preceding arguments to launch piuparts as root. With the default value (the empty array) "sudo --" will be used as a prefix. If the first element in the array is the empty string, no prefixing will be done. If the value is a scalar, it will be prefixed by that string. If the scalar is an empty string, no prefixing will be done.',
+	    EXAMPLE =>
+'# prefix with "sudo --":
+$piuparts_root_args = [];
+$piuparts_root_args = [\'sudo\', \'--\'];
+# prefix with "env":
+$piuparts_root_args = [\'env\'];
+$piuparts_root_args = \'env\';
+# prefix with nothing:
+$piuparts_root_args = \'\';
+$piuparts_root_args = [\'\'];
+$piuparts_root_args = [\'\', \'whatever\'];
+',
 	    CLI_OPTIONS => ['--piuparts-root-arg', '--piuparts-root-args']
 	},
 	'AUTOPKGTEST'				=> {
@@ -1109,6 +1176,33 @@ $crossbuild_core_depends = {
 	    VARNAME => 'autopkgtest_opts',
 	    GROUP => 'Build validation',
 	    DEFAULT => [],
+	    GET => sub {
+		my $conf = shift;
+		my $entry = shift;
+
+		my $retval = $conf->_get($entry->{'NAME'});
+
+		my $dist = $conf->get('DISTRIBUTION');
+		my $hostarch = $conf->get('HOST_ARCH');
+		my %percent = (
+		    '%' => '%',
+		    'a' => $hostarch, 'SBUILD_HOST_ARCH' => $hostarch,
+		    'r' => $dist, 'SBUILD_DISTRIBUTION' => $dist,
+		);
+
+		my $keyword_pat = join("|",
+		    sort {length $b <=> length $a || $a cmp $b} keys %percent);
+		foreach (@{$retval}) {
+		    s{
+			# Match a percent followed by a valid keyword
+			\%($keyword_pat)
+		    }{
+			# Substitute with the appropriate value only if it's defined
+			$percent{$1} || $&
+		    }msxge;
+		}
+		return $retval;
+	    },
 	    HELP => 'Options to pass to autopkgtest.  Each option is a separate arrayref element.  For example, [\'-b\', \'<chroot_tarball>\'] to add -b and <chroot_tarball>.'
 	},
 	'AUTOPKGTEST_ROOT_ARGS'			=> {
@@ -1116,7 +1210,19 @@ $crossbuild_core_depends = {
 	    VARNAME => 'autopkgtest_root_args',
 	    GROUP => 'Build validation',
 	    DEFAULT => [],
-	    HELP => 'Preceding arguments to launch autopkgtest as root. If no arguments are specified, autopkgtest will be launched via sudo.',
+	    HELP => 'Preceding arguments to launch autopkgtest as root. With the default value (the empty array) "sudo --" will be used as a prefix. If the first element in the array is the empty string, no prefixing will be done. If the value is a scalar, it will be prefixed by that string. If the scalar is an empty string, no prefixing will be done.',
+	    EXAMPLE =>
+'# prefix with "sudo --":
+$autopkgtest_root_args = [];
+$autopkgtest_root_args = [\'sudo\', \'--\'];
+# prefix with "env":
+$autopkgtest_root_args = [\'env\'];
+$autopkgtest_root_args = \'env\';
+# prefix with nothing:
+$autopkgtest_root_args = \'\';
+$autopkgtest_root_args = [\'\'];
+$autopkgtest_root_args = [\'\', \'whatever\'];
+',
 	    CLI_OPTIONS => ['--autopkgtest-root-arg', '--autopkgtest-root-args']
 	},
 	'EXTERNAL_COMMANDS'			=> {
@@ -1220,28 +1326,14 @@ $crossbuild_core_depends = {
 	    VARNAME => 'sbuild_build_depends_secret_key',
 	    GROUP => 'Dependency resolution',
 	    DEFAULT => '/var/lib/sbuild/apt-keys/sbuild-key.sec',
-	    HELP => 'GPG secret key for temporary local apt archive in GPG native format. This setting is deprecated and is superseded by SBUILD_BUILD_DEPENDS_SECRET_KEY_ARMORED.'
+	    HELP => 'GPG secret key for temporary local apt archive.'
 	},
 	'SBUILD_BUILD_DEPENDS_PUBLIC_KEY'		=> {
 	    TYPE => 'STRING',
 	    VARNAME => 'sbuild_build_depends_public_key',
 	    GROUP => 'Dependency resolution',
 	    DEFAULT => '/var/lib/sbuild/apt-keys/sbuild-key.pub',
-	    HELP => 'GPG public key for temporary local apt archive in GPG native format. This setting is deprecated and is superseded by SBUILD_BUILD_DEPENDS_PUBLIC_KEY_ARMORED.'
-	},
-	'SBUILD_BUILD_DEPENDS_SECRET_KEY_ARMORED'		=> {
-	    TYPE => 'STRING',
-	    VARNAME => 'sbuild_build_depends_secret_key_armored',
-	    GROUP => 'Dependency resolution',
-	    DEFAULT => '/var/lib/sbuild/apt-keys/sbuild-key.sec.asc',
-	    HELP => 'GPG secret key for temporary local apt archive in armored ASCII format.'
-	},
-	'SBUILD_BUILD_DEPENDS_PUBLIC_KEY_ARMORED'		=> {
-	    TYPE => 'STRING',
-	    VARNAME => 'sbuild_build_depends_public_key_armored',
-	    GROUP => 'Dependency resolution',
-	    DEFAULT => '/var/lib/sbuild/apt-keys/sbuild-key.pub.asc',
-	    HELP => 'GPG public key for temporary local apt archive in armored ASCII format.'
+	    HELP => 'GPG public key for temporary local apt archive.'
 	},
 	'EXTRA_PACKAGES'				=> {
 	    TYPE => 'ARRAY:STRING',

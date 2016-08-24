@@ -1,3 +1,155 @@
+commit bda06fa5b33be026e8c6404e997efcea60deb8af
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Wed Aug 24 12:45:24 2016 +0200
+
+    Bump version to 0.71.0
+
+commit 135b6db40a904f0af803955a9161c4155e6e621a
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Wed Aug 24 12:44:48 2016 +0200
+
+    Some small fixes in HACKING
+
+commit c268d28dded69333edd597bf051927efc80a0636
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Wed Aug 24 12:56:14 2016 +0200
+
+    Add .gitattributes
+
+commit a8c4c1b179d48505dd05bbff33f3215b5a66df52
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Wed Aug 24 10:49:58 2016 +0200
+
+    Partly revert 956fc29b and --import old keys instead of trying to use them with --secret-keyring (closes: #827315)
+    
+    It turns out that gpg2 *can* read the old format, just not with its
+    --secret-keyring and --keyring arguments but with --import. This makes storing
+    the keys in armored format as it was introduced by commit 956fc29b useless.
+    Since key signing is only required for Debian squeeze anyways, we want to avoid
+    carrying more complexity forward than absolutely needed.
+    
+    To also cater for chroots without gpg, signing is now also dependent on
+    gpg being present. No signing is done if the gpg binary doesn't exist.
+    Since the gnupg package originally was drawn in by apt and only apt
+    versions of 1.3~exp1 or newer stopped depending on gnupg, it should be
+    safe to assume that if no gpg is present in the chroot, then also apt is
+    new enough to understand [trusted=yes].
+
+commit 24565b9af2e079e538477d2adfd381db7b510767
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Tue Aug 23 16:46:02 2016 +0200
+
+    Add percent escape support to piuparts, autopkgtest and adt-virt options (closes: #833285, #833286)
+
+commit d56c4db29eec4c24ddf3fe0947529dc87c4d5eb1
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Tue Aug 23 16:35:36 2016 +0200
+
+    man/sbuild.1.in: Document that external commands need escaping of the percent sign
+
+commit 4690cf02a7df3b3db298ba0173797985a4698afb
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Tue Aug 23 14:03:55 2016 +0200
+
+    Allow running autopkgtest when sbuild downloads the .dsc (closes: #833549)
+
+commit 7603dfad277e3703b8da87b693f69796086e84de
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Tue Aug 23 11:41:41 2016 +0200
+
+    add sbuild-destroychroot
+
+commit c499ed2f2005620a3995229baa6aef48f3a1fcd1
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Tue Aug 23 09:28:15 2016 +0200
+
+    bin/sbuild-createchroot: replace the SUITE-VARIANT syntax with the --chroot-prefix option (closes: #834515)
+    
+    Introducing the SUITE-VARIANT syntax was a mistake because it makes it
+    impossible to create a chroot for distribution names that contain the
+    minus character. So instead of overloading the meaning of the SUITE
+    argument with the prefix of the resulting chroot name, we add a new
+    option called --chroot-prefix which works analogous to --chroot-suffix
+    and defaults to the value of SUITE if not set.
+
+commit 7182a3211d2da924edc4ba9917ac63727f94c598
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sun Aug 21 15:29:15 2016 +0200
+
+    lib/Sbuild/Conf.pm: Check if the fakeroot binary exists.
+
+commit ec8985c7f246957b911e98cf88e17a9c2e977188
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Thu Aug 18 12:16:29 2016 +0200
+
+    Run apt-cache without --only-source (closes: #834704)
+    
+    We would like to call apt-cache with --only-source so that the result
+    only contains source packages with the given name but this feature was
+    only introduced in apt 1.1~exp10 so it is only available in Debian
+    Stretch and later. Thus we don't add this flag and instead filter the
+    generate result to only consider the source packages we are interested
+    in.
+
+commit 00251a1b6f59c19efb0a65a8117631be2d271a7a
+Author: Maximiliano Curia <maxy@gnuservers.com.ar>
+Date:   Tue Aug 16 11:48:09 2016 +0200
+
+    Avoid dropping extra repositories before using them (closes: #834497)
+    
+    apt aspcud and xapt resolvers were dropping the extra repositories since
+    0e71b40 was introduced, the aptitude resolver is not affected since it's
+    not calling the cleanup_apt_archive, assuming this is the correct
+    approach, this patch removes the cleanup_apt_archive in the resolvers.
+
+commit 745b160257ee69084b70fb851dcfb57b01556f2d
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Mon Aug 15 12:24:12 2016 +0200
+
+    lib/Sbuild/ResolverBase.pm: Fix copypaste error s/public/private/ (closes: #834330)
+
+commit 96712e04743583075a5527fad38782f3b7c5d890
+Author: Sean Whitton <spwhitton@spwhitton.name>
+Date:   Fri Aug 5 13:14:52 2016 -0700
+
+    lib/Sbuild/ChrootSetup.pm: don't prompt the user during --keygen (closes: #833547)
+
+commit b126244bac904ba9f1f072971142ba5d23cc2431
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Sat Aug 6 00:12:00 2016 +0200
+
+    Add an option to not prefix piuparts and autopkgtest with anything at all (closes: #833390)
+
+commit 52e1dd2c63ef59ba07ff9f12acf66c135df2a500
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Thu Aug 4 11:17:00 2016 +0200
+
+    lib/Sbuild/Build.pm: add red/green coloring to log when piuparts or autopkgtest succeed/fail
+
+commit 91387b090e834bd3969c2cfdcc6e7a5f9c9e1eca
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Thu Aug 4 11:16:07 2016 +0200
+
+    HACKING: update with instructions on how to use with the debian/unstable branch
+
+commit 04cf58cb1e4ca8d8372cd2bf48d61cee0a82a9b4
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Thu Aug 4 11:15:12 2016 +0200
+
+    man/Makefile.am: add Conf.pm to the dependencies of the man pages
+
+commit 8c9fc3fad2ed350e4929e5ba4486ed652f76143b
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Thu Aug 4 11:14:34 2016 +0200
+
+    bin/sbuild: import debug() function
+
+commit ae2ffc74a3e5c5afcf2d48c724973a9e87d78f89
+Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date:   Thu Aug 4 08:50:15 2016 +0200
+
+    tools/sbuild-dumpconfig: fix indentation of Example sections
+
 commit 94572933e464a438f225a95bed81c206f0366fde
 Author: Johannes 'josch' Schauer <josch@mister-muffin.de>
 Date:   Wed Aug 3 10:10:47 2016 +0200

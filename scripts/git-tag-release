@@ -11,4 +11,4 @@ if [ -z "$PACKAGE" ] || [ -z "$VERSION" ]; then
 fi
 
 echo "Tagging ${PACKAGE} version ${VERSION} as 'release/${PACKAGE}-${VERSION}'"
-git tag -s "release/${PACKAGE}-${VERSION}" -m "${PACKAGE} version ${VERSION}"
+git tag -u josch -s "release/${PACKAGE}-${VERSION}" -m "${PACKAGE} version ${VERSION}"

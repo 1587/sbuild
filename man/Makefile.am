@@ -35,16 +35,17 @@ man_MANS =				\
 	sbuild-apt.1			\
 	sbuild-checkpackages.1		\
 	sbuild-createchroot.8		\
+	sbuild-destroychroot.8		\
 	sbuild-hold.1			\
 	sbuild-setup.7			\
 	sbuild-shell.1			\
 	sbuild-update.1
 
-sbuild.conf.man: $(abs_top_srcdir)/tools/sbuild-dumpconfig
+sbuild.conf.man: $(abs_top_srcdir)/tools/sbuild-dumpconfig $(abs_top_srcdir)/lib/Sbuild/Conf.pm $(abs_top_srcdir)/lib/Sbuild/ConfBase.pm
 	PERL5LIB=$(abs_top_srcdir)/lib:$(abs_top_builddir)/lib \
 	  $< sbuild man > $@
 
-buildd.conf.man: $(abs_top_srcdir)/tools/sbuild-dumpconfig
+buildd.conf.man: $(abs_top_srcdir)/tools/sbuild-dumpconfig $(abs_top_srcdir)/lib/Buildd/Conf.pm
 	PERL5LIB=$(abs_top_srcdir)/lib:$(abs_top_builddir)/lib \
 	  $< buildd man > $@
 

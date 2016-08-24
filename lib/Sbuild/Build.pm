@@ -29,6 +29,7 @@ use English;
 use POSIX;
 use Errno qw(:POSIX);
 use Fcntl;
+use File::Temp qw(mkdtemp);
 use File::Basename qw(basename dirname);
 use File::Path qw(make_path);
 use FileHandle;
@@ -471,6 +472,10 @@ END
 	$self->build_log_colour('yellow', '^Keeping session: ');
 	$self->build_log_colour('red', '^Lintian:');
 	$self->build_log_colour('green', '^Lintian: pass$');
+	$self->build_log_colour('red', '^Piuparts:');
+	$self->build_log_colour('green', '^Piuparts: pass$');
+	$self->build_log_colour('red', '^Autopkgtest:');
+	$self->build_log_colour('green', '^Autopkgtest: pass$');
 
 	# Log filtering
 	my $filter;
@@ -980,9 +985,13 @@ sub fetch_source_files {
 	my %entries = ();
 	$self->log("Checking available source versions...\n");
 
+	# We would like to call apt-cache with --only-source so that the
+	# result only contains source packages with the given name but this
+	# feature was only introduced in apt 1.1~exp10 so it is only available
+	# in Debian Stretch and later
 	my $pipe = $self->get('Dependency Resolver')->pipe_apt_command(
 	    { COMMAND => [$self->get_conf('APT_CACHE'),
-			  '-q', '--only-source', 'showsrc', $pkg],
+			  '-q', 'showsrc', $pkg],
 	      USER => $self->get_conf('BUILD_USER'),
 	      PRIORITY => 0,
 	      DIR => '/'});
@@ -1019,8 +1028,13 @@ sub fetch_source_files {
 		$self->log_warning("apt-cache output without Package field\n");
 		next;
 	    }
+	    # Since we cannot run apt-cache with --only-source because that
+	    # feature was only introduced with apt 1.1~exp10, the result can
+	    # contain source packages that we didn't ask for (but which
+	    # contain binary packages of the name we specified). Since we only
+	    # are interested in source packages of the given name, we skip
+	    # everything that is a different source package.
 	    if ($pkg ne $pkgname) {
-		$self->log_warning("apt-cache output for different package\n");
 		next;
 	    }
 	    my $pkgversion = $cdata->{"Version"};
@@ -1527,10 +1541,24 @@ sub run_piuparts {
 
     my $piuparts = $self->get_conf('PIUPARTS');
     my @piuparts_command;
-    if (scalar(@{$self->get_conf('PIUPARTS_ROOT_ARGS')})) {
-	push @piuparts_command, @{$self->get_conf('PIUPARTS_ROOT_ARGS')};
+    # The default value is the empty array.
+    # If the value is the default (empty array) prefix with 'sudo --'
+    # If the value is a non-empty array, prefix with its values except if the
+    # first value is an empty string in which case, prefix with nothing
+    # If the value is not an array, prefix with that scalar except if the
+    # scalar is the empty string in which case, prefix with nothing
+    if (ref($self->get_conf('PIUPARTS_ROOT_ARGS')) eq "ARRAY") {
+	if (scalar(@{$self->get_conf('PIUPARTS_ROOT_ARGS')})) {
+	    if (@{$self->get_conf('PIUPARTS_ROOT_ARGS')}[0] ne '') {
+		push @piuparts_command, @{$self->get_conf('PIUPARTS_ROOT_ARGS')};
+	    }
+	} else {
+	    push @piuparts_command, 'sudo', '--';
+	}
     } else {
-	push @piuparts_command, 'sudo', '--';
+	if ($self->get_conf('PIUPARTS_ROOT_ARGS') ne '') {
+	    push @piuparts_command, $self->get_conf('PIUPARTS_ROOT_ARGS');
+	}
     }
     push @piuparts_command, $piuparts;
     push @piuparts_command, @{$self->get_conf('PIUPARTS_OPTIONS')} if
@@ -1563,14 +1591,62 @@ sub run_autopkgtest {
 
     my $autopkgtest = $self->get_conf('AUTOPKGTEST');
     my @autopkgtest_command;
-    if (scalar(@{$self->get_conf('AUTOPKGTEST_ROOT_ARGS')})) {
-	push @autopkgtest_command, @{$self->get_conf('AUTOPKGTEST_ROOT_ARGS')};
+    # The default value is the empty array.
+    # If the value is the default (empty array) prefix with 'sudo --'
+    # If the value is a non-empty array, prefix with its values except if the
+    # first value is an empty string in which case, prefix with nothing
+    # If the value is not an array, prefix with that scalar except if the
+    # scalar is the empty string in which case, prefix with nothing
+    if (ref($self->get_conf('AUTOPKGTEST_ROOT_ARGS')) eq "ARRAY") {
+	if (scalar(@{$self->get_conf('AUTOPKGTEST_ROOT_ARGS')})) {
+	    if (@{$self->get_conf('AUTOPKGTEST_ROOT_ARGS')}[0] ne '') {
+		push @autopkgtest_command, @{$self->get_conf('AUTOPKGTEST_ROOT_ARGS')};
+	    }
+	} else {
+	    push @autopkgtest_command, 'sudo', '--';
+	}
     } else {
-	push @autopkgtest_command, 'sudo', '--';
+	if ($self->get_conf('AUTOPKGTEST_ROOT_ARGS') ne '') {
+	    push @autopkgtest_command, $self->get_conf('AUTOPKGTEST_ROOT_ARGS');
+	}
     }
     push @autopkgtest_command, $autopkgtest;
+    my $tmpdir;
+    my @cwd_files;
+    # If the source package was not instructed to be built, then it will not
+    # be part of the .changes file and thus, the .dsc has to be passed to
+    # autopkgtest in addition to the .changes file.
     if (!$self->get_conf('BUILD_SOURCE')) {
-	push @autopkgtest_command, $self->get('DSC');
+	my $dsc = $self->get('DSC');
+	# If the source package was downloaded by sbuild, then the .dsc
+	# and the files it references have to be made available to the
+	# host
+	if (! -f $dsc || ! -r $dsc) {
+	    my $build_dir = $self->get('Build Dir');
+	    $tmpdir = mkdtemp("/tmp/tmp.sbuild.XXXXXXXXXX");
+	    my $session = $self->get('Session');
+	    if (!$session->copy_from_chroot("$build_dir/$dsc", "$tmpdir/$dsc")) {
+		$self->log_error("cannot copy .dsc from chroot\n");
+		$self->set('Autopkgtest Reason', 'fail');
+		rmdir $tmpdir;
+		return 0;
+	    }
+	    @cwd_files = dsc_files("$tmpdir/$dsc");
+	    foreach (@cwd_files) {
+		if (!$session->copy_from_chroot("$build_dir/$_", "$tmpdir/$_")) {
+		    $self->log_error("cannot copy $_ from chroot\n");
+		    $self->set('Autopkgtest Reason', 'fail');
+		    unlink "$tmpdir/$.dsc";
+		    foreach (@cwd_files) {
+			unlink "$tmpdir/$_" if -f "$tmpdir/$_";
+		    }
+		    rmdir $tmpdir;
+		    return 0;
+		}
+	    }
+	    $dsc = "$tmpdir/$dsc";
+	}
+	push @autopkgtest_command, $dsc;
     }
     push @autopkgtest_command, $self->get('Changes File');
     if (scalar(@{$self->get_conf('AUTOPKGTEST_OPTIONS')})) {
@@ -1584,6 +1660,17 @@ sub run_autopkgtest {
         });
     my $status = $? >> 8;
     $self->set('Autopkgtest Reason', 'pass');
+
+    # if the source package wasn't built and also initially downloaded by
+    # sbuild, then the temporary directory that was created must be removed
+    if (defined $tmpdir) {
+	my $dsc = $self->get('DSC');
+	unlink "$tmpdir/$dsc";
+	foreach (@cwd_files) {
+	    unlink "$tmpdir/$_";
+	}
+	rmdir $tmpdir;
+    }
 
     $self->log("\n");
     # fail if neither all tests passed nor was the package without tests

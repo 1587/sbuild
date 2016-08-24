@@ -1,5 +1,5 @@
 Package: sbuild
-Version: 0.70.0
-Release-Date: 03 Aug 2016
+Version: 0.71.0
+Release-Date: 24 Aug 2016
 Released-By: Johannes 'josch' Schauer <josch@mister-muffin.de>
-Git-Tag: release/sbuild-0.70.0
+Git-Tag: release/sbuild-0.71.0
