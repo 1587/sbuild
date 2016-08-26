@@ -1,3 +1,10 @@
+sbuild (0.71.0-2) UNRELEASED; urgency=medium
+
+  * add patch to not check for the fakeroot binary on the host. Thanks
+    Gianfranco Costamagna
+
+ -- Johannes Schauer <josch@debian.org>  Fri, 26 Aug 2016 12:28:03 +0200
+
 sbuild (0.71.0-1) unstable; urgency=medium
 
   * add autopkgtest to Suggests
