@@ -27,6 +27,8 @@ sbuild (0.72.0-1) UNRELEASED; urgency=medium
   * Accommodate for the autopkgtest 4.0 release by renaming all adt command
     line options and configuration variables from adt to autopkgtest because
     the same renaming was done by the autopkgtest release (closes: #833436)
+  * Add Depends on gnupg (>= 2.1) because sbuild now makes use of features
+    like --pinentry-mode=loopback for key creation (closes: #840575)
 
  -- Johannes Schauer <josch@debian.org>  Mon, 24 Oct 2016 13:02:32 +0200
 

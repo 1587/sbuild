@@ -33,6 +33,7 @@ Depends: adduser,
          libio-zlib-perl,
          libmime-lite-perl,
          schroot (>= 1.6.0),
+         gnupg (>= 2.1),
          ${misc:Depends},
          ${perl:Depends}
 Recommends:
