@@ -6,13 +6,14 @@ Uploaders: Michael Banck <mbanck@debian.org>,
            Roger Leigh <rleigh@debian.org>,
            Francesco Paolo Lovergine <frankie@debian.org>,
            Wookey <wookey@debian.org>
-Build-Depends: debhelper (>> 7.0.0),
+Build-Depends: debhelper (>= 10),
                groff-base,
                libdpkg-perl (>= 1.17.2),
                libexception-class-perl,
                libfilesys-df-perl,
                libio-zlib-perl,
-               libmime-lite-perl
+               libmime-lite-perl,
+               libyaml-tiny-perl
 Standards-Version: 3.9.6
 Vcs-Browser: https://anonscm.debian.org/cgit/buildd-tools/sbuild.git?h=debian/unstable
 Vcs-Git: git://anonscm.debian.org/buildd-tools/sbuild -b debian/unstable
