@@ -28,7 +28,7 @@ sbuild \- build debian packages from source
 .RB [ \-\-archive=\fIarchive\fP ]
 .RB [ \-d \[or] \-\-dist=\fIdistribution\fP ]
 .RB [ \-c \[or] \-\-chroot=\fIchroot\fP ]
-.RB [ \-\-chroot-mode=\fIschroot|sudo|adt\fP ]
+.RB [ \-\-chroot-mode=\fIschroot|sudo|autopkgtest\fP ]
 .RB [ \-\-arch=\fIarchitecture\fP ]
 .RB [ \-\-arch\-any " \[or] " \-\-no\-arch\-any ]
 .RB [ \-\-build=\fIarchitecture\fP ]
@@ -97,9 +97,11 @@ sbuild \- build debian packages from source
 .RB [ \-\-extra\-repository=\fIspec\fP ]
 .RB [ \-\-extra\-repository\-key=\fIfile.asc\fP ]
 .RB [ \-\-build\-path=\fIstring\fP ]
-.RB [ \-\-adt-virt-server=\fIschroot|lxc|chroot|qemu|ssh\fP ]
-.RB [ \-\-adt\-virt\-server\-opt=\fIstring\fP ]
-.RB [ \-\-adt\-virt\-server\-opts=\fIoptions\fP ]
+.RB [ \-\-autopkgtest-virt-server=\fIschroot|lxc|chroot|qemu|ssh\fP ]
+.RB [ \-\-autopkgtest\-virt\-server\-opt=\fIstring\fP ]
+.RB [ \-\-autopkgtest\-virt\-server\-opts=\fIoptions\fP ]
+.RB [ \-\-purge\-extra\-packages\fP ]
+.RB [ \-\-bd\-uninstallable\-explainer=\fIdose3|apt\fP ]
 .RB [ PACKAGE [ .dsc ]]
 .SH DESCRIPTION
 \fBsbuild\fR rebuilds Debian binary packages from the corresponding Debian
@@ -263,11 +265,11 @@ This command line option sets the \fBCHROOT\fP configuration variable. See
 .BR sbuild.conf (5)
 for more information.
 .TP
-.BR "\-\-chroot-mode=\fIschroot|sudo|adt\fP"
+.BR "\-\-chroot-mode=\fIschroot|sudo|autopkgtest\fP"
 Select the desired chroot mode. Four values are possible: schroot (the
 default), sudo (which uses sudo to execute chroot in a directory from
-/etc/sbuild/chroot or ./chroot) and adt which uses the adt-virt-* binaries
-(selectable via the \-\-adt-virt-server option).
+/etc/sbuild/chroot or ./chroot) and autopkgtest which uses the autopkgtest-virt-* binaries
+(selectable via the \-\-autopkgtest-virt-server option).
 This command line option sets the \fBCHROOT_MODE\fP configuration variable. See
 .BR sbuild.conf (5)
 for more information.
@@ -988,55 +990,55 @@ This command line option sets the \fBBUILD_PATH\fP configuration variable. See
 .BR sbuild.conf (5)
 for more information.
 .TP
-.BR \-\-adt-virt-server=\fIschroot|lxc|chroot|qemu|ssh\fP
-The adt virtualization server. Can be specified with or without the adt-virt-
+.BR \-\-autopkgtest-virt-server=\fIschroot|lxc|chroot|qemu|ssh\fP
+The autopkgtest virtualization server. Can be specified with or without the autopkgtest-virt-
 prefix.  For instance, the following set of command line options will use the
-adt-virt-schroot backend for a package build:
+autopkgtest-virt-schroot backend for a package build:
 .nh
-.B \-\-chroot-mode=adt \-\-adt\-virt\-server=schroot \-\-chroot unstable-amd64-sbuild
+.B \-\-chroot-mode=autopkgtest \-\-autopkgtest\-virt\-server=schroot \-\-chroot unstable-amd64-sbuild
 .hy
 The value of the \f[CB]--chroot\fP option will be passed as the last positional
-argument to the adt-virt-* invocation. Thus, the value of the \f[CB]--chroot\fP
-option becomes the image name of the virtual machine in case of adt-virt-qemu,
-the lxc-container name in case of adt-virt-lxc, the path to the chroot in case
-of adt-virt-chroot, the name of the schroot in case of adt-virt-schroot and so
+argument to the autopkgtest-virt-* invocation. Thus, the value of the \f[CB]--chroot\fP
+option becomes the image name of the virtual machine in case of autopkgtest-virt-qemu,
+the lxc-container name in case of autopkgtest-virt-lxc, the path to the chroot in case
+of autopkgtest-virt-chroot, the name of the schroot in case of autopkgtest-virt-schroot and so
 on.
-This command line option sets the \fBADT_VIRT_SERVER\fP configuration variable. See
+This command line option sets the \fBAUTOPKGTEST_VIRT_SERVER\fP configuration variable. See
 .BR sbuild.conf (5)
 for more information.
 .TP
-.BR \-\-adt-virt-server-opt=\fIstring\fP
-Pass the specified option directly to the respective adt-virt-* virtualization
+.BR \-\-autopkgtest-virt-server-opt=\fIstring\fP
+Pass the specified option directly to the respective autopkgtest-virt-* virtualization
 server in addition to the options already passed by sbuild. This option can be
-passed multiple times (once per adt-virt-* option) and can be freely mixed with
-the \-\-adt-virt-server\-opts option.  Options will be passed to the respective
-adt-virt-* virtualization server in the order that the \-\-adt-virt-server\-opt
-and \-\-adt-virt-server\-opts options are given on the command line.  See the
-manual pages of the respective adt-virt-* commands for more information.
+passed multiple times (once per autopkgtest-virt-* option) and can be freely mixed with
+the \-\-autopkgtest-virt-server\-opts option.  Options will be passed to the respective
+autopkgtest-virt-* virtualization server in the order that the \-\-autopkgtest-virt-server\-opt
+and \-\-autopkgtest-virt-server\-opts options are given on the command line.  See the
+manual pages of the respective autopkgtest-virt-* commands for more information.
 Certain percent escapes are supported. To write a literal percent sign, escape
 it with another percent sign. See the section
 .BR "OPTION STRING PERCENT ESCAPES"
 for more information.
-This command line option appends to the \fBADT_VIRT_SERVER_OPTIONS\fP configuration variable. See
+This command line option appends to the \fBAUTOPKGTEST_VIRT_SERVER_OPTIONS\fP configuration variable. See
 .BR sbuild.conf (5)
 for more information.
 .TP
-.BR \-\-adt\-virt\-server\-opts=\fIoptions\fP
-Pass the specified options directly to the respective adt-virt-* virtualization
+.BR \-\-autopkgtest\-virt\-server\-opts=\fIoptions\fP
+Pass the specified options directly to the respective autopkgtest-virt-* virtualization
 server in addition to the options already passed by sbuild. The argument will
-be split by whitespaces and the resulting array passed to the adt-virt-*
-invocation. If any options contain spaces, use \-\-adt\-virt\-server\-opt for
+be split by whitespaces and the resulting array passed to the autopkgtest-virt-*
+invocation. If any options contain spaces, use \-\-autopkgtest\-virt\-server\-opt for
 them.  This option can be passed multiple times and can be freely mixed with
-the \-\-adt\-virt\-server\-opts option. Options will be passed to the
-respective adt-virt-* virtualization server in the order that the
-\-\-adt\-virt\-server\-opt and \-\-adt\-virt\-server\-opts options are given on
-the command line. See the manual pages of the respective adt\-virt\-* commands
+the \-\-autopkgtest\-virt\-server\-opts option. Options will be passed to the
+respective autopkgtest-virt-* virtualization server in the order that the
+\-\-autopkgtest\-virt\-server\-opt and \-\-autopkgtest\-virt\-server\-opts options are given on
+the command line. See the manual pages of the respective autopkgtest\-virt\-* commands
 for more information.
 Certain percent escapes are supported. To write a literal percent sign, escape
 it with another percent sign. See the section
 .BR "OPTION STRING PERCENT ESCAPES"
 for more information.
-This command line option appends to the \fBADT_VIRT_SERVER_OPTIONS\fP configuration variable. See
+This command line option appends to the \fBAUTOPKGTEST_VIRT_SERVER_OPTIONS\fP configuration variable. See
 .BR sbuild.conf (5)
 for more information.
 .TP
@@ -1049,6 +1051,49 @@ for more information.
 .BR \-\tstats\-dir=\fIdirectory\fP
 Directory for writing build statistics to.
 This command line option sets the \fBSTATS_DIR\fP configuration variable. See
+.BR sbuild.conf (5)
+for more information.
+.TP
+.BR \-\-purge\-extra\-packages\fP
+This is an experimental option. Only use when you know what you are doing.
+Source packages must be buildable with only their build dependencies, all
+packages marked as Essential:yes, the build-essential package and their
+transitive dependencies installed. But by default, most chroots will also
+include Priority:required packages and apt as well as their transitive
+dependencies. This option will try to remove all additional packages that are
+not strictly required for the build right after build dependencies were
+installed. This currently works best with the aspcud resolver. The apt resolver
+will not make as much effort to remove all unneeded packages and will keep all
+providers of a virtual package and all packages from any dependency alternative
+that happen to be installed. The aptitude and xapt resolver do not implement
+this feature yet. The removed packages are not (yet) added again after the
+build finished. This can have undesirable side effects like lintian not working
+(because there is no apt to install its dependencies) or bare chroots becoming
+totally unusable after apt was removed from them. Thus, this option should only
+be used with throw-away chroots like schroot provides them where the original
+state is automatically restored after each build. This command line option sets
+the \fBPURGE_EXTRA_PACKAGES\fP configuration variable. See
+.BR sbuild.conf (5)
+for more information.
+.TP
+.BR \-\-bd\-uninstallable\-explainer=\fIdose3|apt\fP
+If the build dependencies cannot be satisfied by the chosen resolver, sbuild
+will run the selected method to give a better explanation why the build
+dependencies cannot be installed. Possible arguments for this option are dose3
+(the default) and apt. To disable this feature, pass the empty string.
+Depending on the resolver, the dose3 explainer might report a dependency
+situation as satisfiable even if the chosen resolver found it to be
+unsatisfiable. This is especially likely to happen if the apt resolver (the
+default) is used. Such disparities can have two reasons: either the
+understanding of the involved dependency situation of the apt and dose3 solver
+differs (this is a bug) or the apt solver was unable to find a solution if the
+dependency situation is not trivial (for example if it involves packages from
+multiple repositories). In the former case, please report the disparity as a
+bug against the resolvers. In the latter case, use a resolver that is more
+likely to find a solution like the aptitude or aspcud resolvers. Especially the
+aspcud resolver should find a solution if and only if the dose3 solver also
+finds one. This command line option sets the \fBBD_UNINSTALLABLE_EXPLAINER\fP
+configuration variable. See
 .BR sbuild.conf (5)
 for more information.
 .SH BUILD ARTIFACTS
@@ -1281,7 +1326,7 @@ Also, the commands given in a configuration file are processed first, then the
 commands given through the command line options.
 .SH OPTION STRING PERCENT ESCAPES
 Besides for external command strings, percent escapes can also be used in
-custom options passed to piuparts, autopkgtest and the chosen adt-virt server.
+custom options passed to piuparts, autopkgtest and the chosen autopkgtest-virt server.
 This is for example useful for communicating the right chroot backend to
 piuparts or autopkgtest depending on the distribution or architecture the
 source package was built for.
@@ -1308,15 +1353,22 @@ Here is an example that will run piuparts with the right schroot chroot:
 .PP
 Or an example of running autopkgtest with the right schroot chroot:
 .PP
-\f[CB]$ sbuild \-\-run\-autopkgtest \\\fP
+\f[CB]$ sbuild \-\-run\-autopkgtest \-\-autopkgtest-root-args= \\\fP
 .br
 \f[CB]      \-\-autopkgtest\-opts="-- schroot %r-%a-sbuild"
 .PP
 To achieve the same effect via the configuration file, add the following:
 .PP
+\f[CB]$autopkgtest_root_args = '';\fP
+.br
 \f[CB]$piuparts_opts = [ '--schroot=%r-%a-sbuild' ];\fP
 .br
 \f[CB]$autopkgtest_opts = [ '--', 'schroot', '%r-%a-sbuild' ];\fP
+.PP
+The --autopkgtest-root-args option and the $autopkgtest_root_args configuration
+variable are set to the empty string because the default is to run autopkgtest
+with "sudo --" in front of it which is not needed with the schroot autopkgtest
+backend.
 .PP
 .SH LOCAL ARCHIVE
 The apt and aptitude resolvers create a local archive for installing build

@@ -225,9 +225,9 @@ sub setup ($) {
 	    DEFAULT => ['-q'],
 	    HELP => 'Additional command-line options for schroot'
 	},
-	'ADT_VIRT_SERVER'			=> {
+	'AUTOPKGTEST_VIRT_SERVER'			=> {
 	    TYPE => 'STRING',
-	    VARNAME => 'adt_virt_server',
+	    VARNAME => 'autopkgtest_virt_server',
 	    GROUP => 'Programs',
 	    CHECK => sub {
 		my $conf = shift;
@@ -235,24 +235,24 @@ sub setup ($) {
 		my $key = $entry->{'NAME'};
 		my $program = $conf->get($key);
 
-		# if the adt virtualization server name is only letters a-z
-		# then it is missing the adt-virt- prefix
+		# if the autopkgtest virtualization server name is only letters
+		# a-z then it is missing the autopkgtest-virt- prefix
 		if ($program =~ /^[a-z]+$/) {
-		    $conf->set($key, "adt-virt-$program");
+		    $conf->set($key, "autopkgtest-virt-$program");
 		}
 
 		# Only validate if needed.
-		if ($conf->get('CHROOT_MODE') eq 'adt') {
+		if ($conf->get('CHROOT_MODE') eq 'autopkgtest') {
 		    $validate_program->($conf, $entry);
 		}
 	    },
-	    DEFAULT => 'adt-virt-schroot',
-	    HELP => 'Path to adt-virt-* binary, selecting the virtualization server.',
-	    CLI_OPTIONS => ['--adt-virt-server']
+	    DEFAULT => 'autopkgtest-virt-schroot',
+	    HELP => 'Path to autopkgtest-virt-* binary, selecting the virtualization server.',
+	    CLI_OPTIONS => ['--autopkgtest-virt-server']
 	},
-	'ADT_VIRT_SERVER_OPTIONS'			=> {
+	'AUTOPKGTEST_VIRT_SERVER_OPTIONS'			=> {
 	    TYPE => 'ARRAY:STRING',
-	    VARNAME => 'adt_virt_server_options',
+	    VARNAME => 'autopkgtest_virt_server_options',
 	    GROUP => 'Programs',
 	    DEFAULT => [],
 	    GET => sub {
@@ -282,14 +282,15 @@ sub setup ($) {
 		}
 		return $retval;
 	    },
-	    HELP => 'Additional command-line options for adt-virt-*',
-	    CLI_OPTIONS => ['--adt-virt-server-opt', '--adt-virt-server-opts']
+	    HELP => 'Additional command-line options for autopkgtest-virt-*',
+	    CLI_OPTIONS => ['--autopkgtest-virt-server-opt', '--autopkgtest-virt-server-opts']
 	},
+	# Do not check for the existance of fakeroot because it's needed
+	# inside the chroot and not on the host
 	'FAKEROOT'				=> {
 	    TYPE => 'STRING',
 	    VARNAME => 'fakeroot',
 	    GROUP => 'Programs',
-	    CHECK => $validate_program,
 	    DEFAULT => 'fakeroot',
 	    HELP => 'Path to fakeroot binary'
 	},
@@ -403,7 +404,7 @@ sub setup ($) {
 	    VARNAME => 'build_env_cmnd',
 	    GROUP => 'Build options',
 	    DEFAULT => "",
-	    HELP => 'This command is run with the dpkg-buildpackage command line passed to it (in the chroot, if doing a chrooted build).  It is used by the sparc buildd (which is sparc64) to call the wrapper script that sets the environment to sparc (32-bit).  It could be used for other build environment setup scripts.  Note that this is superceded by schroot\'s \'command-prefix\' option'
+	    HELP => 'This command is run with the dpkg-buildpackage command line passed to it (in the chroot, if doing a chrooted build).  It is used by the sparc buildd (which is sparc64) to call the wrapper script that sets the environment to sparc (32-bit).  It could be used for other build environment setup scripts.  Note that this is superseded by schroot\'s \'command-prefix\' option'
 	},
 	'PGP_OPTIONS'				=> {
 	    TYPE => 'ARRAY:STRING',
@@ -660,10 +661,10 @@ sub setup ($) {
 
 		die "Bad chroot mode \'" . $conf->get('CHROOT_MODE') . "\'"
 		    if !isin($conf->get('CHROOT_MODE'),
-			     qw(schroot sudo adt));
+			     qw(schroot sudo autopkgtest));
 	    },
 	    DEFAULT => 'schroot',
-	    HELP => 'Mechanism to use for chroot virtualisation.  Possible value are "schroot" (default), "sudo" and "adt".',
+	    HELP => 'Mechanism to use for chroot virtualisation.  Possible value are "schroot" (default), "sudo" and "autopkgtest".',
 	    CLI_OPTIONS => ['--chroot-mode']
 	},
 	'CHROOT_SPLIT'				=> {
@@ -1367,6 +1368,32 @@ $autopkgtest_root_args = [\'\', \'whatever\'];
 	    HELP => 'Also produce a changes file suitable for a source-only upload.',
 	    CLI_OPTIONS => ['--source-only-changes']
 	},
+	'BD_UNINSTALLABLE_EXPLAINER'			=> {
+	    TYPE => 'STRING',
+	    VARNAME => 'bd_uninstallable_explainer',
+	    GROUP => 'Dependency resolution',
+	    CHECK => sub {
+		my $conf = shift;
+		my $entry = shift;
+		my $key = $entry->{'NAME'};
+
+		die "Bad bd-uninstallable explainer \'" . $conf->get('BD_UNINSTALLABLE_EXPLAINER') . "\'"
+		    if defined $conf->get('BD_UNINSTALLABLE_EXPLAINER')
+		    && !isin($conf->get('BD_UNINSTALLABLE_EXPLAINER'),
+			     ('apt', 'dose3', ''));
+	    },
+	    DEFAULT => 'dose3',
+	    HELP => 'Method to use for explaining build dependency installation failures. Possible value are "dose3" (default) and "apt". Set to the empty string or undef to disable running any explainer.',
+	    CLI_OPTIONS => ['--bd-uninstallable-explainer']
+	},
+	'PURGE_EXTRA_PACKAGES'				=> {
+	    TYPE => 'BOOL',
+	    VARNAME => 'purge_extra_packages',
+	    GROUP => 'Chroot options',
+	    DEFAULT => 0,
+	    HELP => 'Try to remove all additional packages that are not strictly required for the build right after build dependencies were installed. This currently works best with the aspcud resolver. The apt resolver will not make as much effort to remove all unneeded packages and will keep all providers of a virtual package and all packages from any dependency alternative that happen to be installed. The aptitude and xapt resolver do not implement this feature yet. The removed packages are not yet added again after the build finished. This can have undesirable side effects like lintian not working (because there is no apt to install its dependencies) or bare chroots becoming totally unusable after apt was removed from them. Thus, this option should only be used with throw-away chroots like schroot provides them where the original state is automatically restored after each build.',
+	    CLI_OPTIONS => ['--purge-extra-packages']
+	}
     );
 
     $conf->set_allowed_keys(\%sbuild_keys);

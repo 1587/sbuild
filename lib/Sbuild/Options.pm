@@ -156,15 +156,15 @@ sub set_options {
 		       "chroot-mode=s" => sub {
 			   $self->set_conf('CHROOT_MODE', $_[1]);
 		       },
-		       "adt-virt-server=s" => sub {
-			   $self->set_conf('ADT_VIRT_SERVER', $_[1]);
+		       "autopkgtest-virt-server=s" => sub {
+			   $self->set_conf('AUTOPKGTEST_VIRT_SERVER', $_[1]);
 		       },
-		       "adt-virt-server-opts=s" => sub {
-			   push(@{$self->get_conf('ADT_VIRT_SERVER_OPTIONS')},
+		       "autopkgtest-virt-server-opts=s" => sub {
+			   push(@{$self->get_conf('AUTOPKGTEST_VIRT_SERVER_OPTIONS')},
 				split(/\s+/, $_[1]));
 		       },
-		       "adt-virt-server-opt=s" => sub {
-			   push(@{$self->get_conf('ADT_VIRT_SERVER_OPTIONS')}, $_[1]);
+		       "autopkgtest-virt-server-opt=s" => sub {
+			   push(@{$self->get_conf('AUTOPKGTEST_VIRT_SERVER_OPTIONS')}, $_[1]);
 		       },
 		       "apt-clean" => sub {
 			   if ($opt_no_apt_clean) {
@@ -464,8 +464,18 @@ sub set_options {
 				$_[1]);
 		       },
 		       "autopkgtest-root-args=s" => sub {
-			   push(@{$self->get_conf('AUTOPKGTEST_ROOT_ARGS')},
-				split(/\s+/, $_[1]));
+			   # special handling of the case when the string
+			   # argument is the empty string. In that case, the
+			   # empty string is appended. The split function
+			   # would just return an empty list when splitting
+			   # the empty string
+			   if ($_[1] eq '') {
+			       push(@{$self->get_conf('AUTOPKGTEST_ROOT_ARGS')},
+				   '');
+			   } else {
+			       push(@{$self->get_conf('AUTOPKGTEST_ROOT_ARGS')},
+				   split(/\s+/, $_[1]));
+			   }
 		       },
 		       "autopkgtest-root-arg=s" => sub {
 			   push(@{$self->get_conf('AUTOPKGTEST_ROOT_ARGS')},
@@ -540,6 +550,12 @@ sub set_options {
 			"source-only-changes" => sub {
 			   $self->set_conf('SOURCE_ONLY_CHANGES', 1);
 			},
+			"purge-extra-packages" => sub {
+			    $self->set_conf('PURGE_EXTRA_PACKAGES', 1);
+			},
+			"bd-uninstallable-explainer=s" => sub {
+			   $self->set_conf('BD_UNINSTALLABLE_EXPLAINER', $_[1]);
+			}
 	);
 }
 

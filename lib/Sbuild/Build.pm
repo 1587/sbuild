@@ -50,7 +50,7 @@ use Sbuild qw($devnull binNMU_version copy isin debug send_mail
 use Sbuild::Base;
 use Sbuild::ChrootInfoSchroot;
 use Sbuild::ChrootInfoSudo;
-use Sbuild::ChrootInfoADT;
+use Sbuild::ChrootInfoAutopkgtest;
 use Sbuild::ChrootRoot;
 use Sbuild::Sysconfig qw($version $release_date);
 use Sbuild::Sysconfig;
@@ -362,8 +362,8 @@ sub run_chroot_session {
 	my $chroot_info;
 	if ($self->get_conf('CHROOT_MODE') eq 'schroot') {
 	    $chroot_info = Sbuild::ChrootInfoSchroot->new($self->get('Config'));
-	} elsif ($self->get_conf('CHROOT_MODE') eq 'adt') {
-	    $chroot_info = Sbuild::ChrootInfoADT->new($self->get('Config'));
+	} elsif ($self->get_conf('CHROOT_MODE') eq 'autopkgtest') {
+	    $chroot_info = Sbuild::ChrootInfoAutopkgtest->new($self->get('Config'));
 	} else {
 	    $chroot_info = Sbuild::ChrootInfoSudo->new($self->get('Config'));
 	}
@@ -475,6 +475,7 @@ END
 	$self->build_log_colour('red', '^Piuparts:');
 	$self->build_log_colour('green', '^Piuparts: pass$');
 	$self->build_log_colour('red', '^Autopkgtest:');
+	$self->build_log_colour('yellow', '^Autopkgtest: no tests$');
 	$self->build_log_colour('green', '^Autopkgtest: pass$');
 
 	# Log filtering
@@ -713,7 +714,7 @@ sub run_fetch_install_packages {
 
 	# Display message about chroot setup script option use being deprecated
 	if ($self->get_conf('CHROOT_SETUP_SCRIPT')) {
-	    my $msg = "setup-hook option is deprecated. It has been superceded by ";
+	    my $msg = "setup-hook option is deprecated. It has been superseded by ";
 	    $msg .= "the chroot-setup-commands feature. setup-hook script will be ";
 	    $msg .= "run via chroot-setup-commands.\n";
 	    $self->log_warning($msg);
@@ -799,6 +800,13 @@ sub run_fetch_install_packages {
 	    Sbuild::Exception::Build->throw(error => "Package build dependencies not satisfied; skipping",
 					    failstage => "install-deps");
 	}
+	$self->check_abort();
+	if ($self->get_conf('PURGE_EXTRA_PACKAGES')) {
+	    if (!$resolver->purge_extra_packages($self->get('Package'))) {
+		Sbuild::Exception::Build->throw(error => "Chroot could not be cleaned of extra packages",
+		    failstage => "install-deps");
+	    }
+	}
 	$self->set('Install End Time', time);
 
 	$self->check_abort();
@@ -840,28 +848,57 @@ sub run_fetch_install_packages {
 	}
     };
 
+    # If 'This Time' is still zero, then build() raised an exception and thus
+    # the end time was never set. Thus, setting it here.
+    # If we would set 'This Time' here unconditionally, then it would also
+    # possibly include the times to run piuparts and autopkgtest.
+    if ($self->get('This Time') == 0) {
+	$self->set('This Time', $self->get('Pkg End Time') - $self->get('Pkg Start Time'));
+	$self->set('This Time', 0) if $self->get('This Time') < 0;
+    }
+    # Same for 'This Space' which we must set here before everything gets
+    # cleaned up.
+    if ($self->get('This Space') == 0) {
+	# Since the build apparently failed, we pass an empty list of the
+	# build artifacts
+	$self->set('This Space', $self->check_space());
+    }
+
     debug("Error run_fetch_install_packages(): $@") if $@;
 
     # I catch the exception here and trigger the hook, if needed. Normally I'd
     # do this at the end of the function, but I want the hook to fire before we
     # clean up the environment. I re-throw the exception at the end, as usual
     my $e = Exception::Class->caught('Sbuild::Exception::Build');
-    if ( defined $self->get('Pkg Fail Stage') &&
-         $self->get('Pkg Fail Stage') eq 'build' ) {
-	if(!$self->run_external_commands("build-failed-commands")) {
-	    Sbuild::Exception::Build->throw(error => "Failed to execute build-failed-commands",
-		failstage => "run-build-failed-commands");
+    if ($e) {
+	if ($e->status) {
+	    $self->set_status($e->status);
+	} else {
+	    $self->set_status("failed");
 	}
-    } elsif($e) {
+	$self->set('Pkg Fail Stage', $e->failstage);
+    }
+    if ( defined $self->get('Pkg Fail Stage')) {
+	if ($self->get('Pkg Fail Stage') eq 'build' ) {
+	    if(!$self->run_external_commands("build-failed-commands")) {
+		Sbuild::Exception::Build->throw(error => "Failed to execute build-failed-commands",
+		    failstage => "run-build-failed-commands");
+	    }
+	} elsif($self->get('Pkg Fail Stage') eq 'install-deps' ) {
+	    if (defined $self->get_conf('BD_UNINSTALLABLE_EXPLAINER')
+		&& $self->get_conf('BD_UNINSTALLABLE_EXPLAINER') ne '') {
+		if (!$self->explain_bd_uninstallable()) {
+		    Sbuild::Exception::Build->throw(error => "Failed to explain bd-uninstallable",
+			failstage => "explain-bd-uninstallable");
+		}
+	    }
 
-	if(!$self->run_external_commands("build-deps-failed-commands")) {
-	    Sbuild::Exception::Build->throw(error => "Failed to execute build-deps-failed-commands",
-		failstage => "run-build-deps-failed-commands");
+	    if(!$self->run_external_commands("build-deps-failed-commands")) {
+		Sbuild::Exception::Build->throw(error => "Failed to execute build-deps-failed-commands",
+		    failstage => "run-build-deps-failed-commands");
+	    }
 	}
     }
-
-
-
 
     $self->log_subsection("Cleanup");
     my $session = $self->get('Session');
@@ -1151,7 +1188,9 @@ sub check_architectures {
     my $self = shift;
     my $resolver = $self->get('Dependency Resolver');
     my $dscarchs = $self->get('Dsc Architectures');
+    my $build_arch = $self->get('Build Arch');
     my $host_arch = $self->get('Host Arch');
+    my $session = $self->get('Session');
 
     $self->log_subsection("Check architectures");
     # Check for cross-arch dependencies
@@ -1235,23 +1274,57 @@ sub check_architectures {
 
     $self->run_chroot_update() if $added_any_new;
 
+    # At this point, all foreign architectures should have been added to dpkg.
+    # Thus, we now examine, whether the packages passed via --extra-package
+    # can even be considered by dpkg inside the chroot with respect to their
+    # architecture.
+
+    # Retrieve all foreign architectures from the chroot. We need to do this
+    # step because the user might've added more foreign arches to the chroot
+    # beforehand.
+    my @all_foreign_arches = split /\s+/, $session->read_command({
+	    COMMAND => ['dpkg', '--print-foreign-architectures'],
+	    USER => $self->get_conf('USERNAME'),
+	});
+    for my $deb (@{$self->get_conf('EXTRA_PACKAGES')}) {
+	# Investigate the Architecture field of the binary package
+	my $arch = $self->get('Host')->read_command({
+		COMMAND => ['dpkg-deb', '--field', $deb, 'Architecture'],
+		USER => $self->get_conf('USERNAME')
+	});
+	chomp $arch;
+	# Only packages that are Architecture:all, the native architecture or
+	# one of the configured foreign architectures are allowed.
+	if ($arch ne 'all' and $arch ne $build_arch
+		and !isin($arch, @all_foreign_arches)) {
+	    $self->log_warning("Extra package $deb of architecture $arch cannot be installed in the chroot\n");
+	}
+    }
 
     # Check package arch makes sense to build
     if (!$dscarchs) {
 	$self->log_warning("dsc has no Architecture: field -- skipping arch check!\n");
+    } elsif ($self->get_conf('BUILD_SOURCE')) {
+	# If the source package is to be built, then we do not need to check
+	# if any of the source package's architectures can be built given the
+	# current host architecture because then no matter the Architectures
+	# field, at least the source package will end up getting built.
     } else {
 	my $valid_arch;
 	for my $a (split(/\s+/, $dscarchs)) {
+	    # Check architecture wildcard matching with dpkg inside the chroot
+	    # to avoid situations in which dpkg outside the chroot doesn't
+	    # know about a new architecture yet
 	    my $command = <<"EOF";
 		use strict;
 		use warnings;
 		use Dpkg::Arch;
-		if (Dpkg::Arch::debarch_is("$host_arch", "$a")) {
+		if (Dpkg::Arch::debarch_is('$host_arch', '$a')) {
 		    exit 0;
 		}
 		exit 1;
 EOF
-	    $self->get('Session')->run_command(
+	    $session->run_command(
 		{ COMMAND => ['perl',
 			'-e',
 			$command],
@@ -1265,9 +1338,9 @@ EOF
 	}
 	if ($dscarchs ne "any" && !($valid_arch) &&
 	    !($dscarchs =~ /\ball\b/ && $self->get_conf('BUILD_ARCH_ALL')) )  {
-	    my $msg = "dsc: $host_arch not in arch list or does not match any arch wildcards: $dscarchs -- skipping\n";
-	    $self->log_error($msg);
-	    Sbuild::Exception::Build->throw(error => "dsc: $host_arch not in arch list or does not match any arch wildcards: $dscarchs -- skipping",
+	    my $msg = "dsc: $host_arch not in arch list or does not match any arch wildcards: $dscarchs -- skipping";
+	    $self->log_error("$msg\n");
+	    Sbuild::Exception::Build->throw(error => $msg,
 					    status => "skipped",
 					    failstage => "arch-check");
 	    return 0;
@@ -1536,6 +1609,7 @@ sub run_piuparts {
     my $self = shift;
 
     return 1 unless ($self->get_conf('RUN_PIUPARTS'));
+    $self->set('Piuparts Reason', 'fail');
 
     $self->log_subsubsection("piuparts");
 
@@ -1569,12 +1643,18 @@ sub run_piuparts {
           PRIORITY => 0,
         });
     my $status = $? >> 8;
-    $self->set('Piuparts Reason', 'pass');
+
+    # We must check for Ctrl+C (and other aborting signals) directly after
+    # running the command so that we do not mark the piuparts run as successful
+    # (the exit status will be zero)
+    $self->check_abort();
 
     $self->log("\n");
-    if ($?) {
+
+    if ($status == 0) {
+	$self->set('Piuparts Reason', 'pass');
+    } else {
         $self->log_error("Piuparts run failed.\n");
-	$self->set('Piuparts Reason', 'fail');
         return 0;
     }
 
@@ -1587,6 +1667,8 @@ sub run_autopkgtest {
 
     return 1 unless ($self->get_conf('RUN_AUTOPKGTEST'));
 
+    $self->set('Autopkgtest Reason', 'fail');
+
     $self->log_subsubsection("autopkgtest");
 
     my $autopkgtest = $self->get_conf('AUTOPKGTEST');
@@ -1598,17 +1680,17 @@ sub run_autopkgtest {
     # If the value is not an array, prefix with that scalar except if the
     # scalar is the empty string in which case, prefix with nothing
     if (ref($self->get_conf('AUTOPKGTEST_ROOT_ARGS')) eq "ARRAY") {
-	if (scalar(@{$self->get_conf('AUTOPKGTEST_ROOT_ARGS')})) {
-	    if (@{$self->get_conf('AUTOPKGTEST_ROOT_ARGS')}[0] ne '') {
-		push @autopkgtest_command, @{$self->get_conf('AUTOPKGTEST_ROOT_ARGS')};
-	    }
-	} else {
+	if (scalar(@{$self->get_conf('AUTOPKGTEST_ROOT_ARGS')}) == 0) {
 	    push @autopkgtest_command, 'sudo', '--';
+	} elsif (@{$self->get_conf('AUTOPKGTEST_ROOT_ARGS')}[0] eq '') {
+	    # do nothing if the first array element is the empty string
+	} else {
+	    push @autopkgtest_command, @{$self->get_conf('AUTOPKGTEST_ROOT_ARGS')};
 	}
+    } elsif ($self->get_conf('AUTOPKGTEST_ROOT_ARGS') eq '') {
+	# do nothing if the configuration value is the empty string
     } else {
-	if ($self->get_conf('AUTOPKGTEST_ROOT_ARGS') ne '') {
-	    push @autopkgtest_command, $self->get_conf('AUTOPKGTEST_ROOT_ARGS');
-	}
+	push @autopkgtest_command, $self->get_conf('AUTOPKGTEST_ROOT_ARGS');
     }
     push @autopkgtest_command, $autopkgtest;
     my $tmpdir;
@@ -1627,7 +1709,6 @@ sub run_autopkgtest {
 	    my $session = $self->get('Session');
 	    if (!$session->copy_from_chroot("$build_dir/$dsc", "$tmpdir/$dsc")) {
 		$self->log_error("cannot copy .dsc from chroot\n");
-		$self->set('Autopkgtest Reason', 'fail');
 		rmdir $tmpdir;
 		return 0;
 	    }
@@ -1635,7 +1716,6 @@ sub run_autopkgtest {
 	    foreach (@cwd_files) {
 		if (!$session->copy_from_chroot("$build_dir/$_", "$tmpdir/$_")) {
 		    $self->log_error("cannot copy $_ from chroot\n");
-		    $self->set('Autopkgtest Reason', 'fail');
 		    unlink "$tmpdir/$.dsc";
 		    foreach (@cwd_files) {
 			unlink "$tmpdir/$_" if -f "$tmpdir/$_";
@@ -1659,8 +1739,6 @@ sub run_autopkgtest {
           PRIORITY => 0,
         });
     my $status = $? >> 8;
-    $self->set('Autopkgtest Reason', 'pass');
-
     # if the source package wasn't built and also initially downloaded by
     # sbuild, then the temporary directory that was created must be removed
     if (defined $tmpdir) {
@@ -1672,15 +1750,123 @@ sub run_autopkgtest {
 	rmdir $tmpdir;
     }
 
+    # We must check for Ctrl+C (and other aborting signals) directly after
+    # running the command so that we do not mark the autopkgtest as successful
+    # (the exit status will be zero)
+    # But we must check only after the temporary directory has been removed.
+    $self->check_abort();
+
     $self->log("\n");
-    # fail if neither all tests passed nor was the package without tests
-    if ($status != 0 && $status != 8) {
-        $self->log_error("Autopkgtest run failed.\n");
-	$self->set('Autopkgtest Reason', 'fail');
-        return 0;
+
+    if ($status == 0) {
+	$self->set('Autopkgtest Reason', 'pass');
+    } elsif ($status == 8) {
+	$self->set('Autopkgtest Reason', 'no tests');
+    } else {
+	# fail if neither all tests passed nor was the package without tests
+	$self->log_error("Autopkgtest run failed.\n");
+	return 0;
     }
 
     $self->log_info("Autopkgtest run was successful.\n");
+    return 1;
+}
+
+sub explain_bd_uninstallable {
+    my $self = shift;
+
+    my $resolver = $self->get('Dependency Resolver');
+
+    my $pkgname = $self->get('Package');
+    my $dummy_pkg_name = $resolver->get_sbuild_dummy_pkg_name($pkgname);
+
+    if (!defined $self->get_conf('BD_UNINSTALLABLE_EXPLAINER')) {
+	return 0;
+    } elsif ($self->get_conf('BD_UNINSTALLABLE_EXPLAINER') eq '') {
+	return 0;
+    } elsif ($self->get_conf('BD_UNINSTALLABLE_EXPLAINER') eq 'apt') {
+	my (@instd, @rmvd);
+	my @apt_args = ('--simulate', \@instd, \@rmvd, 'install', $dummy_pkg_name,
+	    '-oDebug::pkgProblemResolver=true', '-oDebug::pkgDepCache::Marker=1',
+	    '-oDebug::pkgDepCache::AutoInstall=1', '-oDebug::BuildDeps=1'
+	);
+	$resolver->run_apt(@apt_args);
+    } elsif ($self->get_conf('BD_UNINSTALLABLE_EXPLAINER') eq 'dose3') {
+	# To retrieve all Packages files apt knows about we use "apt-get
+	# indextargets" and "apt-helper cat-file". The former is able to
+	# report the filesystem path of all input Packages files. The latter
+	# is able to decompress the files if necessary.
+	#
+	# We do not use "apt-cache dumpavail" or convert the EDSP output to a
+	# Packages file because that would make the package selection subject
+	# to apt pinning. This limitation would be okay if there was only the
+	# apt resolver but since there also exists the aptitude and aspcud
+	# resolvers which are able to find solution without pinning
+	# restrictions, we don't want to limit ourselves by it. In cases where
+	# apt cannot find a solution, this check is supposed to allow the user
+	# to know that choosing a different resolver might fix the problem.
+	$resolver->add_dependencies('DOSE3', 'dose-distcheck', "", "", "", "", "");
+	if (!$resolver->install_core_deps('dose3', 'DOSE3')) {
+	    return 0;
+	}
+
+	# We execute the desired commands as part of a pipe from within a bash
+	# script running inside the chroot. Rationale:
+	#
+	# - Constructing bidirectional communication between processes
+	#   requires IPC::Open2 and expressing this in perl is very verbose
+	#   compared to a pipe in shell.
+	# - Bash is chosen over sh because it offers -o pipefail. Without it,
+	#   the bash process will only fail if the last command in the pipe
+	#   fails. But we also want to fail if any of the earlier commands
+	#   fail.
+	# - Using perl over shell would require perl being installed inside
+	#   the chroot. We want to minimize the requirements we have on the
+	#   chroot.
+	# - bash is Essential:yes so it has to be installed inside the chroot.
+	# - Using multiple pipe_command() calls by sbuild instead of a bash
+	#   script running inside the chroot would require the data to be
+	#   copied from one process to the other with a while/read/write loop.
+	#   This is expensive if the chroot lives on a foreign host and thus
+	#   the data would have to be copied *twice* (forth and back) over the
+	#   network. Thus, we start all the processes under a common process on
+	#   inside the chroot to be able to connect them with normal pipes.
+	# - The dose-debcheck command is in curly braces because the |
+	#   operator takes precedence over the || operator and we only want to
+	#   check the exit code of dose-debcheck and not the exit code of the
+	#   whole pipe.
+	# - We expect an exit code of less than 64 of dose-debcheck. Any other
+	#   exit code indicates abnormal program termination.
+	# - We run dose-debcheck instead of dose-builddebcheck because we want
+	#   to check the dummy binary package created by sbuild instead of the
+	#   original source package Build-Depends.
+	# - We use dose-debcheck instead of dose-distcheck because we cannot
+	#   use the deb:// prefix on data from standard input.
+	my $native = $self->get_conf('BUILD_ARCH');
+	my $host = $self->get_conf('HOST_ARCH');
+	my $debforeignarg = '';
+	if ($self->get_conf('BUILD_ARCH') ne $self->get_conf('HOST_ARCH')) {
+	    $debforeignarg = '--deb-foreign-archs=' . $self->get_conf('HOST_ARCH');
+	}
+	my $command = << "EOF";
+apt-get indextargets --format '\$(FILENAME)' "Created-By: Packages" \\
+    | xargs --delimiter=\\\\n /usr/lib/apt/apt-helper cat-file \\
+    | { dose-debcheck --checkonly=$dummy_pkg_name:$host \\
+	--verbose --failures --successes --explain --deb-native-arch=$native \\
+	$debforeignarg || [ \$? -lt 64 ]; }
+EOF
+
+	my $session = $self->get('Session');
+	$session->run_command({
+		COMMAND => ['bash', '-o', 'pipefail', '-c', $command],
+		PRIORITY => 0,
+		USER => $self->get_conf('BUILD_USER'),
+	    });
+	if ($? != 0) {
+	    return 0;
+	}
+    }
+
     return 1;
 }
 
@@ -1757,7 +1943,7 @@ sub build {
 	}
     }
 
-    $self->log_subsubsection("Check disc space");
+    $self->log_subsubsection("Check disk space");
     chomp(my $current_usage = $session->read_command({ COMMAND => ["du", "-k", "-s", "$dscdir"]}));
     if ($?) {
 	$self->log_error("du exited with non-zero exit status $?");
@@ -1777,7 +1963,7 @@ sub build {
 	    Sbuild::Exception::Build->throw(error => "df exited with non-zero exit status $?", failstage => "check-space");
 	}
 	if ($free < 2*$current_usage && $self->get_conf('CHECK_SPACE')) {
-	    Sbuild::Exception::Build->throw(error => "Disc space is probably not sufficient for building.",
+	    Sbuild::Exception::Build->throw(error => "Disk space is probably not sufficient for building.",
 		info => "Source needs $current_usage KiB, while $free KiB is free.)",
 		failstage => "check-space");
 	} else {
@@ -2052,7 +2238,20 @@ sub build {
     };
 
     alarm($timeout);
-    while(<$pipe>) {
+    # We do not use a while(<$pipe>) {} loop because that one would only read
+    # full lines (until $/ is reached). But we do not want to tie "activity"
+    # to receiving complete lines on standard output and standard error.
+    # Receiving any data should be sufficient for a process to signal that it
+    # is still active. Thus, instead of reading lines, we use sysread() which
+    # will return us data once it is available even if the data is not
+    # terminated by a newline. To still print correctly to the log, we collect
+    # unterminated strings into an accumulator and print them to the log once
+    # the newline shows up. This has the added advantage that we can now not
+    # only treat \n as producing new lines ($/ is limited to a single
+    # character) but can also produce new lines when encountering a \r as it
+    # is common for progress-meter output of long-running processes.
+    my $acc = "";
+    while(1) {
 	alarm($timeout);
 	$last_time = time;
 	if ($self->get('ABORT')) {
@@ -2065,7 +2264,48 @@ sub build {
 		  PRIORITY => 0,
 		  DIR => '/' });
 	}
-	$self->log($_);
+	# The buffer size is really arbitrary and just makes sure not to call
+	# this function too often if lots of data is produced by the build.
+	# The function will immediately return even with less data than the
+	# buffer size once it is available.
+	my $ret = sysread($pipe, my $buf, 1024);
+	# sysread failed - this for example happens when the build timeouted
+	# and is killed as a result
+	if (!defined $ret) {
+	    last;
+	}
+	# A return value of 0 signals EOF
+	if ($ret == 0) {
+	    last;
+	}
+	# We choose that lines shall not only be terminated by \n but that new
+	# log lines are also produced after encountering a \r.
+	# A negative limit is used to also produce trailing empty fields if
+	# required (think of multiple trailing empty lines).
+	my @parts = split /\r|\n/, $buf, -1;
+	my $numparts = scalar @parts;
+	if ($numparts == 1) {
+	    # line terminator was not found
+	    $acc .= $buf;
+	} elsif ($numparts >= 2) {
+	    # first match needs special treatment as it needs to be
+	    # concatenated with $acc
+	    my $first = shift @parts;
+	    $self->log($acc . $first . "\n");
+	    my $last = pop @parts;
+	    for (my $i = 0; $i < $numparts - 2; $i++) {
+		$self->log($parts[$i] . "\n");
+	    }
+	    # the last part is put into the accumulator. This might
+	    # just be the empty string if $buf ended in a line
+	    # terminator
+	    $acc = $last;
+	}
+    }
+    # If the output didn't end with a line terminator, just print out the rest
+    # as we have it.
+    if ($acc ne "") {
+	$self->log($acc . "\n");
     }
     close($pipe);
     alarm(0);
@@ -2079,6 +2319,9 @@ sub build {
     }
     $self->set('Build End Time', time);
     $self->set('Pkg End Time', time);
+    $self->set('This Time', $self->get('Pkg End Time') - $self->get('Pkg Start Time'));
+    $self->set('This Time', 0) if $self->get('This Time') < 0;
+
     $self->write_stats('build-time',
 		       $self->get('Build End Time')-$self->get('Build Start Time'));
     $self->write_stats('install-download-time',
@@ -2267,9 +2510,6 @@ sub build {
 	    }
 	}
     }
-
-    $self->set('This Time', $self->get('Pkg End Time') - $self->get('Pkg Start Time'));
-    $self->get('This Time') = 0 if $self->get('This Time') < 0;
 
     $self->set('This Space', $self->check_space(@space_files));
 
@@ -2737,8 +2977,15 @@ sub open_build_log {
     $head1 .= ' (' . $arch_string . ') ';
     my $head2 = strftime_c "%a, %d %b %Y %H:%M:%S +0000",
 			 gmtime($self->get('Pkg Start Time'));
-    my $head = $head1 . ' ' x (80 - 4 - length($head1) - length($head2)) .
-	$head2;
+    my $head = $head1;
+    # If necessary, insert spaces so that $head1 is left aligned and $head2 is
+    # right aligned. If the sum of the length of both is greater than the
+    # available space of 76 characters, then no additional padding is
+    # inserted.
+    if (length($head1) + length($head2) <= 76) {
+	$head .= ' ' x (76 - length($head1) - length($head2));
+    }
+    $head .= $head2;
     $self->log_section($head);
 
     $self->log("Package: " . $self->get('Package') . "\n");
@@ -2781,7 +3028,7 @@ sub close_build_log {
 
     $self->log_sep();
     $self->log("Finished at ${date}\n");
-    $self->log(sprintf("Build needed %02d:%02d:%02d, %dk disc space\n",
+    $self->log(sprintf("Build needed %02d:%02d:%02d, %dk disk space\n",
 	       $hours, $minutes, $seconds, $space));
 
     if ($self->get_status() eq "successful") {

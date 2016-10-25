@@ -55,7 +55,7 @@ sub install_deps {
 
     my $status = 0;
     my $session = $self->get('Session');
-    my $dummy_pkg_name = 'sbuild-build-depends-' . $name. '-dummy';
+    my $dummy_pkg_name = $self->get_sbuild_dummy_pkg_name($name);
 
     # Call functions to setup an archive to install dummy package.
     $self->log_subsubsection("Setup apt archive");
@@ -118,6 +118,48 @@ sub install_deps {
 
   cleanup:
     return $status;
+}
+
+sub purge_extra_packages {
+    my $self = shift;
+    my $name = shift;
+
+    my $dummy_pkg_name = $self->get_sbuild_dummy_pkg_name($name);
+
+    my $session = $self->get('Session');
+
+    # we retrieve the list of installed Essential:yes packages because these
+    # must not be removed
+    my $pipe = $session->pipe_command({
+	    COMMAND => [ 'dpkg-query', '--showformat', '${Essential} ${Package}\\n', '--show' ],
+	    USER => $self->get_conf('BUILD_USER')
+	});
+    if (!$pipe) {
+	$self->log_error("unable to execute dpkg-query\n");
+	return 0;
+    }
+    my @essential;
+    while (my $line = <$pipe>) {
+	chomp $line;
+	if ($line !~ /^yes ([a-zA-Z0-9][a-zA-Z0-9+.-]*)$/) {
+	    next;
+	}
+	push @essential, "$1+";
+    }
+    close $pipe;
+    if (scalar @essential == 0) {
+	$self->log_error("no essential packages found \n");
+	return 0;
+    }
+    # the /dev/null prevents acpcud from even looking at external repositories, so all it can do is remove stuff
+    # it is also much faster that way
+    my (@instd, @rmvd);
+    $self->run_apt("-yf", \@instd, \@rmvd, 'autoremove',
+	@essential, $self->get_sbuild_dummy_pkg_name('core') . '+', "$dummy_pkg_name+",
+	'--solver', 'aspcud',
+	'-o', 'APT::Solver::aspcud::Preferences=+removed',
+	'-o', 'Dir::State::Lists=/dev/null',
+	'--allow-remove-essential');
 }
 
 1;

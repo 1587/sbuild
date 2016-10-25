@@ -1,11 +1,25 @@
-NEWS                                                            -*- outline -*-
-----
+ChangeLog                                                       -*- outline -*-
+---------
 
-Welcome to sbuild 0.71.0.  Please read these release notes carefully.
+Welcome to @PACKAGE@ @VERSION@.  Please read these release notes carefully.
 
 Full installation instructions are provided in the INSTALL file.  The
 README file also contains more specific notes regarding building and
 configuration.
+
+ * Major changes in 0.72.0:
+
+   1) Add option --purge-extra-packages which makes sure to remove all
+      non-essential packages before the package build starts.
+
+   2) Stop depending on newlines being produced by the build to detect timeouts
+
+   3) Accommodate for the autopkgtest 4.0 release by renaming all adt command
+      line options and configuration variables from adt to autopkgtest because
+      the same renaming was done by the autopkgtest release.
+
+   4) Add --bd-uninstallable-explainer which gives an explanation of why
+      the build dependencies of a source package cannot be installed.
 
  * Major changes in 0.71.0:
 
@@ -511,7 +525,7 @@ configuration.
 
   1) The architecture specified with --arch (defaulting to the host
      system architecture) must match the chroot architecture.  This
-     was previously allowed to be superceded by the chroot
+     was previously allowed to be superseded by the chroot
      architecture.  This change is to avoid any abiguity regarding the
      host/build architecture for the package being built.
 
