@@ -1,4 +1,4 @@
-sbuild (0.72.0-1) UNRELEASED; urgency=medium
+sbuild (0.72.0-1) unstable; urgency=medium
 
   * New upstream release
   * Remove all patches (they have been integrated upstream)
@@ -30,7 +30,7 @@ sbuild (0.72.0-1) UNRELEASED; urgency=medium
   * Add Depends on gnupg (>= 2.1) because sbuild now makes use of features
     like --pinentry-mode=loopback for key creation (closes: #840575)
 
- -- Johannes Schauer <josch@debian.org>  Mon, 24 Oct 2016 13:02:32 +0200
+ -- Johannes Schauer <josch@debian.org>  Tue, 25 Oct 2016 07:43:07 +0200
 
 sbuild (0.71.0-2) unstable; urgency=medium
 
