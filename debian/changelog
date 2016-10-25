@@ -4,6 +4,8 @@ sbuild (0.72.0-1) UNRELEASED; urgency=medium
   * Remove all patches (they have been integrated upstream)
   * Convert package to dh 10, allowing the most simple d/rules file.
   * Remove Roger Leigh from the Uploaders field (they left Debian)
+  * Add dependency of buildd on lsb-base (>= 3.0-6) because of the init script
+    it ships (/etc/init.d/buildd)
 
  -- Johannes Schauer <josch@debian.org>  Mon, 24 Oct 2016 13:02:32 +0200
 
