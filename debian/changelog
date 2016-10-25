@@ -1,6 +1,7 @@
 sbuild (0.72.0-1) UNRELEASED; urgency=medium
 
   * New upstream release
+  * Remove all patches (they have been integrated upstream)
 
  -- Johannes Schauer <josch@debian.org>  Mon, 24 Oct 2016 13:02:32 +0200
 
