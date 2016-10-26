@@ -1,3 +1,10 @@
+sbuild (0.72.0-2) UNRELEASED; urgency=medium
+
+  * Fix regression from 0.72.0 upload: install forward file as .forward and
+    not as buildd.forward (closes: #842057)
+
+ -- Johannes Schauer <josch@debian.org>  Wed, 26 Oct 2016 08:40:55 +0200
+
 sbuild (0.72.0-1) unstable; urgency=medium
 
   * New upstream release
