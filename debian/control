@@ -2,7 +2,8 @@ Source: sbuild
 Section: devel
 Priority: extra
 Maintainer: Debian buildd-tools Developers <buildd-tools-devel@lists.alioth.debian.org>
-Uploaders: Michael Banck <mbanck@debian.org>,
+Uploaders: Johannes Schauer <josch@debian.org>,
+           Michael Banck <mbanck@debian.org>,
            Francesco Paolo Lovergine <frankie@debian.org>,
            Wookey <wookey@debian.org>
 Build-Depends: debhelper (>= 10),
