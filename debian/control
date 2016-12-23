@@ -24,7 +24,6 @@ Architecture: all
 Section: perl
 Depends: adduser,
          apt,
-         apt-utils,
          dctrl-tools,
          devscripts (>= 2.10.26),
          dpkg-dev,
@@ -53,7 +52,6 @@ Description: Tool for building Debian binary packages from Debian sources
 Package: sbuild
 Architecture: all
 Depends: adduser,
-         apt-utils,
          libsbuild-perl (= ${source:Version}),
          ${misc:Depends},
          ${perl:Depends},

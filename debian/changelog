@@ -37,6 +37,8 @@ sbuild (0.73.0-1) UNRELEASED; urgency=medium
   * Move most Build-Depends to Build-Depends-Indep
   * Drop dependency and build dependency on libio-zlib-perl which is provided
     by perl-modules even in old-stable
+  * Drop dependency on apt-utils because sbuild does not use apt-ftparchive
+    anymore
 
  -- Johannes Schauer <josch@debian.org>  Fri, 23 Dec 2016 21:39:38 +0100
 
