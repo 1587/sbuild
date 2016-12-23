@@ -12,7 +12,6 @@ Build-Depends-Indep:
                libdpkg-perl (>= 1.17.2),
                libexception-class-perl,
                libfilesys-df-perl,
-               libio-zlib-perl,
                libmime-lite-perl,
                libyaml-tiny-perl
 Standards-Version: 3.9.6
@@ -32,7 +31,6 @@ Depends: adduser,
          libdpkg-perl (>= 1.18.14),
          libexception-class-perl,
          libfilesys-df-perl,
-         libio-zlib-perl,
          libmime-lite-perl,
          schroot (>= 1.6.0),
          gnupg (>= 2.1),
