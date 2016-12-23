@@ -23,7 +23,6 @@ Package: libsbuild-perl
 Architecture: all
 Section: perl
 Depends: apt,
-         dctrl-tools,
          devscripts (>= 2.10.26),
          dpkg-dev,
          libdpkg-perl (>= 1.18.14),
