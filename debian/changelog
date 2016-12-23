@@ -48,6 +48,8 @@ sbuild (0.73.0-1) UNRELEASED; urgency=medium
       - Don't sign internal dummy repository anymore
   * Make schroot a hard dependency of buildd (it requires
     /etc/schroot/chroot.d/ in its postinst script)
+  * Add patch to remove DCMD config value which is not used and just uselessly
+    making libsbuild-perl depend on devscripts
 
  -- Johannes Schauer <josch@debian.org>  Fri, 23 Dec 2016 21:39:38 +0100
 
