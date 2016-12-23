@@ -54,6 +54,8 @@ sbuild (0.73.0-1) UNRELEASED; urgency=medium
     making libsbuild-perl depend on devscripts
   * Add kmod to Suggests of sbuild because modprobe is optionally used by
     sbuild-createchroot
+  * Add patch to use dpkg-query instead of grep-status so that dependency on
+    grep-dctrl is not needed anymore
 
  -- Johannes Schauer <josch@debian.org>  Fri, 23 Dec 2016 21:39:38 +0100
 
