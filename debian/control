@@ -85,6 +85,7 @@ Depends: adduser,
          sbuild (<< ${source:Version}.1~),
          sbuild (>= ${source:Version}),
          lsb-base (>= 3.0-6),
+         schroot,
          ${misc:Depends},
          ${perl:Depends}
 Suggests: wanna-build
