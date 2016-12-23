@@ -22,8 +22,7 @@ XS-Testsuite: autopkgtest
 Package: libsbuild-perl
 Architecture: all
 Section: perl
-Depends: adduser,
-         apt,
+Depends: apt,
          dctrl-tools,
          devscripts (>= 2.10.26),
          dpkg-dev,

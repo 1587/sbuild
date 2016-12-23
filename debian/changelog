@@ -39,6 +39,7 @@ sbuild (0.73.0-1) UNRELEASED; urgency=medium
     by perl-modules even in old-stable
   * Drop dependency on apt-utils because sbuild does not use apt-ftparchive
     anymore
+  * Do not let libsbuild-perl depend on adduser as it doesn't use it.
 
  -- Johannes Schauer <josch@debian.org>  Fri, 23 Dec 2016 21:39:38 +0100
 
