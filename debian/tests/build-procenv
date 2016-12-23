@@ -95,15 +95,6 @@ if [ -z "$http_proxy" ]; then
     echo "INFO: using proxy: ${http_proxy:-(none)}"
 fi
 
-# Use '--download-only' to avoid unpack which generates a
-# signature warning to stderr, causing this test to fail.
-# Take care to download the package version for the release we will
-# create the chroot for.
-echo "INFO: Downloading source for package '$pkg' from release '$release'"
-apt-get source --download-only "$pkg/$release"
-
-dsc=$(ls ${pkg}*.dsc)
-
 echo "INFO: Creating sbuild chroot '$chroot' for release '$release' in directory '$dir' from url '$url'"
 [ -n "$components" ] && components="--components=$components"
 # avoid "debconf: delaying package configuration, since apt-utils is not installed"
@@ -118,14 +109,13 @@ schroot --list --all-chroots|grep "^chroot:${chroot}$"
 echo "INFO: Displaying information about chroot '$chroot'"
 schroot --info "${chroot}"
 
-echo "INFO: Building package '$pkg' for release '$release' from '$dsc'"
-sbuild -A -d "$release" $dsc 2>&1
+echo "INFO: Building package '$pkg' for release '$release'"
+sbuild -A -d "$release" "$pkg" 2>&1
 
-pkg_and_version=$(echo "$dsc"|sed 's/\.dsc$//g')
-deb=${pkg_and_version}_${arch}.deb
+deb=${pkg}_*_${arch}.deb
 
 echo "INFO: Displaying sbuild log"
-cat ${pkg_and_version}_${arch}*.build
+cat ${pkg}_*_${arch}.build
 
 # Do what we can to check if the .deb looks usable (since we may not
 # be able to install it to test it properly)
