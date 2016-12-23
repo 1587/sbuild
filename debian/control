@@ -6,7 +6,8 @@ Uploaders: Johannes Schauer <josch@debian.org>,
            Michael Banck <mbanck@debian.org>,
            Francesco Paolo Lovergine <frankie@debian.org>,
            Wookey <wookey@debian.org>
-Build-Depends: debhelper (>= 10),
+Build-Depends: debhelper (>= 10)
+Build-Depends-Indep:
                groff-base,
                libdpkg-perl (>= 1.17.2),
                libexception-class-perl,

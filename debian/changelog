@@ -34,6 +34,7 @@ sbuild (0.73.0-1) UNRELEASED; urgency=medium
   * The autopkgtest backend now runs into its own process group.
   * Bump sbuild Depends on libdpkg-perl to at least 1.18.14 because of its use
     of Dpkg::Build::Info::get_build_env_whitelist()
+  * Move most Build-Depends to Build-Depends-Indep
 
  -- Johannes Schauer <josch@debian.org>  Fri, 23 Dec 2016 21:39:38 +0100
 
