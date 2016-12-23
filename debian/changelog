@@ -41,6 +41,7 @@ sbuild (0.73.0-1) UNRELEASED; urgency=medium
     anymore
   * Do not let libsbuild-perl depend on adduser and dctrl-tools as it doesn't
     use them.
+  * Make schroot and autopkgtest Recommends as they are both working backends
 
  -- Johannes Schauer <josch@debian.org>  Fri, 23 Dec 2016 21:39:38 +0100
 

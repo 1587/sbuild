@@ -29,12 +29,13 @@ Depends: apt,
          libexception-class-perl,
          libfilesys-df-perl,
          libmime-lite-perl,
-         schroot (>= 1.6.0),
          gnupg (>= 2.1),
          ${misc:Depends},
          ${perl:Depends}
 Recommends:
          exim4 | mail-transport-agent,
+         schroot (>= 1.6.0),
+         autopkgtest (>= 4.0.4),
 Suggests: libwww-perl
 Replaces: sbuild (<= 0.58.4-1)
 Description: Tool for building Debian binary packages from Debian sources
@@ -54,8 +55,10 @@ Depends: adduser,
          ${misc:Depends},
          ${perl:Depends},
          ${shlibs:Depends}
-Recommends: debootstrap
-Suggests: deborphan, wget, autopkgtest
+Recommends: debootstrap,
+         schroot (>= 1.6.0),
+         autopkgtest (>= 4.0.4),
+Suggests: deborphan, wget
 Description: Tool for building Debian binary packages from Debian sources
  The sbuild suite of programs (buildd and sbuild) are used to build
  binary packages from source packages.  sbuild does the actual package
