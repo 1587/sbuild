@@ -57,7 +57,9 @@ Depends: adduser,
 Recommends: debootstrap,
          schroot (>= 1.6.0),
          autopkgtest (>= 4.0.4),
-Suggests: deborphan, wget
+# kmod provides modprobe which is used by sbuild-creatchroot for auto-detecting
+# overlayfs capabilities
+Suggests: deborphan, wget, kmod
 Description: Tool for building Debian binary packages from Debian sources
  The sbuild suite of programs (buildd and sbuild) are used to build
  binary packages from source packages.  sbuild does the actual package
