@@ -44,6 +44,8 @@ sbuild (0.73.0-1) UNRELEASED; urgency=medium
   * Make schroot and autopkgtest Recommends as they are both working backends
   * Run dh_installinit with --no-start and --no-restart-on-upgrade so that the
     buildd daemon does not get started on installation (closes: #842057)
+  * Update autopkgtest
+      - Don't sign internal dummy repository anymore
 
  -- Johannes Schauer <josch@debian.org>  Fri, 23 Dec 2016 21:39:38 +0100
 

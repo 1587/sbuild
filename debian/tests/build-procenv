@@ -118,22 +118,6 @@ schroot --list --all-chroots|grep "^chroot:${chroot}$"
 echo "INFO: Displaying information about chroot '$chroot'"
 schroot --info "${chroot}"
 
-keydir=/var/lib/sbuild/apt-keys
-
-# Install pre-generated signing keys specifically to handle systems with
-# insufficient entropy to run 'sbuild-update --keygen' on.
-echo "INFO: Installing sbuild key pair (to avoid need for local entropy)"
-[ -d "$keydir" ] || die "key directory '$keydir' does not exist"
-
-srcdir="debian/tests"
-key="$srcdir/sbuild-key.pub"
-echo "INFO: Copying key '$key' to '$keydir'"
-install -o sbuild -g sbuild -m 0664 "$key" "$keydir"
-
-key="$srcdir/sbuild-key.sec"
-echo "INFO: Copying key '$key' to '$keydir'"
-install -o sbuild -g sbuild -m 0640 "$key" "$keydir"
-
 echo "INFO: Building package '$pkg' for release '$release' from '$dsc'"
 sbuild -A -d "$release" $dsc 2>&1
 
