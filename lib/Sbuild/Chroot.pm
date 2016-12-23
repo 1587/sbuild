@@ -57,7 +57,7 @@ sub new {
 	if (defined($self->get_conf('ENVIRONMENT_FILTER')));
 
     $self->set('Session ID', "");
-    $self->set('Chroot ID', $chroot_id);
+    $self->set('Chroot ID', $chroot_id) if defined $chroot_id;
     $self->set('Defaults', {
 	'COMMAND' => [],
 	'INTCOMMAND' => [], # Private
@@ -72,10 +72,6 @@ sub new {
 	'STREAMIN' => undef,
 	'STREAMOUT' => undef,
 	'STREAMERR' => undef});
-
-    if (!defined($self->get('Chroot ID'))) {
-	return undef;
-    }
 
     return $self;
 }
@@ -375,7 +371,7 @@ sub write_command {
     close $pipe;
 
     if ($?) {
-	$self->log_error("read_command failed to execute " . $options->{COMMAND}->[0] . "\n");
+	$self->log_error("write_command failed to execute " . $options->{COMMAND}->[0] . "\n");
 	return;
     }
 
@@ -678,7 +674,7 @@ sub run_command_internal {
 	warn "Cannot fork: $!\n";
     } elsif ($pid == 0) { # child
 
-	# redirect stdout
+	# redirect stdin
 	my $in = $self->get_option($options, 'STREAMIN');
 	if (defined($in) && $in && \*STDIN != $in) {
 	    open(STDIN, '<&', $in)

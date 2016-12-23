@@ -30,6 +30,7 @@ use POSIX qw(getgroups getgid);
 use Sbuild qw(isin);
 use Sbuild::ConfBase;
 use Sbuild::Sysconfig;
+use Dpkg::Build::Info;
 
 BEGIN {
     use Exporter ();
@@ -696,7 +697,7 @@ sub setup ($) {
 	    VARNAME => 'build_path',
 	    GROUP => 'Build options',
 	    DEFAULT => undef,
-	    HELP => 'By default the package is built in a path of the following format /build/packagename-XXXXXX/packagename-version/ where XXXXXX is a random ascii string. This option allows one to specify a custom path where the package is built inside the chroot. Notice that the sbuild user in the chroot must have permissions to create the path. Common writable locations are subdirectories of /tmp or /build. The buildpath must be an empty directory because the last component of the path will be removed after the build is finished. If you are running multiple sbuild instances with the same build path in parallel for the same package, make sure that your build path is not in a directory commonly mounted by all sbuild instances (like /tmp or /home). In that case, use for example /build instead. Otherwise, your builds will probably fail or contain wrong content.',
+	    HELP => 'By default the package is built in a path of the following format /build/packagename-XXXXXX/packagename-version/ where XXXXXX is a random ascii string. This option allows one to specify a custom path where the package is built inside the chroot. The sbuild user in the chroot must have permissions to create the path. Common writable locations are subdirectories of /tmp or /build. Using /tmp might be dangerous, because (depending on the chroot backend) the /tmp inside the chroot might be a world writable location that can be accessed by processes outside the chroot. The directory /build can only be accessed by the sbuild user and group and should be a safe location. The buildpath must be an empty directory because the last component of the path will be removed after the build is finished. Notice that depending on the chroot backend (see CHROOT_MODE), some locations inside the chroot might be bind mounts that are shared with other sbuild instances. You must avoid using these shared locations as the build path or otherwise concurrent runs of sbuild will likely fail. With the default schroot chroot backend, the directory /build is shared between multiple schroot sessions. You can change this behaviour in /etc/schroot/sbuild/fstab. The behaviour of other chroot backends will vary.',
 	    CLI_OPTIONS => ['--build-path']
 	},
 	'SBUILD_MODE'				=> {
@@ -741,15 +742,37 @@ sub setup ($) {
 	    TYPE => 'ARRAY:STRING',
 	    VARNAME => 'environment_filter',
 	    GROUP => 'Core options',
-	    DEFAULT => ['^PATH$',
-			'^DEB(IAN|SIGN)?_[A-Z_]+$',
-	    		'^(C(PP|XX)?|LD|F)FLAGS(_APPEND)?$',
-			'^USER(NAME)?$',
-			'^LOGNAME$',
-			'^HOME$',
-			'^TERM$',
-			'^SHELL$'],
-	    HELP => 'Only environment variables matching one of the regular expressions in this arrayref will be passed to dpkg-buildpackage and other programs run by sbuild.'
+	    DEFAULT => [ sort (map "^$_\$", Dpkg::Build::Info::get_build_env_whitelist()) ],
+#	    GET => sub {
+#		my $conf = shift;
+#		my $entry = shift;
+#
+#		my $retval = $conf->_get($entry->{'NAME'});
+#
+#		if (!defined($retval)) {
+#		    $retval = [ map "^$_\$", Dpkg::Build::Info::get_build_env_whitelist() ];
+#		}
+#
+#		return $retval;
+#	    },
+	    HELP => 'Only environment variables matching one of the regular expressions in this arrayref will be passed to dpkg-buildpackage and other programs run by sbuild. The default value for this configuration setting is the list of variable names as returned by Dpkg::Build::Info::get_build_env_whitelist() which is also the list of variable names that is whitelisted to be recorded in .buildinfo files. Caution: the default value listed below was retrieved from the dpkg Perl library version available when this man page was generated. It might be different if your dpkg Perl library version differs.',
+	    EXAMPLE =>
+'# Setting the old environment filter
+$environment_filter = [\'^PATH$\',
+			\'^DEB(IAN|SIGN)?_[A-Z_]+$\',
+			\'^(C(PP|XX)?|LD|F)FLAGS(_APPEND)?$\',
+			\'^USER(NAME)?$\',
+			\'^LOGNAME$\',
+			\'^HOME$\',
+			\'^TERM$\',
+			\'^SHELL$\'];
+# Appending FOOBAR to the default
+use Dpkg::Build::Info;
+$environment_filter = [Dpkg::Build::Info::get_build_env_whitelist(), \'FOOBAR\'];
+# Removing FOOBAR from the default
+use Dpkg::Build::Info;
+$environment_filter = [map /^FOOBAR$/ ? () : $_, Dpkg::Build::Info::get_build_env_whitelist()];
+'
 	},
 	'BUILD_ENVIRONMENT'			=> {
 	    TYPE => 'HASH:STRING',
@@ -815,7 +838,7 @@ sub setup ($) {
 	    VARNAME => 'apt_update',
 	    GROUP => 'Chroot options',
 	    DEFAULT => 1,
-	    HELP => 'APT update.  1 to enable running "apt-get update" at the start of each build, or 0 to disable.',
+	    HELP => 'APT update.  1 to enable running "apt-get update" at the start of each build, or 0 to disable. This option has no effect on updating the internal sbuild apt repository, the repository for extra packages (see EXTRA_PACKAGES) and the repositories given via EXTRA_REPOSITORIES. These are always updated. Thus, this option only influences updates of the default repositories of the chroot.',
 	    CLI_OPTIONS => ['--apt-update', '--no-apt-update']
 	},
 	'APT_UPDATE_ARCHIVE_ONLY'		=> {
@@ -957,6 +980,14 @@ $crossbuild_core_depends = {
 	    HELP => 'Binary NMU version number.',
 	    CLI_OPTIONS => ['--binNMU', '--make-binNMU']
 	},
+	'BIN_NMU_TIMESTAMP'			=> {
+	    TYPE => 'STRING',
+	    VARNAME => 'bin_nmu_timestamp',
+	    GROUP => 'Build options',
+	    DEFAULT => undef,
+	    HELP => 'Binary NMU timestamp. The timestamp is either given as n integer in Unix time or as a string in the format compatible with Debian changelog entries (i.e. as it is generated by date -R). If set to the default (undef) the date at build time is used.',
+	    CLI_OPTIONS => ['--binNMU-timestamp']
+	},
 	'APPEND_TO_VERSION'			=> {
 	    TYPE => 'STRING',
 	    VARNAME => 'append_to_version',
@@ -965,6 +996,14 @@ $crossbuild_core_depends = {
 	    CHECK => $validate_append_version,
 	    HELP => 'Suffix to append to version number.  May be useful for derivative distributions.',
 	    CLI_OPTIONS => ['--append-to-version']
+	},
+	'BIN_NMU_CHANGELOG'			=> {
+	    TYPE => 'STRING',
+	    VARNAME => 'bin_nmu_changelog',
+	    GROUP => 'Build options',
+	    DEFAULT => undef,
+	    HELP => 'The content of a binary-only changelog entry. Leading and trailing newlines will be stripped.',
+	    CLI_OPTIONS => ['--binNMU-changelog']
 	},
 	'GCC_SNAPSHOT'				=> {
 	    TYPE => 'BOOL',

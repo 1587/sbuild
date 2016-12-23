@@ -40,6 +40,7 @@ use Dpkg::Control;
 use Dpkg::Index;
 use Dpkg::Version;
 use Dpkg::Deps qw(deps_concat deps_parse);
+use Dpkg::Changelog::Debian;
 use Scalar::Util 'refaddr';
 
 use MIME::Lite;
@@ -111,6 +112,7 @@ sub new {
     $self->set('Log File', undef);
     $self->set('Log Stream', undef);
     $self->set('Summary Stats', {});
+    $self->set('dpkg-buildpackage pid', undef);
 
     # DSC, package and version information:
     $self->set_dsc($dsc);
@@ -134,6 +136,17 @@ sub request_abort {
 
     $self->log_error("ABORT: $reason (requesting cleanup and shutdown)\n");
     $self->set('ABORT', $reason);
+
+    # Send signal to dpkg-buildpackage immediately if it's running.
+    if (defined $self->get('dpkg-buildpackage pid')) {
+	# Handling ABORT in the loop reading from the stdout/stderr output of
+	# dpkg-buildpackage is suboptimal because then the ABORT signal would
+	# only be handled once the build process writes to stdout or stderr
+	# which might not be immediately.
+	my $pid = $self->get('dpkg-buildpackage pid');
+	# Sending the pid negated to send to the whole process group.
+	kill "TERM", -$pid;
+    }
 }
 
 sub check_abort {
@@ -185,9 +198,23 @@ sub set_version {
     $osversion .= '-' . $pver->revision() unless $pver->{'no_revision'};
 
     # Add binNMU to version if needed.
-    if ($self->get_conf('BIN_NMU') || $self->get_conf('APPEND_TO_VERSION')) {
-	$version = binNMU_version($version, $self->get_conf('BIN_NMU_VERSION'),
-	    $self->get_conf('APPEND_TO_VERSION'));
+    if ($self->get_conf('BIN_NMU') || $self->get_conf('APPEND_TO_VERSION')
+	|| defined $self->get_conf('BIN_NMU_CHANGELOG')) {
+	if (defined $self->get_conf('BIN_NMU_CHANGELOG')) {
+	    # extract the binary version from the custom changelog entry
+	    open(CLOGFH, '<', \$self->get_conf('BIN_NMU_CHANGELOG'));
+	    my $changes = Dpkg::Changelog::Debian->new();
+	    $changes->parse(*CLOGFH, "descr");
+	    my @data = $changes->get_range({count => 1});
+	    $version = $data[0]->get_version();
+	    close(CLOGFH);
+	} else {
+	    # compute the binary version from the original version and the
+	    # requested binNMU and append-to-version parameters
+	    $version = binNMU_version($version,
+		$self->get_conf('BIN_NMU_VERSION'),
+		$self->get_conf('APPEND_TO_VERSION'));
+	}
     }
 
     my $bver = Dpkg::Version->new($version, check => 1);
@@ -271,12 +298,40 @@ sub run {
 	$self->set('Build Arch', $self->get_conf('BUILD_ARCH'));
 	$self->set('Build Profiles', $self->get_conf('BUILD_PROFILES'));
 
-	if (!$self->get_conf('BUILD_ARCH_ANY') &&
-	    !$self->get_conf('BUILD_ARCH_ALL') &&
-	    !$self->get_conf('BUILD_SOURCE')) {
-	    Sbuild::Exception::Build->throw(error => "Neither architecture specific nor architecture independent or source package specified to be built.",
-					    failstage => "init");
+	# Acquire the build type in the nomenclature used by the --build
+	# argument of dpkg-buildpackage
+	my $buildtype;
+	if ($self->get_conf('BUILD_SOURCE')) {
+	    if ($self->get_conf('BUILD_ARCH_ANY')) {
+		if ($self->get_conf('BUILD_ARCH_ALL')) {
+		    $buildtype = "full";
+		} else {
+		    $buildtype = "source,any";
+		}
+	    } else {
+		if ($self->get_conf('BUILD_ARCH_ALL')) {
+		    $buildtype = "source,all";
+		} else {
+		    $buildtype = "source";
+		}
+	    }
+	} else {
+	    if ($self->get_conf('BUILD_ARCH_ANY')) {
+		if ($self->get_conf('BUILD_ARCH_ALL')) {
+		    $buildtype = "binary";
+		} else {
+		    $buildtype = "any";
+		}
+	    } else {
+		if ($self->get_conf('BUILD_ARCH_ALL')) {
+		    $buildtype = "all";
+		} else {
+		    Sbuild::Exception::Build->throw(error => "Neither architecture specific nor architecture independent or source package specified to be built.",
+			failstage => "init");
+		}
+	    }
 	}
+	$self->set('Build Type', $buildtype);
 
 	my $dist = $self->get_conf('DISTRIBUTION');
 	if (!defined($dist) || !$dist) {
@@ -878,7 +933,7 @@ sub run_fetch_install_packages {
 	}
 	$self->set('Pkg Fail Stage', $e->failstage);
     }
-    if ( defined $self->get('Pkg Fail Stage')) {
+    if (!$self->get('ABORT') && defined $self->get('Pkg Fail Stage')) {
 	if ($self->get('Pkg Fail Stage') eq 'build' ) {
 	    if(!$self->run_external_commands("build-failed-commands")) {
 		Sbuild::Exception::Build->throw(error => "Failed to execute build-failed-commands",
@@ -1286,18 +1341,40 @@ sub check_architectures {
 	    COMMAND => ['dpkg', '--print-foreign-architectures'],
 	    USER => $self->get_conf('USERNAME'),
 	});
-    for my $deb (@{$self->get_conf('EXTRA_PACKAGES')}) {
+    # we use an anonymous subroutine so that the referenced variables are
+    # automatically rebound to their current values
+    my $check_deb_arch = sub {
+	my $pkg = shift;
 	# Investigate the Architecture field of the binary package
 	my $arch = $self->get('Host')->read_command({
-		COMMAND => ['dpkg-deb', '--field', $deb, 'Architecture'],
+		COMMAND => ['dpkg-deb', '--field', Cwd::abs_path($pkg), 'Architecture'],
 		USER => $self->get_conf('USERNAME')
-	});
+	    });
+	if (!defined $arch) {
+	    $self->log_warning("Failed to run dpkg-deb on $pkg. Skipping...\n");
+	    next;
+	}
 	chomp $arch;
 	# Only packages that are Architecture:all, the native architecture or
 	# one of the configured foreign architectures are allowed.
 	if ($arch ne 'all' and $arch ne $build_arch
 		and !isin($arch, @all_foreign_arches)) {
-	    $self->log_warning("Extra package $deb of architecture $arch cannot be installed in the chroot\n");
+	    $self->log_warning("Extra package $pkg of architecture $arch cannot be installed in the chroot\n");
+	}
+    };
+    for my $deb (@{$self->get_conf('EXTRA_PACKAGES')}) {
+	if (-f $deb) {
+	    &$check_deb_arch($deb);
+	} elsif (-d $deb) {
+	    opendir(D, $deb);
+	    while (my $f = readdir(D)) {
+		next if (! -f "$deb/$f");
+		next if ("$deb/$f" !~ /\.deb$/);
+		&$check_deb_arch("$deb/$f");
+	    }
+	    closedir(D);
+	} else {
+	    $self->log_warning("$deb is neither a regular file nor a directory. Skipping...\n");
 	}
     }
 
@@ -1361,7 +1438,6 @@ sub run_command {
     my $log_output = shift;
     my $log_error = shift;
     my $chroot = shift;
-    my $rootuser = shift;
 
     # Used to determine if we are to log from commands
     my ($out, $err, $defaults);
@@ -1390,7 +1466,7 @@ sub run_command {
 	    $out = $defaults->{'STREAMOUT'} if ($log_output);
 	    $err = $defaults->{'STREAMERR'} if ($log_error);
 
-	    my %args = (USER => ($rootuser ? 'root' : $self->get_conf('BUILD_USER')),
+	    my %args = (USER => 'root',
 			PRIORITY => 0,
 			STREAMOUT => $out,
 			STREAMERR => $err);
@@ -1432,7 +1508,6 @@ sub run_external_commands {
     # Create appropriate log message and determine if the commands are to be
     # run inside the chroot or not, and as root or not.
     my $chroot = 0;
-    my $rootuser = 1;
     if ($stage eq "pre-build-commands") {
 	$self->log_subsection("Pre Build Commands");
     } elsif ($stage eq "chroot-setup-commands") {
@@ -1441,23 +1516,18 @@ sub run_external_commands {
     } elsif ($stage eq "chroot-update-failed-commands") {
 	$self->log_subsection("Chroot-update Install Failed Commands");
 	$chroot = 1;
-	$rootuser = 1;
     } elsif ($stage eq "build-deps-failed-commands") {
 	$self->log_subsection("Build-Deps Install Failed Commands");
 	$chroot = 1;
-        $rootuser = 1;
     } elsif ($stage eq "build-failed-commands") {
 	$self->log_subsection("Generic Build Failed Commands");
 	$chroot = 1;
-        $rootuser = 0;
     } elsif ($stage eq "starting-build-commands") {
 	$self->log_subsection("Starting Timed Build Commands");
 	$chroot = 1;
-	$rootuser = 0;
     } elsif ($stage eq "finished-build-commands") {
 	$self->log_subsection("Finished Timed Build Commands");
 	$chroot = 1;
-	$rootuser = 0;
     } elsif ($stage eq "chroot-cleanup-commands") {
 	$self->log_subsection("Chroot Cleanup Commands");
 	$chroot = 1;
@@ -1468,11 +1538,13 @@ sub run_external_commands {
     # Run each command, substituting the various percent escapes (like
     # %SBUILD_DSC) from the commands to run with the appropriate subsitutions.
     my $hostarch = $self->get('Host Arch');
+    my $buildarch = $self->get('Build Arch');
     my $build_dir = $self->get('Build Dir');
     my $shell_cmd = "bash -i </dev/tty >/dev/tty 2>/dev/tty";
     my %percent = (
 	"%" => "%",
 	"a" => $hostarch, "SBUILD_HOST_ARCH" => $hostarch,
+	                  "SBUILD_BUILD_ARCH" => $buildarch,
 	"b" => $build_dir, "SBUILD_BUILD_DIR" => $build_dir,
 	"s" => $shell_cmd, "SBUILD_SHELL" => $shell_cmd,
     );
@@ -1534,7 +1606,7 @@ sub run_external_commands {
 
 	$self->log_subsubsection("$command_str");
 
-	$returnval = $self->run_command($command, $log_output, $log_error, $chroot, $rootuser);
+	$returnval = $self->run_command($command, $log_output, $log_error, $chroot);
 	$self->log("\n");
 	if (!$returnval) {
 	    $self->log_error("Command '$command_str' failed to run.\n");
@@ -1576,6 +1648,14 @@ sub run_lintian {
     push @lintian_command, @{$self->get_conf('LINTIAN_OPTIONS')} if
         ($self->get_conf('LINTIAN_OPTIONS'));
     push @lintian_command, $changes;
+
+    # If the source package was not instructed to be built, then it will not
+    # be part of the .changes file and thus, the .dsc has to be passed to
+    # lintian in addition to the .changes file.
+    if (!$self->get_conf('BUILD_SOURCE')) {
+	my $dsc = $self->get('DSC File');
+	push @lintian_command, $dsc;
+    }
 
     $resolver->add_dependencies('LINTIAN', 'lintian', "", "", "", "", "");
     return 1 unless $resolver->install_core_deps('lintian', 'LINTIAN');
@@ -1995,20 +2075,14 @@ sub build {
     my $version = $clog->{Version};
     my $dists = $clog->{Distribution};
     my $urgency = $clog->{Urgency};
-    my $date = $clog->{Date};
 
     if ($dists ne $self->get_conf('DISTRIBUTION')) {
 	$self->build_log_colour('yellow',
 				"^Distribution: " . $self->get_conf('DISTRIBUTION') . "\$");
     }
 
-    if ($self->get_conf('BIN_NMU') || $self->get_conf('APPEND_TO_VERSION')) {
-	if (!$self->get_conf('MAINTAINER_NAME')) {
-	    Sbuild::Exception::Build->throw(error => "No maintainer specified.",
-					    info => 'When making changelog additions for a binNMU or appending a version suffix, a maintainer must be specified for the changelog entry e.g. using $maintainer_name, $uploader_name or $key_id, (or the equivalent command-line options)',
-					    failstage => "check-space");
-	}
-
+    if ($self->get_conf('BIN_NMU') || $self->get_conf('APPEND_TO_VERSION')
+	|| defined $self->get_conf('BIN_NMU_CHANGELOG')) {
 	$self->log_subsubsection("Hack binNMU version");
 
 	my $text = $session->read_file("$dscdir/debian/changelog");
@@ -2028,21 +2102,61 @@ sub build {
 	    Sbuild::Exception::Build->throw(error => "Can't open debian/changelog for binNMU hack: $!",
 		failstage => "hack-binNMU");
 	}
-	$dists = $self->get_conf('DISTRIBUTION');
+	if (defined $self->get_conf('BIN_NMU_CHANGELOG')) {
+	    my $clogentry = $self->get_conf('BIN_NMU_CHANGELOG');
+	    # trim leading and trailing whitespace and linebreaks
+	    $clogentry =~ s/^\s+|\s+$//g;
+	    print $clogpipe $clogentry . "\n\n";
+	} else {
+	    if (!$self->get_conf('MAINTAINER_NAME')) {
+		Sbuild::Exception::Build->throw(error => "No maintainer specified.",
+		    info => 'When making changelog additions for a binNMU or appending a version suffix, a maintainer must be specified for the changelog entry e.g. using $maintainer_name, $uploader_name or $key_id, (or the equivalent command-line options)',
+		    failstage => "check-space");
+	    }
 
-	print $clogpipe "$name ($NMUversion) $dists; urgency=low, binary-only=yes\n\n";
-	if ($self->get_conf('APPEND_TO_VERSION')) {
-	    print $clogpipe "  * Append ", $self->get_conf('APPEND_TO_VERSION'),
-	    " to version number; no source changes\n";
-	}
-	if ($self->get_conf('BIN_NMU')) {
-	    print $clogpipe "  * Binary-only non-maintainer upload for $host_arch; ",
-	    "no source changes.\n";
-	    print $clogpipe "  * ", join( "    ", split( "\n", $self->get_conf('BIN_NMU') )), "\n";
-	}
-	print $clogpipe "\n";
+	    $dists = $self->get_conf('DISTRIBUTION');
 
-	print $clogpipe " -- " . $self->get_conf('MAINTAINER_NAME') . "  $date\n\n";
+	    print $clogpipe "$name ($NMUversion) $dists; urgency=low, binary-only=yes\n\n";
+	    if ($self->get_conf('APPEND_TO_VERSION')) {
+		print $clogpipe "  * Append ", $self->get_conf('APPEND_TO_VERSION'),
+		" to version number; no source changes\n";
+	    }
+	    if ($self->get_conf('BIN_NMU')) {
+		print $clogpipe "  * Binary-only non-maintainer upload for $host_arch; ",
+		"no source changes.\n";
+		print $clogpipe "  * ", join( "    ", split( "\n", $self->get_conf('BIN_NMU') )), "\n";
+	    }
+	    print $clogpipe "\n";
+
+	    # Earlier implementations used the date of the last changelog
+	    # entry for the new entry so that Multi-Arch:same packages would
+	    # be co-installable (their shared changelogs had to match). This
+	    # is not necessary anymore as binNMU changelogs are now written
+	    # into architecture specific paths. Re-using the date of the last
+	    # changelog entry has the disadvantage that this will effect
+	    # SOURCE_DATE_EPOCH which in turn will make the timestamps of the
+	    # files in the new package equal to the last version which can
+	    # confuse backup programs.  By using the build date for the new
+	    # binNMU changelog timestamp we make sure that the timestamps of
+	    # changed files inside the new package advanced in comparison to
+	    # the last version.
+	    #
+	    # The timestamp format has to follow Debian Policy §4.4
+	    #   https://www.debian.org/doc/debian-policy/ch-source.html#s-dpkgchangelog
+	    # which is the same format as `date -R`
+	    my $date;
+	    if (defined $self->get_conf('BIN_NMU_TIMESTAMP')) {
+		if ($self->get_conf('BIN_NMU_TIMESTAMP') =~ /^\+?[1-9]\d*$/) {
+		    $date = strftime_c "%a, %d %b %Y %H:%M:%S +0000",
+		    gmtime($self->get_conf('BIN_NMU_TIMESTAMP'));
+		} else {
+		    $date = $self->get_conf('BIN_NMU_TIMESTAMP');
+		}
+	    } else {
+		$date = strftime_c "%a, %d %b %Y %H:%M:%S +0000", gmtime();
+	    }
+	    print $clogpipe " -- " . $self->get_conf('MAINTAINER_NAME') . "  $date\n\n";
+	}
 	print $clogpipe $text;
 	close($clogpipe);
 	$self->log("Created changelog entry for binNMU version $NMUversion\n");
@@ -2208,12 +2322,9 @@ sub build {
 	    failstage => "dpkg-buildpackage");
     }
 
+    $self->set('dpkg-buildpackage pid', $command->{'PID'});
     $self->set('Sub Task', "dpkg-buildpackage");
 
-    # We must send the signal as root, because some subprocesses of
-    # dpkg-buildpackage could run as root. So we have to use a shell
-    # command to send the signal... but /bin/kill can't send to
-    # process groups :-( So start another Perl :-)
     my $timeout = $self->get_conf('INDIVIDUAL_STALLED_PKG_TIMEOUT')->{$pkg} ||
 	$self->get_conf('STALLED_PKG_TIMEOUT');
     $timeout *= 60;
@@ -2221,15 +2332,10 @@ sub build {
     my(@timeout_times, @timeout_sigs, $last_time);
 
     local $SIG{'ALRM'} = sub {
-	my $pid = $command->{'PID'};
+	my $pid = $self->get('dpkg-buildpackage pid');
 	my $signal = ($timed_out > 0) ? "KILL" : "TERM";
-	$session->run_command(
-	    { COMMAND => ['perl',
-			  '-e',
-			  "kill( \"$signal\", -$pid )"],
-	      USER => 'root',
-	      PRIORITY => 0,
-	      DIR => '/' });
+	# negative pid to send to whole process group
+	kill "$signal", -$pid;
 
 	$timeout_times[$timed_out] = time - $last_time;
 	$timeout_sigs[$timed_out] = $signal;
@@ -2254,16 +2360,6 @@ sub build {
     while(1) {
 	alarm($timeout);
 	$last_time = time;
-	if ($self->get('ABORT')) {
-	    my $pid = $command->{'PID'};
-	    $session->run_command(
-		{ COMMAND => ['perl',
-			      '-e',
-			      "kill( \"TERM\", -$pid )"],
-		  USER => 'root',
-		  PRIORITY => 0,
-		  DIR => '/' });
-	}
 	# The buffer size is really arbitrary and just makes sure not to call
 	# this function too often if lots of data is produced by the build.
 	# The function will immediately return even with less data than the
@@ -2310,6 +2406,7 @@ sub build {
     close($pipe);
     alarm(0);
     $rv = $?;
+    $self->set('dpkg-buildpackage pid', undef);
 
     my $i;
     for( $i = 0; $i < $timed_out; ++$i ) {
@@ -2377,6 +2474,8 @@ sub build {
 
 	$self->log_subsection("Changes");
 
+	# we use an anonymous subroutine so that the referenced variables are
+	# automatically rebound to their current values
 	my $copy_changes = sub {
 	    my $changes = shift;
 
@@ -2416,7 +2515,6 @@ sub build {
 		rename("$sys_build_dir/$changes.new", "$sys_build_dir/$changes")
 		    or $self->log("$sys_build_dir/$changes.new could not be " .
 		    "renamed to $sys_build_dir/$changes: $!\n");
-		$self->set('Changes File', "$sys_build_dir/$changes");
 		unlink("$build_dir/$changes")
 		    if $build_dir;
 	    }
@@ -2435,6 +2533,7 @@ sub build {
 	    $self->log_subsubsection("$changes:");
 
 	    my $pchanges = &$copy_changes($changes);
+	    $self->set('Changes File', $self->get_conf('BUILD_DIR') . "/$changes");
 
 	    my $checksums = Dpkg::Checksums->new();
 	    $checksums->add_from_control($pchanges);
@@ -2475,6 +2574,20 @@ sub build {
 	    }
 
 	    my $pchanges = &$copy_changes($so_changes);
+	}
+
+	$self->log_subsection("Buildinfo");
+
+	foreach (@cfiles) {
+	    my $deb = "$build_dir/$_";
+	    next if $deb !~ /\.buildinfo$/;
+	    my $buildinfo = $session->read_file($deb);
+	    if (!$buildinfo) {
+		$self->log_error("Cannot read $deb\n");
+	    } else {
+		$self->log($buildinfo);
+		$self->log("\n");
+	    }
 	}
 
 	$self->log_subsection("Package contents");
@@ -2561,6 +2674,13 @@ sub check_space {
     my $sum = 0;
 
     my $dscdir = $self->get('DSC Dir');
+
+    # if the source package was not yet unpacked, then DSC Dir is undefined
+    # and we will not attempt to compute the required space
+    if (!defined $dscdir) {
+	return -1;
+    }
+
     my $build_dir = $self->get('Build Dir');
     my $pkgbuilddir = "$build_dir/$dscdir";
     my ($space, $spacenum);
@@ -2695,6 +2815,7 @@ sub generate_stats {
     $self->add_stat('Build Architecture', $self->get('Build Arch'));
     $self->add_stat('Build Profiles', $self->get('Build Profiles'))
         if $self->get('Build Profiles');
+    $self->add_stat('Build Type', $self->get('Build Type'));
     my @keylist;
     if (defined $resolver) {
 	@keylist=keys %{$resolver->get('Initial Foreign Arches')};
@@ -2704,14 +2825,22 @@ sub generate_stats {
     $self->add_stat('Foreign Architectures', $foreign_arches )
         if $foreign_arches;
     $self->add_stat('Distribution', $self->get_conf('DISTRIBUTION'));
-    $self->add_stat('Space', $self->get('This Space'));
+    if ($self->get('This Space') >= 0) {
+	$self->add_stat('Space', $self->get('This Space'));
+    } else {
+	$self->add_stat('Space', "n/a");
+    }
     $self->add_stat('Build-Time',
 		    $self->get('Build End Time')-$self->get('Build Start Time'));
     $self->add_stat('Install-Time',
 		    $self->get('Install End Time')-$self->get('Install Start Time'));
     $self->add_stat('Package-Time',
 		    $self->get('Pkg End Time')-$self->get('Pkg Start Time'));
-    $self->add_stat('Build-Space', $self->get('This Space'));
+    if ($self->get('This Space') >= 0) {
+	$self->add_stat('Build-Space', $self->get('This Space'));
+    } else {
+	$self->add_stat('Build-Space', "n/a");
+    }
     $self->add_stat('Status', $self->get_status());
     $self->add_stat('Fail-Stage', $self->get('Pkg Fail Stage'))
 	if ($self->get_status() ne "successful");
@@ -2998,6 +3127,7 @@ sub open_build_log {
     $self->log("Host Architecture: " . $self->get('Host Arch') . "\n");
     $self->log("Build Architecture: " . $self->get('Build Arch') . "\n");
     $self->log("Build Profiles: " . $self->get('Build Profiles') . "\n") if $self->get('Build Profiles');
+    $self->log("Build Type: " . $self->get('Build Type') . "\n");
     $self->log("\n");
 }
 
@@ -3013,7 +3143,10 @@ sub close_build_log {
     my $hours = int($self->get('This Time')/3600);
     my $minutes = int(($self->get('This Time')%3600)/60),
     my $seconds = int($self->get('This Time')%60),
-    my $space = $self->get('This Space');
+    my $space = "no";
+    if ($self->get('This Space') >= 0) {
+	$space = sprintf("%dk", $self->get('This Space'));
+    }
 
     my $filename = $self->get('Log File');
 
@@ -3028,7 +3161,7 @@ sub close_build_log {
 
     $self->log_sep();
     $self->log("Finished at ${date}\n");
-    $self->log(sprintf("Build needed %02d:%02d:%02d, %dk disk space\n",
+    $self->log(sprintf("Build needed %02d:%02d:%02d, %s disk space\n",
 	       $hours, $minutes, $seconds, $space));
 
     if ($self->get_status() eq "successful") {

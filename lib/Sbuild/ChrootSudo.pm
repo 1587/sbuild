@@ -53,6 +53,8 @@ sub begin_session {
     my $self = shift;
     my $chroot = $self->get('Chroot ID');
 
+    return 0 if !defined $chroot;
+
     my $info = $self->get('Chroots')->get_info($chroot);
 
     print STDERR "Setting up chroot $chroot\n"
@@ -118,9 +120,9 @@ sub get_command_internal {
                 $shellcommand = shellescape $tmp;
             }
         }
-        push(@cmdline, '/bin/sh', '-c', "cd '$dir' && $shellcommand");
+        push(@cmdline, '/bin/sh', '-c', "cd " . (shellescape $dir) . " && $shellcommand");
     } else {
-        push(@cmdline, '/bin/sh', '-c', "cd '$dir' && ( $command )");
+        push(@cmdline, '/bin/sh', '-c', "cd " . (shellescape $dir) . " && ( $command )");
     }
 
     $options->{'USER'} = $user;

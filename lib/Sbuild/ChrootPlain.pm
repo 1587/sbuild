@@ -25,6 +25,8 @@ package Sbuild::ChrootPlain;
 use strict;
 use warnings;
 
+use Sbuild qw(shellescape);
+
 use POSIX;
 use FileHandle;
 use File::Temp ();
@@ -62,6 +64,8 @@ sub begin_session {
     $self->set('Priority', 0);
     $self->set('Location', $self->get('Chroot ID'));
     $self->set('Session Purged', 0);
+
+    return 0 if !defined $self->get('Chroot ID');
 
     return 0 if !$self->_setup_options();
 
@@ -122,19 +126,15 @@ sub get_command_internal {
         my $shellcommand;
         foreach (@$command) {
             my $tmp = $_;
-            $tmp =~ s/'//g; # Strip any single quotes for security
-            if ($_ ne $tmp) {
-                $self->log_warning("Stripped single quote from command for security: $_\n");
-            }
             if ($shellcommand) {
-                $shellcommand .= " '$tmp'";
+		$shellcommand .= " " . shellescape $tmp;
             } else {
-                $shellcommand = "'$tmp'";
+		$shellcommand = shellescape $tmp;
             }
         }
-        push(@cmdline, '/bin/sh', '-c', "cd '$dir' && $shellcommand");
+        push(@cmdline, '/bin/sh', '-c', "cd " . (shellescape $dir) . " && $shellcommand");
     } else {
-        push(@cmdline, '/bin/sh', '-c', "cd '$dir' && ( $command )");
+        push(@cmdline, '/bin/sh', '-c', "cd " . (shellescape $dir) . " && ( $command )");
     }
 
     $options->{'USER'} = $user;
