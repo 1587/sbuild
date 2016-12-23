@@ -1,3 +1,40 @@
+sbuild (0.73.0-1) UNRELEASED; urgency=medium
+
+  * New upstream release
+  * man/sbuild.1.in: clarify docs for --append-to-version and --make-binNMU
+    (closes: #844583)
+  * Allow passing a directory to --extra-package which will add all .deb inside
+    (closes: #844457)
+  * Unconditionally update repositories given via --extra-repository
+    (closes: #842281)
+  * For binNMUs, instead of copying the timestamp of the last changelog entry,
+    generate a new one (closes: #843773)
+  * Output build type in buildlog in the format used by dpkg-buildpackage
+    --build (closes: #820977)
+  * Install extra packages into their own internal repository which is created
+    at resolver creation time so that extra packages are considered during the
+    upgrade step (closes: #843694)
+  * Also output .buildinfo in buildlog (closes: #843933)
+  * pass the absolute path of extra .deb package to dpkg-deb (closes: #843692)
+  * Always pass the source package to lintian (closes: #843622)
+  * Do not print negative used space but n/a instead (closes: #842947)
+  * bin/sbuild-apt: pass --yes to apt operations as the apt operations are not
+    interactive (closes: #842138)
+  * Do not set 'Changes File' in copy_changes to avoid it being set to the
+    source-only changes file (closes: #842705)
+  * starting-build-command and finished-build-commands are now run as root.
+  * The autopkgtest-virt backends are no longer supplied with the chroot name.
+  * Add SBUILD_BUILD_ARCH percent escape.
+  * Use Dpkg::Build::Info::get_build_env_whitelist() to generate the default of
+    ENVIRONMENT_FILTER.
+  * Add the --binNMU-timestamp command line option to allow one to pass a
+    custom timestamp for the new binNMU changelog entry.
+  * Add option --binNMU-changelog which allows one to pass a complete
+    debian/changelog entry for binary-only builds.
+  * The autopkgtest backend now runs into its own process group.
+
+ -- Johannes Schauer <josch@debian.org>  Fri, 23 Dec 2016 21:39:38 +0100
+
 sbuild (0.72.0-2) unstable; urgency=medium
 
   * Fix regression from 0.72.0 upload: install forward file as .forward and
