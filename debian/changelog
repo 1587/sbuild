@@ -66,6 +66,7 @@ sbuild (0.73.0-1) UNRELEASED; urgency=medium
     "Library"
   * Replace git:// in Vcs-Git field by https://
   * Bump Standard-Version to 3.9.8 (no changes required)
+  * Convert debian/copyright to DEP-5 (make machine readable)
 
  -- Johannes Schauer <josch@debian.org>  Fri, 23 Dec 2016 21:39:38 +0100
 
