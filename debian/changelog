@@ -1,4 +1,4 @@
-sbuild (0.73.0-1) UNRELEASED; urgency=medium
+sbuild (0.73.0-1) unstable; urgency=medium
 
   * New upstream release
   * man/sbuild.1.in: clarify docs for --append-to-version and --make-binNMU
@@ -69,7 +69,7 @@ sbuild (0.73.0-1) UNRELEASED; urgency=medium
   * Bump Standard-Version to 3.9.8 (no changes required)
   * Convert debian/copyright to DEP-5 (make machine readable)
 
- -- Johannes Schauer <josch@debian.org>  Fri, 23 Dec 2016 21:39:38 +0100
+ -- Johannes Schauer <josch@debian.org>  Sat, 24 Dec 2016 02:28:48 +0100
 
 sbuild (0.72.0-2) unstable; urgency=medium
 
