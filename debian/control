@@ -36,7 +36,7 @@ Recommends:
          autopkgtest (>= 4.0.4),
 Suggests: libwww-perl
 Replaces: sbuild (<= 0.58.4-1)
-Description: Tool for building Debian binary packages from Debian sources
+Description: Library for building Debian binary packages from Debian sources
  The sbuild suite of programs (wanna-build, buildd and sbuild) are
  used to build binary packages from source packages.  The wanna-build
  database tracks packages which require building; buildd schedules
