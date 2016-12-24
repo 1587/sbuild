@@ -1,2 +1,3 @@
 remove_dcmd_config
 use_dpkg_query
+suppress_schroot_stderr
