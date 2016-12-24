@@ -48,6 +48,8 @@ sbuild (0.73.0-1) UNRELEASED; urgency=medium
       - Don't sign internal dummy repository anymore
       - Download source package inside the build chroot because the host might
         not be having the requested release in its sources.list
+      - Do not depend on procenv build depends as they should be installed
+        inside the build chroot and not on the host
   * Make schroot a hard dependency of buildd (it requires
     /etc/schroot/chroot.d/ in its postinst script)
   * Add patch to remove DCMD config value which is not used and just uselessly
