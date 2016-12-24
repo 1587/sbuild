@@ -135,7 +135,7 @@ if true
 #if [ "$release" = "$host_release" ]
 then
     echo "INFO: Installing package '$pkg' from '$deb'"
-    dpkg -i "$deb"
+    apt -o Apt::Cmd::Disable-Script-Warning=1 -o APT::Get::Assume-Yes=1 install "$(pwd)/$deb"
 
     # run the command to prove the build worked but also to expose the
     # auto-package-test environment used for this test.
