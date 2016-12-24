@@ -57,6 +57,7 @@ sbuild (0.73.0-1) UNRELEASED; urgency=medium
   * Add patch to use dpkg-query instead of grep-status so that dependency on
     grep-dctrl is not needed anymore
   * Add patch that suppresses schroot writing to stderr in sbuild-createchroot
+  * Add patch that checks for modprobe in sbuild-createchroot
 
  -- Johannes Schauer <josch@debian.org>  Fri, 23 Dec 2016 21:39:38 +0100
 
