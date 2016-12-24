@@ -50,7 +50,7 @@ then
     # sid may not be buildable on a particular day.
     release=$(distro-info --stable)
 
-    url=http://archive.debian.org/debian
+    url=http://httpredir.debian.org/debian
 else
     die "need to know where archive is for distro '$distro'"
 fi
@@ -98,7 +98,7 @@ fi
 echo "INFO: Creating sbuild chroot '$chroot' for release '$release' in directory '$dir' from url '$url'"
 [ -n "$components" ] && components="--components=$components"
 # avoid "debconf: delaying package configuration, since apt-utils is not installed"
-sbuild-createchroot --include=apt-utils $components "$release" "$dir" "$url"
+sbuild-createchroot $components "$release" "$dir" "$url"
 if [ -n "$http_proxy" ]; then
     echo "Acquire::http { Proxy \"$http_proxy\"; };" > $dir/etc/apt/apt.conf.d/01proxy
 fi
@@ -112,10 +112,10 @@ schroot --info "${chroot}"
 echo "INFO: Building package '$pkg' for release '$release'"
 sbuild -A -d "$release" "$pkg" 2>&1
 
-deb=${pkg}_*_${arch}.deb
+deb=$(ls ${pkg}_*_${arch}.deb)
 
 echo "INFO: Displaying sbuild log"
-cat ${pkg}_*_${arch}.build
+cat ${pkg}_${arch}.build
 
 # Do what we can to check if the .deb looks usable (since we may not
 # be able to install it to test it properly)
@@ -129,7 +129,10 @@ extract="$ADTTMP/extract"
 echo "INFO: Extracting '$deb' to '$extract'"
 dpkg --extract "$deb" "$extract"
 
-if [ "$release" = "$host_release" ]
+# We should probably only attempt to install and run procenv if the release of
+# the build chroot is equal to the host, but lets be brave and try anyway
+if true
+#if [ "$release" = "$host_release" ]
 then
     echo "INFO: Installing package '$pkg' from '$deb'"
     dpkg -i "$deb"
