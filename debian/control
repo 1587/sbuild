@@ -17,7 +17,6 @@ Build-Depends-Indep:
 Standards-Version: 3.9.6
 Vcs-Browser: https://anonscm.debian.org/cgit/buildd-tools/sbuild.git?h=debian/unstable
 Vcs-Git: git://anonscm.debian.org/buildd-tools/sbuild -b debian/unstable
-XS-Testsuite: autopkgtest
 
 Package: libsbuild-perl
 Architecture: all
