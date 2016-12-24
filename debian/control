@@ -14,7 +14,7 @@ Build-Depends-Indep:
                libfilesys-df-perl,
                libmime-lite-perl,
                libyaml-tiny-perl
-Standards-Version: 3.9.6
+Standards-Version: 3.9.8
 Vcs-Browser: https://anonscm.debian.org/cgit/buildd-tools/sbuild.git?h=debian/unstable
 Vcs-Git: https://anonscm.debian.org/git/buildd-tools/sbuild.git -b debian/unstable
 
