@@ -9,7 +9,7 @@ Uploaders: Johannes Schauer <josch@debian.org>,
 Build-Depends: debhelper (>= 10)
 Build-Depends-Indep:
                groff-base,
-               libdpkg-perl (>= 1.17.2),
+               libdpkg-perl (>= 1.18.14),
                libexception-class-perl,
                libfilesys-df-perl,
                libmime-lite-perl,
