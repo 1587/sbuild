@@ -1,9 +1,9 @@
-sbuild (0.73.0-2) UNRELEASED; urgency=medium
+sbuild (0.73.0-2) unstable; urgency=medium
 
   * Bump build-depends on libdpkg-perl to 1.18.14 as sbuild is using
     Dpkg::Build::Info now (closes: #850075)
 
- -- Johannes Schauer <josch@debian.org>  Wed, 04 Jan 2017 08:14:13 +0100
+ -- Johannes Schauer <josch@debian.org>  Wed, 04 Jan 2017 08:17:08 +0100
 
 sbuild (0.73.0-1) unstable; urgency=medium
 
