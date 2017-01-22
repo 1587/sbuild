@@ -1,3 +1,9 @@
+sbuild (0.73.0-3) UNRELEASED; urgency=medium
+
+  * Add patch installing dose-distcheck in the native architecture
+
+ -- Johannes Schauer <josch@debian.org>  Sun, 22 Jan 2017 14:42:25 +0100
+
 sbuild (0.73.0-2) unstable; urgency=medium
 
   * Bump build-depends on libdpkg-perl to 1.18.14 as sbuild is using

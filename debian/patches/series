@@ -2,3 +2,4 @@ remove_dcmd_config
 use_dpkg_query
 suppress_schroot_stderr
 check_for_modprobe
+0001-Install-dose-distcheck-and-lintian-for-the-native-ar.patch
