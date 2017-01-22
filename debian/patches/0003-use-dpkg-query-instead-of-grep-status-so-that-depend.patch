@@ -1,3 +1,15 @@
+From 74e7d8a034e447aa8d8d17c73ef11b284e6c8b7d Mon Sep 17 00:00:00 2001
+From: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date: Sun, 22 Jan 2017 14:49:48 +0100
+Subject: [PATCH 3/5] use dpkg-query instead of grep-status so that dependency
+ on grep-dctrl is not needed anymore
+
+---
+ lib/Sbuild.pm | 23 +++++++++++++----------
+ 1 file changed, 13 insertions(+), 10 deletions(-)
+
+diff --git a/lib/Sbuild.pm b/lib/Sbuild.pm
+index 61584b5b..d4ddf528 100644
 --- a/lib/Sbuild.pm
 +++ b/lib/Sbuild.pm
 @@ -156,23 +156,26 @@ sub dump_file ($) {
@@ -37,3 +49,6 @@
  	print STDERR "Error reading dpkg status file in chroot: $!\n";
  	return 1;
      }
+-- 
+2.11.0
+

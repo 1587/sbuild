@@ -1,3 +1,15 @@
+From f7ca27402ccb5925ce54bafbae9de4eef8bf604e Mon Sep 17 00:00:00 2001
+From: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date: Sun, 22 Jan 2017 14:46:30 +0100
+Subject: [PATCH 2/5] remove DCMD config value which is not used and just
+ uselessly making libsbuild-perl depend on devscripts
+
+---
+ lib/Sbuild/Conf.pm | 8 --------
+ 1 file changed, 8 deletions(-)
+
+diff --git a/lib/Sbuild/Conf.pm b/lib/Sbuild/Conf.pm
+index 2df69c51..b70f721e 100644
 --- a/lib/Sbuild/Conf.pm
 +++ b/lib/Sbuild/Conf.pm
 @@ -368,14 +368,6 @@ sub setup ($) {
@@ -15,3 +27,6 @@
  	'MD5SUM'				=> {
  	    TYPE => 'STRING',
  	    VARNAME => 'md5sum',
+-- 
+2.11.0
+

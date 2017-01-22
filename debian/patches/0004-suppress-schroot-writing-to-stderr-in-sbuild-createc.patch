@@ -1,3 +1,14 @@
+From 3188a1addeb18c745767987e53015d3538ad276d Mon Sep 17 00:00:00 2001
+From: Johannes 'josch' Schauer <josch@mister-muffin.de>
+Date: Sun, 22 Jan 2017 14:51:14 +0100
+Subject: [PATCH 4/5] suppress schroot writing to stderr in sbuild-createchroot
+
+---
+ bin/sbuild-createchroot | 11 ++++++++---
+ 1 file changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/bin/sbuild-createchroot b/bin/sbuild-createchroot
+index 501f622d..4cd79aa7 100755
 --- a/bin/sbuild-createchroot
 +++ b/bin/sbuild-createchroot
 @@ -177,6 +177,8 @@ use File::Path qw(mkpath rmtree);
@@ -9,7 +20,7 @@
  
  sub add_items ($@);
  sub makedir ($$);
-@@ -209,11 +211,14 @@ if (defined $conf->get('CHROOT_PREFIX')
+@@ -209,11 +211,14 @@ if (defined $conf->get('CHROOT_PREFIX') && $conf->get('CHROOT_PREFIX') ne "") {
  }
  $chrootname .= "-" . $conf->get('BUILD_ARCH') . $conf->get('CHROOT_SUFFIX');
  
@@ -27,3 +38,6 @@
  
  # Create the target directory in advance so abs_path (which is buggy)
  # won't fail.  Remove if abs_path is replaced by something better.
+-- 
+2.11.0
+

@@ -1,5 +1,5 @@
-remove_dcmd_config
-use_dpkg_query
-suppress_schroot_stderr
-check_for_modprobe
 0001-Install-dose-distcheck-and-lintian-for-the-native-ar.patch
+0002-remove-DCMD-config-value-which-is-not-used-and-just-.patch
+0003-use-dpkg-query-instead-of-grep-status-so-that-depend.patch
+0004-suppress-schroot-writing-to-stderr-in-sbuild-createc.patch
+0005-check-for-modprobe-in-sbuild-createchroot.patch

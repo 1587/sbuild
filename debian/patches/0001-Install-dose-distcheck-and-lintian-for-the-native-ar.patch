@@ -1,7 +1,7 @@
 From 2adfa29406612c5d9716d84ccdea4633621516ed Mon Sep 17 00:00:00 2001
 From: Johannes 'josch' Schauer <josch@mister-muffin.de>
 Date: Sun, 22 Jan 2017 14:37:33 +0100
-Subject: [PATCH] Install dose-distcheck and lintian for the native
+Subject: [PATCH 1/5] Install dose-distcheck and lintian for the native
  architecture
 
 When crossbuilding, sbuild will try to install the host architecture
