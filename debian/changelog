@@ -1,9 +1,9 @@
-sbuild (0.73.0-3) UNRELEASED; urgency=medium
+sbuild (0.73.0-3) unstable; urgency=medium
 
   * Add patch installing dose-distcheck in the native architecture
   * Refresh other patches as "git format-patch" from sbuild git master branch
 
- -- Johannes Schauer <josch@debian.org>  Sun, 22 Jan 2017 14:42:25 +0100
+ -- Johannes Schauer <josch@debian.org>  Sun, 22 Jan 2017 15:03:49 +0100
 
 sbuild (0.73.0-2) unstable; urgency=medium
 
