@@ -1,3 +1,41 @@
+sbuild (0.73.0-3) unstable; urgency=medium
+
+    Generating a public/private keypair using "sbuild-update --keygen" for
+    signing the sbuild internal dummy repository is now optional. You are only
+    required to generate the keys if you plan to build packages for Debian
+    Squeeze or older.
+
+    If you only build packages for Debian Wheezy or newer, then
+    /var/lib/sbuild/apt-keys/sbuild-key.sec and
+    /var/lib/sbuild/apt-keys/sbuild-key.pub can be safely removed from
+    your system.
+
+ -- Johannes Schauer <josch@debian.org>  Tue, 24 Jan 2017 10:51:16 +0100
+
+sbuild (0.69.0-1) unstable; urgency=medium
+
+    With this release, logically opposite boolean command line arguments cannot
+    be specified together anymore. Attempting to do so will result in an error.
+
+    The remaining changes in this version only concern users of sbuild external
+    command hooks involving the %SBUILD_CHROOT_DIR percent escape in
+    --pre-build-commands or --post-build-commands.
+
+    With this release, the %SBUILD_CHROOT_DIR percent escape is now deprecated.
+    It can still be used but it will only work for sbuild backends that work on
+    the same file system as the sbuild process. With the addition of more
+    backends like the autopkgtest backend sbuild is now able to build inside
+    qemu virtual machines, containers and on remote hosts via ssh. In these
+    cases the %SBUILD_CHROOT_DIR variable doesn't make sense anymore because
+    the sbuild process cannot directly access the build environment anymore.
+
+    Instead, the %SBUILD_CHROOT_EXEC percent escape can be used to run an
+    arbitrary command inside the build chroot independent of the used backend.
+    See the sbuild manual page of how to utilize %SBUILD_CHROOT_EXEC to even
+    transfer files between the host running sbuild and the chroot backend.
+
+ -- Johannes Schauer <josch@debian.org>  Mon, 23 Jan 2017 19:54:26 +0100
+
 sbuild (0.58.3-1) unstable; urgency=low
 
     The sbuild group was previously created as a non-sytem group.

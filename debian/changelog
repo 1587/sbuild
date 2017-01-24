@@ -1,3 +1,9 @@
+sbuild (0.73.0-4) UNRELEASED; urgency=medium
+
+  * Retroactively add two entries into debian/NEWS for the Stretch release.
+
+ -- Johannes Schauer <josch@debian.org>  Tue, 24 Jan 2017 10:56:57 +0100
+
 sbuild (0.73.0-3) unstable; urgency=medium
 
   * Add patch installing dose-distcheck in the native architecture
